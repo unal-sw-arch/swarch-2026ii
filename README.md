@@ -16,7 +16,7 @@ name, rename the directory and update this table in the same Pull Request.
 | [`g3-D-Unnamed`](g3-D-Unnamed) | Team D | Unnamed |
 | [`g3-E-Unnamed`](g3-E-Unnamed) | Team E | Unnamed |
 | [`g3-F-Unnamed`](g3-F-Unnamed) | Team F | Unnamed |
-| [`g3-G-Unnamed`](g3-G-Unnamed) | Team G | Unnamed |
+| [`g3-G-Pilosia`](g3-G-Pilosia) | Team G | Pilosia |
 | [`g3-H-Unnamed`](g3-H-Unnamed) | Team H | Unnamed |
 
 ## Working agreement

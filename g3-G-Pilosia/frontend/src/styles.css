@@ -1,0 +1,647 @@
+/* Colores de la identidad de Pilosia */
+:root {
+  --wine: #8c2b32;
+  --olive: #5d5c31;
+  --black: #000000;
+  --white: #ffffff;
+
+  /* variaciones suaves que salen de los mismos colores */
+  --text-muted: rgba(0, 0, 0, 0.62);
+  --line: rgba(0, 0, 0, 0.12);
+  --line-strong: rgba(0, 0, 0, 0.85);
+  --wine-soft: rgba(140, 43, 50, 0.08);
+  --olive-soft: rgba(93, 92, 49, 0.1);
+  --hover-row: rgba(93, 92, 49, 0.05);
+
+  font-family: "Raleway", "Segoe UI", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--black);
+  background: var(--white);
+  /* Raleway trae números "antiguos" por defecto; así quedan alineados en tablas y notas */
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--white);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.2;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--wine);
+  outline-offset: 2px;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+/* ---------- Encabezado y navegación ---------- */
+
+.topbar {
+  border-top: 4px solid var(--wine);
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar-inner,
+.content {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+.topbar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0 6px;
+}
+
+.brand img {
+  display: block;
+  height: 52px;
+  margin-left: -10px; /* el logo trae un margen interno */
+}
+
+.user-box {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  text-align: right;
+}
+
+.user-box strong {
+  display: block;
+  font-weight: 700;
+}
+
+.user-box span {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.tabs {
+  display: flex;
+  gap: 28px;
+}
+
+.tabs button {
+  background: none;
+  border: none;
+  padding: 12px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tabs button:hover {
+  color: var(--black);
+}
+
+.tabs button.active {
+  color: var(--wine);
+  border-bottom-color: var(--wine);
+}
+
+/* ---------- Contenido ---------- */
+
+.content {
+  padding-top: 36px;
+  padding-bottom: 64px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.page-header h1 {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.period {
+  font-weight: 600;
+  color: var(--olive);
+}
+
+.intro {
+  margin: 6px 0 28px;
+  max-width: 62ch;
+  color: var(--text-muted);
+}
+
+.section {
+  margin-top: 36px;
+}
+
+.section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+}
+
+.section-title h2 {
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.section-title .meta {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.section-title .meta strong {
+  color: var(--black);
+}
+
+.empty {
+  padding: 24px 0;
+  color: var(--text-muted);
+}
+
+/* ---------- Tablas ---------- */
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+th {
+  text-align: left;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 12px 8px 0;
+  border-top: 2px solid var(--line-strong);
+  border-bottom: 1px solid var(--line);
+}
+
+td {
+  padding: 11px 12px 11px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+tbody tr:hover {
+  background: var(--hover-row);
+}
+
+.right {
+  text-align: right;
+  padding-right: 0;
+}
+
+.num {
+  font-weight: 600;
+}
+
+.schedule-lines span {
+  display: block;
+}
+
+.schedule-lines .day {
+  display: inline-block;
+  width: 34px;
+  font-weight: 600;
+}
+
+.full {
+  color: var(--wine);
+  font-weight: 700;
+}
+
+.passed {
+  color: var(--olive);
+  font-weight: 700;
+}
+
+.failed {
+  color: var(--wine);
+  font-weight: 700;
+}
+
+.tag-enrolled {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--olive);
+}
+
+/* ---------- Botones y formularios ---------- */
+
+.btn {
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--wine);
+  color: var(--white);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #6f2127;
+}
+
+.btn-outline {
+  background: var(--white);
+  color: var(--black);
+  border-color: var(--line-strong);
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: var(--black);
+  color: var(--white);
+}
+
+.btn-outline-wine {
+  background: var(--white);
+  color: var(--wine);
+  border-color: var(--wine);
+}
+
+.btn-outline-wine:hover:not(:disabled) {
+  background: var(--wine);
+  color: var(--white);
+}
+
+.btn-small {
+  padding: 5px 12px;
+  font-size: 13px;
+}
+
+.link-back {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-bottom: 16px;
+  font-weight: 600;
+  color: var(--wine);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+input,
+select {
+  padding: 8px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+  font-size: 14px;
+  background: var(--white);
+  color: var(--black);
+}
+
+input:focus,
+select:focus {
+  border-color: var(--wine);
+}
+
+.search-bar {
+  display: flex;
+  gap: 8px;
+  max-width: 520px;
+  margin-bottom: 8px;
+}
+
+.search-bar input {
+  flex: 1;
+}
+
+.grade-input {
+  width: 76px;
+}
+
+/* ---------- Mensajes ---------- */
+
+.alert {
+  padding: 10px 14px;
+  margin: 16px 0;
+  border-left: 3px solid;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.alert-success {
+  border-color: var(--olive);
+  background: var(--olive-soft);
+}
+
+.alert-error {
+  border-color: var(--wine);
+  background: var(--wine-soft);
+  color: var(--wine);
+}
+
+/* ---------- Mis inscripciones: créditos ---------- */
+
+.credits {
+  margin-bottom: 8px;
+  max-width: 420px;
+}
+
+.credits p {
+  margin: 0 0 6px;
+}
+
+.credits strong {
+  font-size: 18px;
+}
+
+.credit-bar {
+  height: 6px;
+  background: var(--line);
+}
+
+.credit-bar div {
+  height: 100%;
+  background: var(--olive);
+}
+
+/* ---------- Historia académica ---------- */
+
+.summary {
+  display: flex;
+  align-items: flex-end;
+  gap: 40px;
+  flex-wrap: wrap;
+  padding: 8px 0 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.average {
+  font-size: 64px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--wine);
+}
+
+.average-label {
+  display: block;
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.summary p {
+  margin: 0 0 4px;
+  max-width: 40ch;
+}
+
+/* ---------- Mi horario ---------- */
+
+.timetable th,
+.timetable td {
+  border: 1px solid var(--line);
+  padding: 0;
+  width: 15%;
+}
+
+.timetable th {
+  padding: 8px;
+  text-align: center;
+  border-top: 2px solid var(--line-strong);
+}
+
+.timetable tbody tr:hover {
+  background: none;
+}
+
+.timetable td {
+  height: 36px;
+}
+
+.timetable .hour {
+  width: 64px;
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  vertical-align: top;
+  text-align: right;
+}
+
+.timetable {
+  min-width: 720px;
+}
+
+/* .timetable delante para que gane sobre el borde de ".timetable td" */
+.timetable .class-block {
+  padding: 6px 8px;
+  font-size: 12px;
+  vertical-align: top;
+  border-left: 3px solid;
+}
+
+.class-block strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.class-block span {
+  display: block;
+  color: var(--text-muted);
+}
+
+/* ---------- Ingreso ---------- */
+
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(300px, 2fr) 3fr;
+}
+
+.login-side {
+  background: var(--wine);
+  color: var(--white);
+  padding: 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.login-side img {
+  width: 72px;
+  margin-bottom: 28px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 14px;
+}
+
+.login-side h1 {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.login-side p {
+  margin: 12px 0 0;
+  max-width: 34ch;
+  font-size: 17px;
+  opacity: 0.9;
+}
+
+.login-main {
+  display: flex;
+  align-items: center;
+  padding: 56px;
+}
+
+.login-form {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-form h2 {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.login-form > p {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+}
+
+.login-form label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.role-switch {
+  display: flex;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.role-switch button {
+  flex: 1;
+  padding: 9px;
+  border: none;
+  background: var(--white);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.role-switch button + button {
+  border-left: 1px solid var(--line-strong);
+}
+
+.role-switch button.active {
+  background: var(--black);
+  color: var(--white);
+}
+
+.login-form .btn {
+  margin-top: 8px;
+  padding: 11px;
+}
+
+.hint {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ---------- Pantallas pequeñas ---------- */
+
+@media (max-width: 800px) {
+  .topbar-inner,
+  .content {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .brand img {
+    height: 42px;
+  }
+
+  .user-box {
+    gap: 12px;
+  }
+
+  .user-box strong {
+    font-size: 14px;
+  }
+
+  .user-box span {
+    display: none;
+  }
+
+  /* en celular las tablas se desplazan de lado en vez de apretarse */
+  .table-wrap table {
+    min-width: 640px;
+  }
+
+  .tabs {
+    gap: 20px;
+    overflow-x: auto;
+  }
+
+  .content {
+    padding-top: 24px;
+  }
+
+  .page-header h1 {
+    font-size: 25px;
+  }
+
+  .average {
+    font-size: 52px;
+  }
+
+  .login-page {
+    grid-template-columns: 1fr;
+  }
+
+  .login-side,
+  .login-main {
+    padding: 32px 16px;
+  }
+
+  .login-side h1 {
+    font-size: 32px;
+  }
+}

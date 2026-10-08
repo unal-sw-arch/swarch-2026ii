@@ -1,0 +1,15 @@
+{
+  "name": "grades-service",
+  "version": "1.0.0",
+  "description": "Servicio de notas de Pilosia (GraphQL + MongoDB)",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@apollo/server": "5.5.1",
+    "graphql": "16.14.2",
+    "mongodb": "7.7.0"
+  }
+}
