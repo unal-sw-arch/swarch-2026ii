@@ -1,0 +1,150 @@
+# Levantar todo:  docker compose up --build
+services:
+  # ------------------------------------------------------------ Bases de datos
+  db-usuarios:
+    image: postgres:15-alpine
+    container_name: bd_usuarios
+    environment:
+      POSTGRES_USER: user_buffit
+      POSTGRES_PASSWORD: password_buffit
+      POSTGRES_DB: bd_usuarios
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_users_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U user_buffit -d bd_usuarios"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  db-pedidos:
+    image: postgres:15-alpine
+    container_name: bd_pedidos
+    environment:
+      POSTGRES_USER: user_buffit
+      POSTGRES_PASSWORD: password_buffit
+      POSTGRES_DB: bd_pedidos
+    ports:
+      - "5433:5432"  # Se expone en el puerto local 5433 para evitar colisión de puertos
+    volumes:
+      - postgres_orders_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U user_buffit -d bd_pedidos"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  db-inventario:
+    image: mongo:6.0
+    container_name: bd_inventario
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongo_buffit
+      MONGO_INITDB_ROOT_PASSWORD: password_buffit
+      MONGO_INITDB_DATABASE: bd_inventario
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo_inventory_data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet -u mongo_buffit -p password_buffit --authenticationDatabase admin --eval 'db.runCommand({ping:1}).ok' | grep -q 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 10s
+
+  # ------------------------------------------------------------ Servicios
+  gestor-usuarios:
+    build: ./apps/gestor-usuarios
+    container_name: gestor_usuarios
+    environment:
+      PORT: "8002"
+      DATABASE_URL: postgresql+psycopg2://user_buffit:password_buffit@db-usuarios:5432/bd_usuarios
+    ports:
+      - "8002:8002"
+    depends_on:
+      db-usuarios:
+        condition: service_healthy
+    restart: on-failure
+
+  gestor-pedidos:
+    build: ./apps/gestor-pedidos
+    container_name: gestor_pedidos
+    environment:
+      PORT: "8004"
+      DATABASE_URL: postgresql+psycopg2://user_buffit:password_buffit@db-pedidos:5432/bd_pedidos
+      INVENTORY_GRPC_TARGET: gestor-inventario:50051
+    ports:
+      - "8004:8004"
+    depends_on:
+      db-pedidos:
+        condition: service_healthy
+      gestor-inventario:
+        condition: service_started
+    restart: on-failure
+
+  gestor-inventario:
+    build: ./apps/gestor-inventario
+    container_name: gestor_inventario
+    environment:
+      PORT: "8003"
+      GRPC_PORT: "50051"
+      MONGO_URI: mongodb://mongo_buffit:password_buffit@db-inventario:27017/?authSource=admin
+      MONGO_DB: bd_inventario
+      JWT_SECRET_KEY: clave_secreta_super_segura_buffit
+      JWT_ALGORITHM: HS256
+      ENFORCE_ROLES: "true"
+    ports:
+      - "8003:8003"
+      - "50051:50051"
+    depends_on:
+      db-inventario:
+        condition: service_healthy
+    restart: on-failure
+
+  api-gateway:
+    build: ./apps/api-gateway
+    container_name: api_gateway
+    environment:
+      JWT_SECRET_KEY: clave_secreta_super_segura_buffit
+      JWT_ALGORITHM: HS256
+      USERS_SERVICE_URL: http://gestor-usuarios:8002
+      ORDERS_SERVICE_URL: http://gestor-pedidos:8004
+      INVENTORY_SERVICE_URL: http://gestor-inventario:8003
+    ports:
+      - "8000:8000"
+    depends_on:
+      - gestor-usuarios
+      - gestor-pedidos
+      - gestor-inventario
+    restart: on-failure
+
+  auth-service:
+    build: ./apps/auth-service
+    container_name: auth_service
+    environment:
+      PORT: "5000"
+      JWT_SECRET_KEY: clave_secreta_super_segura_buffit
+      JWT_ALGORITHM: HS256
+      API_GATEWAY_URL: http://api-gateway:8000
+    ports:
+      - "5000:5000"
+    depends_on:
+      - api-gateway
+    restart: on-failure
+
+  portal:
+    build: ./apps/portal
+    container_name: portal
+    environment:
+      # Lo usa el navegador (en tu PC), por eso es localhost y no el nombre del contenedor
+      VITE_AUTH_SERVICE_URL: http://localhost:5000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - auth-service
+
+volumes:
+  postgres_users_data:
+  postgres_orders_data:
+  mongo_inventory_data:
