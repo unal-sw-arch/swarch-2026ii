@@ -7,3 +7,5 @@ backups/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+
+.kiro/
