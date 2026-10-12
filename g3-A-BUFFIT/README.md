@@ -58,7 +58,7 @@ El gestor de pedidos es un elemento de tipo componente de cómputo, aloja la ló
 
 * __Gestor de inventario:__
 
-El gestor de inventario es un elemento de tipo componente de cómputo, aloja la lógica de negocio para eliminar, consultar, modificar o añadir nuevo inventario, este es el elemento que primeramente hace peticiones a la base de datos de inventario. Tecnología: Flask.
+El gestor de inventario es un elemento de tipo componente de cómputo, aloja la lógica de negocio para eliminar, consultar, modificar o añadir nuevo inventario, este es el elemento que primeramente hace peticiones a la base de datos de inventario. Tecnología: FastAPI.
 
 * __BD usuarios:__
 
@@ -108,13 +108,12 @@ Este conector define una comunicación síncrona en donde el componente emisor d
 
 Este conector define una comunicación síncrona en donde el componente emisor de peticiones es el servicio de gestión de pedidos y el receptor es el servicio de gestión de inventario, la comunicación es de tipo gRPC.
 
-NOTA: Se utilizarán 4 contenedores de Docker, 3 para las BD y uno para los servicios.
+NOTA: Se utilizarán 9 contenedores de Docker, 3 para las BD y 6 para los servicios y orquestador.
 
 
 ## How to run
 
 Entrar desde la carpeta BUFFIT a una terminal de windows y ejecutar el comando
-
 
  *docker compose up --build*
 
