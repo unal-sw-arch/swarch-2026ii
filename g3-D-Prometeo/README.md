@@ -1,8 +1,15 @@
-# RestauranteApp
+# Team 3-D-Prometeo
 
+## Members
+
+- Daniel Aguilar Castro
+- Omar Chaparro Flechas
+- Baruj Vladimir Ramirez Escalante
+- David Alejandro Herrera Novoa
+
+## Project
 Sistema de operación y administración de restaurante. La aplicación usa una API desplegada en Cloudflare Workers, D1 como base de datos y un Durable Object para distribuir cambios en tiempo real.
-
-## Estructura
+## Architecture
 
 ```text
 apps/
@@ -21,7 +28,9 @@ docs/
 
 Los directorios nativos de Flutter (`android`, `ios`, `linux`, `macos`, `web` y `windows`) contienen integración de plataforma y, en gran parte, archivos generados. El código de producto vive en `lib`.
 
-## Comandos principales
+## How to run
+
+### Comandos principales
 
 ```bash
 npm install

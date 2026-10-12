@@ -46,17 +46,34 @@ DELETE FROM ingredient_categories WHERE id >= 9000;
 DELETE FROM hall WHERE id >= 9000;
 DELETE FROM users WHERE id >= 9000;
 
+-- Usuarios de prueba con contraseñas conocidas (ver seeds/README.md).
+-- Hashes generados con el mismo scrypt del backend (domain/security/password.ts).
 INSERT INTO users (id, name, role, username, password_hash) VALUES
   (9001, 'Administrador Cloud', 'admin', 'cloud.admin',
    'scrypt$131072$8$1$1aO/RzsztFURBEb/FU/JXQ==$PxRV9RhMPux34ikb9SuJ6JIkVrlYqBaVQ5JMaBxMUxO9aN/ckAbqq/16n1zvrIt75ew+4nnTLobp4TSRJ/9BHQ=='),
   (9002, 'Mesero Cloud', 'waiter', 'cloud.waiter',
-   'scrypt$131072$8$1$1aO/RzsztFURBEb/FU/JXQ==$PxRV9RhMPux34ikb9SuJ6JIkVrlYqBaVQ5JMaBxMUxO9aN/ckAbqq/16n1zvrIt75ew+4nnTLobp4TSRJ/9BHQ==');
+   'scrypt$131072$8$1$1aO/RzsztFURBEb/FU/JXQ==$PxRV9RhMPux34ikb9SuJ6JIkVrlYqBaVQ5JMaBxMUxO9aN/ckAbqq/16n1zvrIt75ew+4nnTLobp4TSRJ/9BHQ=='),
+  (9010, 'Admin de prueba', 'admin', 'admin.test',
+   'scrypt$131072$8$1$UsYfjZS1tD0ICP9bavjiBQ==$pbYlZ9s3hmbQpnn6Js78p19YT/Wbde27N4NxdrfYcIht1DnOp5l/t5ubWVIi4i2RLGkS03SVqgc2JUkY5nmm+Q=='),
+  (9011, 'Mesero de prueba', 'waiter', 'mesero.test',
+   'scrypt$131072$8$1$EbTJPI0wY4QVEq1d6ReNMQ==$q6XzBT6/OZufOH4t882jjgTgFSLqQKr8pZ/C6nWVw70mjbJ0VpFwdWvk/Zjm4pWt1rE1ntQOuxJawF1U7o9r/A=='),
+  (9012, 'Cocina de prueba', 'kitchen', 'cocina.test',
+   'scrypt$131072$8$1$VbiiaSHlFL/uF6QjBXER9g==$kCy1VC9sWH9hC6i6BlDr1tHuuQMqys8gzF2YI3K2hYQ/l/w/VHqZ22UrE4DSTP3b88+D+maa5N+119KJPSS0Kg=='),
+  (9013, 'Caja de prueba', 'cashier', 'caja.test',
+   'scrypt$131072$8$1$+VK9Us4UuJoA8klkNFyaGQ==$KUgTYcg/WubDQDAUUMdgBtnqrKEZx5GTIFt8lwXFDFhmnlCyI2O6MUzGri2q65qMmajmohqx6YS9xp8ZZ9kKfg=='),
+  (9014, 'Gerente de prueba', 'manager', 'gerente.test',
+   'scrypt$131072$8$1$DcB39MMSivrZFAnomr8CkQ==$qdb/SC2E6HAGdf/Ith1HarGBMLfGgWk7s/dm0FtkMTvB8Eco8R2zlr09SdsfiJpQUJ16TxmDrHs8Z5e6k8aQVg==');
 
 INSERT INTO hall (id, name) VALUES
   (9001, 'Salón de prueba'),
   (9002, 'Terraza de prueba');
 
-INSERT INTO employee_halls (user_id, hall_id) VALUES (9002, 9001);
+INSERT INTO employee_halls (user_id, hall_id) VALUES
+  (9002, 9001),
+  (9011, 9001),
+  (9012, 9001),
+  (9013, 9001),
+  (9014, 9001);
 
 INSERT INTO hall_tables
   (id, identifier, x, y, width, height, rotation, status, hall_id)
