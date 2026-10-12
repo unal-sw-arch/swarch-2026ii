@@ -1,0 +1,31 @@
+{
+  "name": "restauranteapp",
+  "version": "1.0.0",
+  "description": "Cloudflare backend and D1 tooling for RestauranteApp",
+  "scripts": {
+    "start": "wrangler dev",
+    "cloud:dev": "wrangler dev",
+    "cloud:deploy": "wrangler deploy",
+    "cloud:typecheck": "tsc -p tsconfig.worker.json",
+    "cloud:d1:migrate:local": "wrangler d1 migrations apply DB --local",
+    "cloud:d1:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "cloud:d1:seed:local": "wrangler d1 execute DB --local --file=database/d1/seeds/development.sql",
+    "cloud:import:com-menu": "./scripts/catalog/import_com_menu.sh",
+    "cloud:import:gourmet-menu": "./scripts/catalog/import_gourmet_menu.sh",
+    "typecheck": "tsc6 --noEmit",
+    "test": "tsx --test apps/cloud_api/test/**/*.test.ts scripts/**/*.test.ts"
+  },
+  "private": true,
+  "keywords": ["cloudflare-workers", "d1", "restaurant"],
+  "type": "commonjs",
+  "dependencies": {
+    "hono": "^4.13.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260911.1",
+    "@types/node": "^26.4.0",
+    "tsx": "^4.23.12",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "wrangler": "^4.131.1"
+  }
+}
