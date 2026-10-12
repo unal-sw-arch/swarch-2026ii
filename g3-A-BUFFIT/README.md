@@ -118,3 +118,5 @@ Entrar desde la carpeta BUFFIT a una terminal de windows y ejecutar el comando
  *docker compose up --build*
 
  teniendo abierto el Docker Desktop.
+
+ Luego entrar en la dirección http://localhost:3000.
