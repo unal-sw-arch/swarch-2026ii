@@ -7,7 +7,7 @@
 - Víctor Camilo Cañón Castellanos
 - David Santiago Velasquez Gomez
 
-Proyecto de la materia Ingeniería de Software II, Universidad Nacional de Colombia (Facultad de Ingeniería, Departamento de Ingeniería de Sistemas e Industrial). Docente: Santiago Suarez Suarez. 2026.
+Proyecto de la materia Arquitectura de Software, Universidad Nacional de Colombia (Facultad de Ingeniería, Departamento de Ingeniería de Sistemas e Industrial). Docente: Santiago Suarez Suarez. 2026.
 
 ## Project
 
