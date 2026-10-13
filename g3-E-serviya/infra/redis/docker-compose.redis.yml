@@ -1,0 +1,44 @@
+# infra/redis/docker-compose.redis.yml — sustrato de coordinación (Vía B: solo redis-coord).
+# Se levanta JUNTO al compose raíz (comparten la red serviya-redis-net):
+#   docker compose -f docker-compose.yml -f infra/redis/docker-compose.redis.yml up --build
+# Antes del primer arranque: generar el ACL →  (cd infra/redis/acl && ./render-acl.sh users.coord.acl.tpl users.coord.acl)
+services:
+  redis-coord:
+    image: redis:8.2-alpine          # D-02: fijar el patch exacto parcheado antes de producción
+    container_name: serviya-redis-coord
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    # OJO: las rutas son relativas al directorio del proyecto (la RAÍZ del repo, por ser el primer -f),
+    # no a este archivo. Por eso van con el prefijo infra/redis/. Este compose se usa SIEMPRE merge-ado
+    # con el raíz: docker compose -f docker-compose.yml -f infra/redis/docker-compose.redis.yml up
+    volumes:
+      - ./infra/redis/conf/coord.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./infra/redis/acl/users.coord.acl:/usr/local/etc/redis/users.acl:ro
+      - redis-coord-data:/data
+    environment:
+      REDISCLI_AUTH: ${REDIS_HEALTHCHECK_PASSWORD}   # para que el healthcheck autentique como 'healthcheck'
+    healthcheck:
+      test: ["CMD", "redis-cli", "--user", "healthcheck", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    mem_limit: 1g
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    networks: [redis-net]
+    # SIN "ports:" — Redis no se expone fuera de la red interna
+
+  # Con Redis presente, notifications-service activa su sondeo de disponibilidad (modo degradado D-07/1a:
+  # si redis-coord cae, difiere los correos). Definición PARCIAL: se fusiona con la del compose raíz.
+  notifications-service:
+    environment:
+      COORDINATION_PROBE_ENABLED: "true"
+
+networks:
+  redis-net:
+    name: serviya-redis-net
+    internal: true                   # sin salida a Internet
+
+volumes:
+  redis-coord-data:

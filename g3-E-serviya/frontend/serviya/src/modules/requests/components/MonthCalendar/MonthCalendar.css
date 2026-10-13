@@ -1,0 +1,85 @@
+/* MonthCalendar — month grid view used in offerer/client schedule pages */
+
+.cal-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    background: var(--c-bg);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: 10px;
+}
+
+.cal-hd {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--c-soft);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    padding-bottom: 6px;
+}
+
+.cal-day {
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--c-text);
+    border-radius: var(--r);
+    cursor: default;
+    position: relative;
+}
+
+.cal-day.clickable {
+    cursor: pointer;
+    transition: background .15s, color .15s;
+}
+
+.cal-day.clickable:hover {
+    background: var(--c-primary-l);
+}
+
+.cal-day.selected {
+    background: var(--c-primary-d);
+    color: white;
+    font-weight: 700;
+}
+
+.cal-day.selected.has-event::after {
+    background: white;
+}
+
+.cal-day.other-month {
+    color: var(--c-soft);
+    opacity: .5;
+}
+
+.cal-day.today {
+    background: var(--c-primary);
+    color: white;
+    font-weight: 700;
+}
+
+.cal-day.has-event::after {
+    content: '';
+    position: absolute;
+    bottom: 5px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--c-primary-d);
+}
+
+.cal-day.today.has-event::after {
+    background: white;
+}

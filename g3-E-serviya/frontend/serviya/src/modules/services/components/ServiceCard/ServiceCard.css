@@ -1,0 +1,79 @@
+.s-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px
+}
+
+.s-card {
+    background: white;
+    border: 1.5px solid var(--c-border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all .2s
+}
+
+.s-card:hover {
+    border-color: var(--c-primary);
+    box-shadow: var(--sh);
+    transform: translateY(-2px)
+}
+
+.s-card-img {
+    height: 120px;
+    background: var(--c-primary-l);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative
+}
+
+.s-card-img svg {
+    width: 44px;
+    height: 44px;
+    color: var(--c-primary);
+    opacity: .55
+}
+
+.s-card-avail {
+    position: absolute;
+    top: 9px;
+    right: 9px
+}
+
+.s-card-body {
+    padding: 13px
+}
+
+.s-card-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--c-text);
+    margin-bottom: 3px
+}
+
+.s-oferer {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--c-soft);
+    margin-bottom: 9px
+}
+
+.s-oferer svg {
+    width: 12px;
+    height: 12px
+}
+
+.s-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between
+}
+
+.s-price {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--c-primary-d)
+}

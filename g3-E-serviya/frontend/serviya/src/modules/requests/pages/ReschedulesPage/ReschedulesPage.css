@@ -1,0 +1,41 @@
+.resched-pending {
+    background: white;
+    border: 2px solid var(--c-warn);
+    border-radius: var(--r-xl);
+    padding: 20px;
+    margin-bottom: 18px;
+}
+
+.rp-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.rp-change {
+    background: var(--c-warn-bg);
+    border-radius: var(--r);
+    padding: 12px;
+    margin-bottom: 14px;
+}
+
+.rp-dates {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    flex-wrap: wrap;
+}
+
+.rp-date {
+    background: white;
+    border-radius: var(--r);
+    padding: 7px 12px;
+    border: 1px solid var(--c-border);
+}
+
+.rp-date-new {
+    background: var(--c-primary-l);
+    border-color: var(--c-primary);
+}

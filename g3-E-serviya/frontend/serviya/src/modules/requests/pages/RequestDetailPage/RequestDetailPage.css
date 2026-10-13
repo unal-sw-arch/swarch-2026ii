@@ -1,0 +1,99 @@
+.rd-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.rd-header-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: var(--r-lg);
+    background: var(--c-primary-l);
+    color: var(--c-primary-d);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.rd-card {
+    margin-bottom: 16px;
+}
+
+.rd-card-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 12px;
+}
+
+.rd-fields {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+}
+
+.rd-field-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--c-soft);
+    margin-bottom: 3px;
+}
+
+.rd-field-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--c-text);
+}
+
+/* Línea de tiempo */
+.rd-timeline {
+    position: relative;
+    padding-left: 8px;
+}
+
+.rd-tl-item {
+    position: relative;
+    display: flex;
+    gap: 12px;
+    padding-bottom: 16px;
+}
+
+.rd-tl-item:last-child {
+    padding-bottom: 0;
+}
+
+.rd-tl-item::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 14px;
+    bottom: -2px;
+    width: 2px;
+    background: var(--c-border);
+}
+
+.rd-tl-item:last-child::before {
+    display: none;
+}
+
+.rd-tl-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--c-border);
+    flex-shrink: 0;
+    margin-top: 4px;
+    z-index: 1;
+}
+
+.rd-tl-dot-current {
+    background: var(--c-primary);
+    box-shadow: 0 0 0 3px var(--c-primary-l);
+}
+
+@media (max-width: 640px) {
+    .rd-fields {
+        grid-template-columns: 1fr;
+    }
+}

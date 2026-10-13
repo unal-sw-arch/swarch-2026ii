@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          # ORDEN = prioridad: las rutas de servicios extraídos van ANTES del comodín del monolito.
+          routes:
+            # --- notifications-service (extraído, ESTADO §7.4 paso 1) ---
+            - id: notifications-service
+              uri: ${NOTIFICATIONS_SERVICE_URI:http://localhost:8082}
+              predicates:
+                - Path=/api/v1/notifications,/api/v1/notifications/**,/api/v1/notification-channels
+            # --- monolito (todo lo que aún no se ha extraído) ---
+            - id: monolith
+              uri: ${MONOLITH_URI:http://localhost:8079}
+              predicates:
+                - Path=/**
+          default-filters:
+            # El gateway es la ÚNICA autoridad CORS: no reenvía Origin, así los servicios de detrás no aplican
+            # su propia política (el monolito rechazaría con 403 un origen que solo se añadió aquí) ni duplican
+            # las cabeceras Access-Control-* en la respuesta.
+            - RemoveRequestHeader=Origin
+          # CORS centralizado en el borde (antes lo resolvía solo el monolito). Mismos orígenes que tenía
+          # SecurityConfig del monolito; configurables por entorno sin recompilar.
+          globalcors:
+            add-to-simple-url-handler-mapping: true
+            cors-configurations:
+              '[/**]':
+                allowed-origins: ${GATEWAY_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081,http://127.0.0.1:8081}
+                allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+                allowed-headers: "*"
+                allow-credentials: true
+          httpclient:
+            connect-timeout: 2000
+            response-timeout: 30s
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      # Se sirve en /gateway-actuator para no chocar con rutas reenviadas. Solo health.
+      base-path: /gateway-actuator
+      exposure:
+        include: health

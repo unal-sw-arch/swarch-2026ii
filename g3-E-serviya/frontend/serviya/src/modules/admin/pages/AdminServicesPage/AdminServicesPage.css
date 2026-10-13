@@ -1,0 +1,28 @@
+.services-filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.service-result-card {
+    margin-bottom: 12px;
+    transition: border-color 0.15s;
+}
+
+.service-result-card:hover {
+    border-color: var(--c-primary);
+}
+
+.delete-service-preview {
+    background: var(--c-bg-s);
+    border-radius: var(--r-lg);
+    padding: 12px 14px;
+    margin-top: 12px;
+    border-left: 3px solid var(--c-danger);
+}
+
+@media (max-width: 768px) {
+    .services-filters-grid {
+        grid-template-columns: 1fr;
+    }
+}
