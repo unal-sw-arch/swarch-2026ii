@@ -1,0 +1,13 @@
+# Fallback for development networks that cannot reach Docker Hub's image CDN.
+# RabbitMQ comes from the Debian distribution package, not a third-party mirror.
+FROM python:3.13-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends rabbitmq-server \
+    && rm -rf /var/lib/apt/lists/* \
+    && rabbitmq-plugins enable --offline rabbitmq_management
+COPY transcoding_broker/rabbitmq.conf /etc/rabbitmq/rabbitmq.conf
+COPY --chmod=755 transcoding_broker/debian-entrypoint.sh /usr/local/bin/broker-entrypoint
+ENV RABBITMQ_LOGS=- RABBITMQ_SASL_LOGS=-
+USER rabbitmq
+EXPOSE 5672 15672
+ENTRYPOINT ["/usr/local/bin/broker-entrypoint"]
