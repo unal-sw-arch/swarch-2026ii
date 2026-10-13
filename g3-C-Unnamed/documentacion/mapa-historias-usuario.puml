@@ -1,0 +1,124 @@
+@startuml mapa-historias-usuario
+' Kanasta - User story map (columns = user activities, rows = releases)
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam rectangleRoundCorner 8
+skinparam rectangleFontSize 12
+skinparam ArrowColor transparent
+skinparam ranksep 14
+skinparam nodesep 18
+title Kanasta - Mapa de historias de usuario
+
+rectangle "<b>Actividades</b>" as L0 #transparent;line:transparent
+rectangle "<b>Versión 1</b>\n(entregada)" as L1_0 #fff4d6;line:transparent
+rectangle " " as L1_1 #transparent;line:transparent
+rectangle " " as L1_2 #transparent;line:transparent
+rectangle " " as L1_3 #transparent;line:transparent
+rectangle "- - - - - - - -" as LS #transparent;line:transparent
+rectangle "<b>Versión 2</b>\n(próxima)" as L2_0 #e5e7eb;line:transparent
+rectangle " " as L2_1 #transparent;line:transparent
+rectangle "<b>Explorar productos</b>" as A0 #1f8a5b;text:white
+rectangle "HU-01\nVer el catálogo" as S0_1_0 #fde68a
+rectangle "HU-02\nBuscar productos" as S0_1_1 #fde68a
+rectangle "HU-03\nFiltrar por categoría" as S0_1_2 #fde68a
+rectangle "HU-04\nVer detalle del producto" as S0_1_3 #fde68a
+rectangle "- - - - - - - -" as S0_sep #transparent;line:transparent
+rectangle "HU-13\nCalificar y comentar" as S0_2_0 #f3f4f6
+rectangle " " as S0_2_1 #transparent;line:transparent
+rectangle "<b>Armar el carrito</b>" as A1 #1f8a5b;text:white
+rectangle "HU-05\nAgregar al carrito" as S1_1_0 #fde68a
+rectangle "HU-06\nModificar el carrito" as S1_1_1 #fde68a
+rectangle " " as S1_1_2 #transparent;line:transparent
+rectangle " " as S1_1_3 #transparent;line:transparent
+rectangle "- - - - - - - -" as S1_sep #transparent;line:transparent
+rectangle " " as S1_2_0 #transparent;line:transparent
+rectangle " " as S1_2_1 #transparent;line:transparent
+rectangle "<b>Comprar</b>" as A2 #1f8a5b;text:white
+rectangle "HU-07\nConfirmar pedido\ncon datos de envío" as S2_1_0 #fde68a
+rectangle " " as S2_1_1 #transparent;line:transparent
+rectangle " " as S2_1_2 #transparent;line:transparent
+rectangle " " as S2_1_3 #transparent;line:transparent
+rectangle "- - - - - - - -" as S2_sep #transparent;line:transparent
+rectangle "HU-12\nPagar en línea" as S2_2_0 #f3f4f6
+rectangle " " as S2_2_1 #transparent;line:transparent
+rectangle "<b>Seguir mis pedidos</b>" as A3 #1f8a5b;text:white
+rectangle "HU-08\nConsultar mis pedidos" as S3_1_0 #fde68a
+rectangle " " as S3_1_1 #transparent;line:transparent
+rectangle " " as S3_1_2 #transparent;line:transparent
+rectangle " " as S3_1_3 #transparent;line:transparent
+rectangle "- - - - - - - -" as S3_sep #transparent;line:transparent
+rectangle "HU-15\nCorreo de confirmación" as S3_2_0 #f3f4f6
+rectangle " " as S3_2_1 #transparent;line:transparent
+rectangle "<b>Gestionar mi cuenta</b>" as A4 #1f8a5b;text:white
+rectangle " " as S4_1_0 #transparent;line:transparent
+rectangle " " as S4_1_1 #transparent;line:transparent
+rectangle " " as S4_1_2 #transparent;line:transparent
+rectangle " " as S4_1_3 #transparent;line:transparent
+rectangle "- - - - - - - -" as S4_sep #transparent;line:transparent
+rectangle "HU-10\nCrear cuenta" as S4_2_0 #f3f4f6
+rectangle "HU-11\nIniciar sesión" as S4_2_1 #f3f4f6
+rectangle "<b>Administrar la tienda</b>" as A5 #1f8a5b;text:white
+rectangle "HU-09\nCambiar estado\nde los pedidos" as S5_1_0 #fde68a
+rectangle " " as S5_1_1 #transparent;line:transparent
+rectangle " " as S5_1_2 #transparent;line:transparent
+rectangle " " as S5_1_3 #transparent;line:transparent
+rectangle "- - - - - - - -" as S5_sep #transparent;line:transparent
+rectangle "HU-14\nCrear y editar\nproductos" as S5_2_0 #f3f4f6
+rectangle " " as S5_2_1 #transparent;line:transparent
+
+L0 -down-> L1_0
+L1_0 -down-> L1_1
+L1_1 -down-> L1_2
+L1_2 -down-> L1_3
+L1_3 -down-> LS
+LS -down-> L2_0
+L2_0 -down-> L2_1
+A0 -down-> S0_1_0
+S0_1_0 -down-> S0_1_1
+S0_1_1 -down-> S0_1_2
+S0_1_2 -down-> S0_1_3
+S0_1_3 -down-> S0_sep
+S0_sep -down-> S0_2_0
+S0_2_0 -down-> S0_2_1
+A1 -down-> S1_1_0
+S1_1_0 -down-> S1_1_1
+S1_1_1 -down-> S1_1_2
+S1_1_2 -down-> S1_1_3
+S1_1_3 -down-> S1_sep
+S1_sep -down-> S1_2_0
+S1_2_0 -down-> S1_2_1
+A2 -down-> S2_1_0
+S2_1_0 -down-> S2_1_1
+S2_1_1 -down-> S2_1_2
+S2_1_2 -down-> S2_1_3
+S2_1_3 -down-> S2_sep
+S2_sep -down-> S2_2_0
+S2_2_0 -down-> S2_2_1
+A3 -down-> S3_1_0
+S3_1_0 -down-> S3_1_1
+S3_1_1 -down-> S3_1_2
+S3_1_2 -down-> S3_1_3
+S3_1_3 -down-> S3_sep
+S3_sep -down-> S3_2_0
+S3_2_0 -down-> S3_2_1
+A4 -down-> S4_1_0
+S4_1_0 -down-> S4_1_1
+S4_1_1 -down-> S4_1_2
+S4_1_2 -down-> S4_1_3
+S4_1_3 -down-> S4_sep
+S4_sep -down-> S4_2_0
+S4_2_0 -down-> S4_2_1
+A5 -down-> S5_1_0
+S5_1_0 -down-> S5_1_1
+S5_1_1 -down-> S5_1_2
+S5_1_2 -down-> S5_1_3
+S5_1_3 -down-> S5_sep
+S5_sep -down-> S5_2_0
+S5_2_0 -down-> S5_2_1
+L0 -right-> A0
+A0 -right-> A1
+A1 -right-> A2
+A2 -right-> A3
+A3 -right-> A4
+A4 -right-> A5
+@enduml

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catálogo | Kanasta</title>
+  <link rel="icon" href="img/icono.svg">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="index.html"><img src="img/logo.svg" alt="Kanasta" class="logo"></a>
+    <nav>
+      <a href="index.html">Catálogo</a>
+      <a href="pedidos.html">Mis pedidos</a>
+      <a href="admin.html">Administrar</a>
+      <a href="carrito.html" class="cart-link">Carrito <span id="cart-count">0</span></a>
+    </nav>
+  </header>
+  <div id="message" class="message hidden"></div>
+  <main>
+    <section class="hero">
+      <h1>Encuentra lo que necesitas</h1>
+      <p>Tecnología, hogar, ropa, deportes y papelería con envío a todo el país.</p>
+      <form id="search-form" class="search">
+        <input id="search-input" type="search" placeholder="Buscar productos, por ejemplo: audífonos">
+        <button type="submit">Buscar</button>
+      </form>
+    </section>
+    <div id="categories" class="chips"></div>
+    <p id="results-info" class="muted"></p>
+    <section id="products" class="grid"></section>
+  </main>
+  <footer class="footer">Kanasta · Tienda en línea · Bogotá, Colombia</footer>
+  <script src="js/api.js"></script>
+  <script src="js/catalogo.js"></script>
+</body>
+</html>
