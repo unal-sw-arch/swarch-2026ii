@@ -30,7 +30,46 @@ Los directorios nativos de Flutter (`android`, `ios`, `linux`, `macos`, `web` y 
 
 ## How to run
 
-### Comandos principales
+### Clonar el repositorio
+
+```bash
+git clone https://github.com/unal-sw-arch/swarch-2026ii.git
+cd swarch-2026ii/g3-D-Prometeo
+```
+
+Todos los comandos siguientes se ejecutan desde la carpeta `g3-D-Prometeo/`.
+
+### Con Docker (De manera Local)
+
+Requisitos: Docker y Docker Compose.
+
+```bash
+docker compose up --build
+```
+
+| Servicio          | Descripción                                               | URL                   |
+| ----------------- | --------------------------------------------------------- | --------------------- |
+| `backend`         | Worker en `wrangler dev` (D1 y Durable Object emulados)   | http://localhost:8787 |
+| `web-operational` | Build web del cliente operativo servido por nginx         | http://localhost:8080 |
+| `web-admin`       | Build web del cliente administrativo servido por nginx    | http://localhost:8081 |
+
+Con el stack levantado, aplica las migraciones y los datos de desarrollo en otra terminal:
+
+```bash
+docker compose exec backend npm run cloud:d1:migrate:local
+docker compose exec backend npm run cloud:d1:seed:local
+```
+
+Notas:
+
+- El backend monta el código fuente para hot-reload y guarda el estado emulado de D1 en el volumen `wrangler-state`, que persiste entre reinicios. Para empezar desde cero: `docker compose down -v`.
+- La URL del backend se compila dentro de los builds web (`--dart-define=RESTAURANT_API_URL`, por defecto `http://localhost:8787`). Si cambias el puerto o el host del backend, reconstruye las imágenes web con el build arg actualizado.
+- La imagen de `web-admin` se construye con contexto `apps/` porque `admin_client` depende de `operational_client` por path.
+- Docker solo se usa para desarrollo local; en producción el Worker se despliega a Cloudflare con `npm run cloud:deploy`.
+
+### Sin Docker
+
+#### Comandos principales
 
 ```bash
 npm install
@@ -39,6 +78,8 @@ npm test
 npm run cloud:dev
 ```
 
+#### Clientes Flutter
+
 Para cada cliente Flutter:
 
 ```bash
@@ -46,5 +87,8 @@ flutter pub get
 flutter analyze
 flutter test
 ```
+
+Consulta [la arquitectura](docs/architecture/system.md) y [las reglas de contribución](CONTRIBUTING.md) antes de añadir una funcionalidad.
+
 
 Consulta [la arquitectura](docs/architecture/system.md) y [las reglas de contribución](CONTRIBUTING.md) antes de añadir una funcionalidad.
