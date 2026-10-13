@@ -1,0 +1,32 @@
+// Kanasta - selected C&C view
+digraph cc {
+  graph [rankdir=TB, splines=spline, nodesep=1.0, ranksep=0.55, fontname="Helvetica", bgcolor="white", pad=0.4, label=<<b>Kanasta - Vista de Componentes y Conectores</b>>, labelloc=t, fontsize=18, forcelabels=true];
+  node [fontname="Helvetica", fontsize=12];
+  edge [fontname="Helvetica", fontsize=10, penwidth=1.3, labelfontsize=9, labelfontcolor="#666666"];
+  web [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="6" style="rounded" bgcolor="#E8F4FF"><tr><td><font point-size="11">&lt;&lt; Web App &gt;&gt;</font></td></tr><tr><td><b>Kanasta Web</b><br/><font point-size="10">HTML + JavaScript (Nginx)</font></td></tr><tr><td><table border="0" cellspacing="6"><tr><td port="cliente_catalogo" border="1" bgcolor="white"><font point-size="9">cliente-catalogo</font></td><td port="cliente_pedidos" border="1" bgcolor="white"><font point-size="9">cliente-pedidos</font></td><td port="cliente_imagenes" border="1" bgcolor="white"><font point-size="9">cliente-imagenes</font></td></tr></table></td></tr></table>>];
+  catalog [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="6" style="rounded" bgcolor="#EAF7EA"><tr><td><table border="0" cellspacing="6"><tr><td port="api_rest" border="1" bgcolor="white"><font point-size="9">api-rest</font></td></tr></table></td></tr><tr><td><font point-size="11">&lt;&lt; Service &gt;&gt;</font></td></tr><tr><td><b>Catalog Service</b><br/><font point-size="10">Python (FastAPI)</font></td></tr><tr><td><table border="0" cellspacing="6"><tr><td port="bd" border="1" bgcolor="white"><font point-size="9">bd</font></td></tr></table></td></tr></table>>];
+  orders [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="6" style="rounded" bgcolor="#FFF4E0"><tr><td><table border="0" cellspacing="6"><tr><td port="api_graphql" border="1" bgcolor="white"><font point-size="9">api-graphql</font></td></tr></table></td></tr><tr><td><font point-size="11">&lt;&lt; Service &gt;&gt;</font></td></tr><tr><td><b>Orders Service</b><br/><font point-size="10">JavaScript (Node.js)</font></td></tr><tr><td><table border="0" cellspacing="6"><tr><td port="cliente_catalogo" border="1" bgcolor="white"><font point-size="9">cliente-catalogo</font></td><td port="bd" border="1" bgcolor="white"><font point-size="9">bd</font></td></tr></table></td></tr></table>>];
+  images [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="6" style="rounded" bgcolor="#F3EAFB"><tr><td><table border="0" cellspacing="6"><tr><td port="api_imagenes" border="1" bgcolor="white"><font point-size="9">api-imagenes</font></td></tr></table></td></tr><tr><td><font point-size="11">&lt;&lt; Service &gt;&gt;</font></td></tr><tr><td><b>Image Provider</b><br/><font point-size="10">JavaScript (Node.js)</font></td></tr></table>>];
+  catalogdb [shape=cylinder, style=filled, fillcolor="#EAF7EA", margin="0.3,0.15", label=<<table border="0" cellspacing="2"><tr><td><table border="0" cellspacing="6"><tr><td port="sql" border="1" bgcolor="white"><font point-size="9">sql</font></td></tr></table></td></tr><tr><td><font point-size="11">&lt;&lt; RDB &gt;&gt;</font></td></tr><tr><td><b>Catalog DB</b><br/><font point-size="10">PostgreSQL</font></td></tr></table>>];
+  ordersdb [shape=cylinder, style=filled, fillcolor="#FFF4E0", margin="0.3,0.15", label=<<table border="0" cellspacing="2"><tr><td><table border="0" cellspacing="6"><tr><td port="documentos" border="1" bgcolor="white"><font point-size="9">documentos</font></td></tr></table></td></tr><tr><td><font point-size="11">&lt;&lt; NoSQL DB &gt;&gt;</font></td></tr><tr><td><b>Orders DB</b><br/><font point-size="10">MongoDB</font></td></tr></table>>];
+  j1 [shape=point, width=0.02, label=""];
+  web:cliente_catalogo:s -> j1 [label=<<font point-size="11">  &lt;&lt;REST&gt;&gt;</font>>, arrowhead=icurve, arrowsize=1.4, taillabel="consumidor", labeldistance=2.2, labelangle=35];
+  j1 -> catalog:api_rest:n [dir=back, arrowtail=odot, arrowsize=1.1, headlabel="proveedor", labeldistance=2.2, labelangle=-35, minlen=1];
+  j2 [shape=point, width=0.02, label=""];
+  web:cliente_pedidos:s -> j2 [label=<<font point-size="11">  &lt;&lt;GraphQL&gt;&gt;</font>>, arrowhead=icurve, arrowsize=1.4, taillabel="consumidor", labeldistance=2.2, labelangle=35];
+  j2 -> orders:api_graphql:n [dir=back, arrowtail=odot, arrowsize=1.1, headlabel="proveedor", labeldistance=2.2, labelangle=-35, minlen=1];
+  j3 [shape=point, width=0.02, label=""];
+  web:cliente_imagenes:s -> j3 [label=<<font point-size="11">  &lt;&lt;HTTP&gt;&gt;</font>>, arrowhead=icurve, arrowsize=1.4, taillabel="consumidor", labeldistance=2.2, labelangle=35];
+  j3 -> images:api_imagenes:n [dir=back, arrowtail=odot, arrowsize=1.1, headlabel="proveedor", labeldistance=2.2, labelangle=-35, minlen=1];
+  j4 [shape=point, width=0.02, label=""];
+  orders:cliente_catalogo:s -> j4 [label=<<font point-size="11">  &lt;&lt;REST&gt;&gt;</font>>, arrowhead=icurve, arrowsize=1.4, taillabel="consumidor", labeldistance=2.2, labelangle=35];
+  j4 -> catalog:api_rest:n [dir=back, arrowtail=odot, arrowsize=1.1, headlabel="", labeldistance=2.2, labelangle=-35, minlen=1];
+  j5 [shape=point, width=0.02, label=""];
+  catalog:bd:s -> j5 [label=<<font point-size="11">  &lt;&lt;Database Connection&gt;&gt;</font>>, arrowhead=icurve, arrowsize=1.4, taillabel="consumidor", labeldistance=2.2, labelangle=35];
+  j5 -> catalogdb:sql:n [dir=back, arrowtail=odot, arrowsize=1.1, headlabel="proveedor", labeldistance=2.2, labelangle=-35, minlen=1];
+  j6 [shape=point, width=0.02, label=""];
+  orders:bd:s -> j6 [label=<<font point-size="11">  &lt;&lt;Database Connection&gt;&gt;</font>>, arrowhead=icurve, arrowsize=1.4, taillabel="consumidor", labeldistance=2.2, labelangle=35];
+  j6 -> ordersdb:documentos:n [dir=back, arrowtail=odot, arrowsize=1.1, headlabel="proveedor", labeldistance=2.2, labelangle=-35, minlen=1];
+  {rank=same; orders; images}
+  {rank=same; catalog; ordersdb}
+}

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administrar pedidos | Kanasta</title>
+  <link rel="icon" href="img/icono.svg">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="index.html"><img src="img/logo.svg" alt="Kanasta" class="logo"></a>
+    <nav>
+      <a href="index.html">Catálogo</a>
+      <a href="pedidos.html">Mis pedidos</a>
+      <a href="admin.html">Administrar</a>
+      <a href="carrito.html" class="cart-link">Carrito <span id="cart-count">0</span></a>
+    </nav>
+  </header>
+  <div id="message" class="message hidden"></div>
+  <main>
+    <h1>Administrar pedidos</h1>
+    <p>Aquí puedes ver todos los pedidos de la tienda y cambiar su estado.</p>
+    <section id="admin-orders"><p class="muted">Cargando pedidos...</p></section>
+  </main>
+  <footer class="footer">Kanasta · Tienda en línea · Bogotá, Colombia</footer>
+  <script src="js/api.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
