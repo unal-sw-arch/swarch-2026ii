@@ -1,0 +1,83 @@
+# Stack contenerizado: backend (Cloudflare Worker emulado) + builds web de los
+# clientes Flutter servidos por nginx.
+#
+#   backend          -> wrangler dev (D1 + Durable Object emulados)   :8787
+#   web-operational  -> build web del cliente operativo (nginx)       :8080
+#   web-admin        -> build web del cliente administrativo (nginx)  :8081
+#
+# Uso:
+#   docker compose up --build
+#   # API         http://localhost:8787
+#   # Operativo   http://localhost:8080
+#   # Admin       http://localhost:8081
+#
+# Migraciones y seed (en otra terminal, con el servicio levantado):
+#   docker compose exec backend npm run cloud:d1:migrate:local
+#   docker compose exec backend npm run cloud:d1:seed:local
+#
+# NOTA: la URL del backend se compila dentro del build web (--dart-define).
+# El navegador del usuario alcanza el Worker en http://localhost:8787, por eso
+# ese es el valor por defecto de RESTAURANT_API_URL. Si cambias el puerto del
+# backend o lo despliegas en otro host, reconstruye las imágenes web con el
+# build arg actualizado.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: restauranteapp-cloud:dev
+    container_name: restauranteapp-cloud
+    ports:
+      - "8787:8787"
+    environment:
+      # Fuerza color/UX razonable de wrangler en contenedor no interactivo.
+      WRANGLER_SEND_METRICS: "false"
+    volumes:
+      # Código fuente para hot-reload. node_modules queda como volumen anónimo
+      # para no pisar las dependencias instaladas en la imagen con las del host.
+      - .:/app
+      - /app/node_modules
+      # Persistencia del estado emulado (D1, Durable Object, caché) entre
+      # reinicios del contenedor.
+      - wrangler-state:/app/.wrangler
+    command:
+      - npx
+      - wrangler
+      - dev
+      - --ip
+      - 0.0.0.0
+      - --port
+      - "8787"
+
+  web-operational:
+    build:
+      context: ./apps/operational_client
+      dockerfile: Dockerfile
+      args:
+        # URL que el navegador usa para alcanzar el backend contenerizado.
+        RESTAURANT_API_URL: http://localhost:8787
+    image: restauranteapp-web-operational:dev
+    container_name: restauranteapp-web-operational
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+  web-admin:
+    build:
+      # El contexto es apps/ porque admin_client depende de operational_client
+      # por path (restaurante_operational -> ../operational_client).
+      context: ./apps
+      dockerfile: admin_client/Dockerfile
+      args:
+        RESTAURANT_API_URL: http://localhost:8787
+    image: restauranteapp-web-admin:dev
+    container_name: restauranteapp-web-admin
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend
+
+volumes:
+  wrangler-state:
