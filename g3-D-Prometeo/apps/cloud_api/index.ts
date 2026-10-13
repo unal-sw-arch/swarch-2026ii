@@ -32,7 +32,8 @@ app.use('*', (c, next) => {
   return cors({
     origin: (origin) => (allowedOrigins.includes(origin) ? origin : null),
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
+    allowHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
+    exposeHeaders: ['Idempotency-Key', 'Idempotency-Replayed'],
     credentials: true,
   })(c, next);
 });
