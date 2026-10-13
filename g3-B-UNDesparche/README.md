@@ -200,9 +200,43 @@ The system will include functionality for registration, updating, querying, trac
 ## System Architecture
 
 Below is the Components and Connectors (C&C) diagram of the planned architecture:
+The Component and Connector (C&C) Diagram:
+
+![C&C diagram](images/diagramaC&C.jpeg)
+
+The model organizes the system into three main layers:
+
+- Frontend Client (<<UI>> Frontend Client): Contains the <<Web App>> SPA React App component, which is the single point of user interaction.
+
+- Backend Microservices Layer (Backend Containers): Composed of three encapsulated and independent subsystems.
+
+- External Services & Persistence: Includes relational data stores and SaaS cloud services.
+
+Components:
+
+- "Web App" SPA React App ("UI"): The user interface component executed in the client's browser. It consumes local resources (CPU/RAM in the browser) and initiates the system's initial requests.
+
+- "Service" Inventory Service, Users Service, and Events Service: The primary backend compute units. They process the business rules for each domain autonomously and independently.
+
+- Internal Adapters (Firebase Auth and Firebase Storage): Act as auxiliary components (utilities / adapters) within the microservices' internal structure to adapt external SDK APIs to the interfaces expected by the services.
+
+- "DB" Inventory DB, Users DB, and Events DB: The relational database management system (RDBMS) engines. Each provides ACID guarantees to its respective microservice under the polyglot persistence / Database per Service pattern.
+
+- "Identity Provider" Firebase Auth: An external managed service acting as the single source of truth for identity state, credentials, and custom user claims.
+
+- "Object Storage" Firebase Storage: Unstructured cloud object storage used to store binary files such as event and equipment images.
+
+Connectors:
+
+- "http": Operates between backend adapters and external APIs in the cloud.
+
+- "Database Connection": Links the persistence port of each microservice to the input port of its respective relational database engine.
+
+Why it is a microservices-based architecture:
+
+It is a microservices architecture because no direct connection (via HTTP or RPC) exists between the Users, Events, and Inventory microservices, and each exclusively owns and manages its own relational persistent storage. Furthermore, authentication and authorization do not require cascading calls to the Users Service; all microservices autonomously validate the token and custom role claims.
 
 ---
-
 ## Installation and Running the Project
 
 ### Prerequisites
