@@ -11,6 +11,37 @@
 Sistema de operación y administración de restaurante. La aplicación usa una API desplegada en Cloudflare Workers, D1 como base de datos y un Durable Object para distribuir cambios en tiempo real.
 ## Architecture
 
+## Component-and-connector (C&C Architechture)
+
+### C&C View
+![Components and conectors wiew](diagrams\Components-and-connectors-view.jpeg)
+
+### Description of architectural styles used.
+- **Cliente-servidor:** dos clientes Flutter (operativo y administrativo) consumen un único backend, `apps/cloud_api`. Los clientes no se comunican entre sí ni guardan datos compartidos; toda regla de negocio se valida en el servidor.
+- **API REST sobre HTTPS:** el backend expone recursos versionados bajo `/api/v1` (`auth`, `admin`, pedidos, salones, catálogo) con verbos HTTP estándar. Las lecturas son `GET` y las escrituras son `POST`, `PUT`, `PATCH` y `DELETE` autenticadas con token de sesión.
+- **Serverless / edge computing:** la API corre como Cloudflare Worker, sin servidores que administrar, y usa D1 (SQLite gestionado) como base de datos y un Durable Object para el estado con coordinación.
+- **Publicación-suscripción orientada a eventos:** los clientes abren un WebSocket con el Durable Object `RestaurantCoordinator`. Cada mutación exitosa genera parches pequeños por recurso (salones, pedidos, actividad, métricas, catálogo) que se difunden (multicast) solo a los clientes suscritos al recurso afectado.
+- **Separación de lecturas y escrituras (estilo CQRS):** las lecturas van directo del Worker a D1, y el catálogo se sirve desde la Cache API de Workers con llaves versionadas. Las escrituras se canalizan por el coordinador, que las serializa, las ejecuta y publica sus efectos.
+- **Arquitectura por capas y por features:** en el backend, `features` (rutas y reglas por capacidad), `domain` (reglas propias del servidor), `infrastructure` (Durable Object y tiempo real) y `shared` (utilidades HTTP/D1). En los clientes, `features` (pantallas), `services` (acceso a la API, tiempo real y sesión) y `utils`.
+
+### Description of architectural elements and relations.
+## Elementos principales
+
+*   **operational_client:** Aplicación Flutter para la operación diaria del restaurante: selección de salones, gestión de mesas, toma y entrega de pedidos, cobros, división de cuentas y ventas por turno.
+*   **admin_client:** Aplicación Flutter para la administración del negocio: catálogo, ingredientes, salones, empleados, historial y métricas. Disponible solo para usuarios con rol de administrador.
+*   **cloud_api:** Backend principal, implementado como Cloudflare Worker con Hono. Es el único punto de entrada público del sistema y concentra la lógica de negocio y la coordinación en tiempo real. Internamente se compone de:
+    *   `index.ts`: router público que valida sesiones, aplica middleware y expone `/api/v1/*` y `/api/v1/realtime`.
+    *   `features/*`: módulos de dominio (`auth`, `catalog`, `halls`, `orders`, `admin`, `read_model`).
+    *   `mutationApp.ts`: router interno que registra solo las rutas de escritura.
+    *   `RestaurantCoordinator`: Durable Object que serializa las mutaciones, valida sesión, rol y acceso por salón, garantiza idempotencia y difunde parches de tiempo real a los clientes suscritos.
+*   **D1 Database:** Base de datos SQL y única fuente de verdad del sistema. Almacena usuarios, sesiones, catálogo, salones, órdenes, metadatos de idempotencia y versiones de recursos. Ningún cliente accede a ella directamente.
+
+## Relaciones
+
+*   **operational_client ↔ cloud_api:** HTTPS REST en `/api/v1/*` para consultas y operaciones, y WebSocket en `/api/v1/realtime` para recibir actualizaciones de mesas, pedidos y layout.
+*   **admin_client ↔ cloud_api:** mismos canales que el cliente operativo, con acceso adicional a operaciones administrativas, métricas y al feed administrativo en tiempo real.
+*   **cloud_api → D1:** SQL mediante prepared statements. Las lecturas se resuelven directamente en el Worker; las escrituras se ejecutan a través del `RestaurantCoordinator` y `mutationApp`. El Coordinator también consulta permisos y persiste los receipts de idempotencia.
+*   **cloud_api → clientes:** tras cada mutación exitosa, el `RestaurantCoordinator` difunde parches (`RealtimePatch`) por la conexión WebSocket abierta. D1 no emite cambios.
 ```text
 apps/
   cloud_api/             Worker, reglas del servidor y tiempo real
