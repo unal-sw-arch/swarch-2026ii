@@ -1,0 +1,32 @@
+.resched-banner {
+    border-color: var(--c-warn);
+    border-left: 3px solid var(--c-warn);
+    margin-bottom: 20px;
+}
+
+.resched-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.resched-body {
+    background: var(--c-warn-bg);
+    border: 1px solid #FDE68A;
+    border-radius: var(--r-lg);
+    padding: 14px;
+}
+
+.col-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.link-more {
+    font-size: 12px;
+    color: var(--c-primary);
+    font-weight: 600;
+}

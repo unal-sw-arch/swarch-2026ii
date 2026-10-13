@@ -1,0 +1,48 @@
+.cats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(106px, 1fr));
+    gap: 10px
+}
+
+.cat-card {
+    background: white;
+    border: 1.5px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: 18px 10px 14px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s
+}
+
+.cat-card:hover {
+    border-color: var(--c-primary);
+    box-shadow: var(--sh);
+    transform: translateY(-2px)
+}
+
+.cat-ico {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--c-primary-l);
+    margin: 0 auto 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--c-primary)
+}
+
+.cat-ico svg {
+    width: 22px;
+    height: 22px
+}
+
+.cat-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--c-text)
+}
+
+a {
+    text-decoration: none;
+}

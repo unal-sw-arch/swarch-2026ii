@@ -1,0 +1,103 @@
+.page-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.svc-card {
+    position: relative;
+}
+
+.svc-inactive {
+    border: 1.5px dashed var(--c-border);
+    background: var(--c-bg-s);
+}
+
+.svc-actions {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    background: var(--c-bg);
+    padding: 6px 8px;
+    border-radius: var(--r);
+    border: 1px solid var(--c-border);
+}
+
+.svc-ico {
+    width: 48px;
+    height: 48px;
+    background: var(--c-primary-l);
+    border-radius: var(--r);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--c-primary);
+    margin-bottom: 12px;
+}
+
+.svc-ico-off {
+    background: var(--c-bg-s);
+    color: var(--c-soft);
+}
+
+.svc-name {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    padding-right: 100px;
+}
+
+.svc-inactive .svc-name {
+    color: var(--c-soft);
+}
+
+.svc-desc {
+    font-size: 12px;
+    color: var(--c-mid);
+    margin-bottom: 12px;
+}
+
+.svc-inactive .svc-desc {
+    color: var(--c-soft);
+}
+
+.svc-stats {
+    display: flex;
+    gap: 14px;
+    font-size: 12px;
+    color: var(--c-mid);
+    flex-wrap: wrap;
+}
+
+.svc-stats span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.svc-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--c-mid);
+}
+
+.svc-visible {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--c-text);
+}
+
+.svc-visible input {
+    accent-color: var(--c-primary);
+}

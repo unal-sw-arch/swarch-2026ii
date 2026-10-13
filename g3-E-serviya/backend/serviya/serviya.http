@@ -1,0 +1,403 @@
+# =====================================================================
+# ServiYa — Suite de pruebas de notificaciones (RF-061 a RF-089)
+# REST Client (VS Code extension: "REST Client" by Huachao Mao)
+#
+# Uso secuencial:
+#   1. Ejecuta cada bloque en orden (las flechas verdes "Send Request").
+#   2. Las variables (@xxx) se capturan automáticamente de respuestas previas.
+#   3. Entre cada escenario, verifica en frontend que llegó la notificación.
+#
+# Usuarios:
+#   Cliente : jbeltrano@unal.edu.co / asdfasdf
+#   Oferente: juanpdnejoh@gmail.com / asdfasdf
+#   Servicio: 5
+# =====================================================================
+
+@baseUrl = http://localhost:8080
+
+# =====================================================================
+# 1. LOGIN — captura tokens de ambos usuarios
+# =====================================================================
+
+### 1a. Login Cliente
+# @name loginClient
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "jbeltrano@unal.edu.co",
+  "password": "asdfasdf"
+}
+
+@clientToken = {{loginClient.response.body.token}}
+@clientId = {{loginClient.response.body.id}}
+
+### 1b. Login Oferente
+# @name loginOfferer
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "juanpdnejoh@gmail.com",
+  "password": "asdfasdf"
+}
+
+@offererToken = {{loginOfferer.response.body.token}}
+@offererId = {{loginOfferer.response.body.id}}
+
+# =====================================================================
+# 2. DIRECCIÓN del cliente (si no existe, créala; si ya existe, omite)
+# =====================================================================
+
+### 2a. Crear dirección (solo si no tiene ninguna)
+# @name createAddress
+POST {{baseUrl}}/api/v1/users/me/addresses
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+  "addressLine": "Carrera 45 # 12-34",
+  "city": "Bogotá",
+  "latitude": 4.60971,
+  "longitude": -74.08175
+}
+
+@addressId = {{createAddress.response.body.id}}
+
+# =====================================================================
+# 3. CONSULTAS INICIALES — verificar estado antes de empezar
+# =====================================================================
+
+### 3a. Ver notificaciones del cliente (debe estar vacío/viejo)
+GET {{baseUrl}}/api/v1/notifications?page=0&size=20&filter=ALL
+Authorization: Bearer {{clientToken}}
+
+### 3b. Ver notificaciones del oferente (debe estar vacío/viejo)
+GET {{baseUrl}}/api/v1/notifications?page=0&size=20&filter=ALL
+Authorization: Bearer {{offererToken}}
+
+# =====================================================================
+# ESCENARIO A — RF-061: Cliente crea solicitud → notifica oferente
+#                RF-062: Oferente acepta → notifica cliente
+# Estado final: solicitud ACCEPTED
+# =====================================================================
+
+### A1. Cliente crea solicitud #101
+# @name createReq101
+POST {{baseUrl}}/api/v1/service-requests
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+  "serviceId": 5,
+  "addressId": {{addressId}},
+  "scheduledDate": "2026-07-10T09:00:00"
+}
+
+@req101Id = {{createReq101.response.body.id}}
+
+### → VERIFICAR: oferente recibió notificación "Nueva solicitud de servicio"
+### A2. Oferente acepta solicitud #101
+POST {{baseUrl}}/api/v1/service-requests/{{req101Id}}/accept
+Authorization: Bearer {{offererToken}}
+
+### → VERIFICAR: cliente recibió notificación "Tu solicitud fue aceptada"
+
+# =====================================================================
+# ESCENARIO B — RF-085: Oferente rechaza → notifica cliente
+# Estado final: solicitud REJECTED
+# =====================================================================
+
+### B1. Cliente crea solicitud #102
+# @name createReq102
+POST {{baseUrl}}/api/v1/service-requests
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+  "serviceId": 5,
+  "addressId": {{addressId}},
+  "scheduledDate": "2026-07-10T10:00:00"
+}
+
+@req102Id = {{createReq102.response.body.id}}
+
+### B2. Oferente rechaza solicitud #102
+POST {{baseUrl}}/api/v1/service-requests/{{req102Id}}/reject
+Authorization: Bearer {{offererToken}}
+
+### → VERIFICAR: cliente recibió notificación "Tu solicitud fue rechazada por ..."
+
+# =====================================================================
+# ESCENARIO C — RF-089: Oferente declara completado → notifica cliente
+#                RF-088: Cliente confirma → notifica oferente
+# Estado final: solicitud COMPLETED
+# =====================================================================
+
+### C1. Cliente crea solicitud #103
+# @name createReq103
+POST {{baseUrl}}/api/v1/service-requests
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+  "serviceId": 5,
+  "addressId": {{addressId}},
+  "scheduledDate": "2026-07-10T10:00:00"
+}
+
+@req103Id = {{createReq103.response.body.id}}
+
+### C2. Oferente acepta solicitud #103
+POST {{baseUrl}}/api/v1/service-requests/{{req103Id}}/accept
+Authorization: Bearer {{offererToken}}
+
+### C3. Oferente marca #103 como presumiblemente completada
+POST {{baseUrl}}/api/v1/service-requests/{{req103Id}}/mark-completed
+Authorization: Bearer {{offererToken}}
+
+### → VERIFICAR: cliente recibió notificación "... declaró el servicio como realizado"
+### C4. Cliente confirma completitud de #103
+POST {{baseUrl}}/api/v1/service-requests/{{req103Id}}/confirm-completion
+Authorization: Bearer {{clientToken}}
+
+### → VERIFICAR: oferente recibió notificación "... confirmó que el servicio fue completado"
+
+# =====================================================================
+# ESCENARIO D — RF-086: Cliente cancela → notifica oferente
+# Estado final: solicitud CANCELLED
+# =====================================================================
+
+### D1. Cliente crea solicitud #104
+# @name createReq104
+POST {{baseUrl}}/api/v1/service-requests
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+  "serviceId": 5,
+  "addressId": {{addressId}},
+  "scheduledDate": "2026-08-04T12:00:00"
+}
+
+@req104Id = {{createReq104.response.body.id}}
+
+### D2. Cliente cancela solicitud #104
+POST {{baseUrl}}/api/v1/service-requests/{{req104Id}}/cancel
+Authorization: Bearer {{clientToken}}
+
+### → VERIFICAR: oferente recibió notificación "cancelada por el Cliente"
+
+# =====================================================================
+# ESCENARIO E — RF-087: Cliente reprograma → notifica oferente
+# Estado final: solicitud original RESCHEDULED + reemplazo ACCEPTED
+# =====================================================================
+
+### E1. Cliente crea solicitud #105
+# @name createReq105
+POST {{baseUrl}}/api/v1/service-requests
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+  "serviceId": 5,
+  "addressId": {{addressId}},
+  "scheduledDate": "2026-08-05T13:00:00"
+}
+
+@req105Id = {{createReq105.response.body.id}}
+
+### E2. Oferente acepta solicitud #105
+POST {{baseUrl}}/api/v1/service-requests/{{req105Id}}/accept
+Authorization: Bearer {{offererToken}}
+
+### E3. Cliente reprograma #105 a nueva fecha
+# @name reschedule105
+POST {{baseUrl}}/api/v1/service-requests/{{req105Id}}/reschedule
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+  "newDate": "2026-08-20T09:00:00"
+}
+
+### → VERIFICAR: oferente recibió notificación "... reprogramó el servicio"
+
+# =====================================================================
+# ESCENARIO F — Propuesta reprogramación: crear → aceptar
+#                (notifica cliente → notifica oferente)
+# =====================================================================
+
+### F1. Cliente crea solicitud #106
+# @name createReq106
+POST {{baseUrl}}/api/v1/service-requests
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+  "serviceId": 5,
+  "addressId": {{addressId}},
+  "scheduledDate": "2026-08-06T14:00:00"
+}
+
+@req106Id = {{createReq106.response.body.id}}
+
+### F2. Oferente acepta solicitud #106
+POST {{baseUrl}}/api/v1/service-requests/{{req106Id}}/accept
+Authorization: Bearer {{offererToken}}
+
+### F3. Oferente crea propuesta de reprogramación para #106
+# @name createPropF
+POST {{baseUrl}}/api/v1/reschedule-proposals
+Authorization: Bearer {{offererToken}}
+Content-Type: application/json
+
+{
+  "requestId": {{req106Id}},
+  "reason": "Inconveniente de agenda",
+  "proposedDate": "2026-08-25T10:00:00"
+}
+
+@propFId = {{createPropF.response.body.id}}
+
+### → VERIFICAR: cliente recibió notificación "... propuso reprogramar"
+### F4. Cliente acepta propuesta #{{propFId}}
+POST {{baseUrl}}/api/v1/reschedule-proposals/{{propFId}}/accept
+Authorization: Bearer {{clientToken}}
+
+### → VERIFICAR: oferente recibió notificación "... aceptó la propuesta"
+
+# =====================================================================
+# ESCENARIO G — Propuesta reprogramación: rechazar
+#                (notifica cliente → notifica oferente)
+# =====================================================================
+
+### G1. Cliente crea solicitud #107
+# @name createReq107
+POST {{baseUrl}}/api/v1/service-requests
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+  "serviceId": 5,
+  "addressId": {{addressId}},
+  "scheduledDate": "2026-08-07T15:00:00"
+}
+
+@req107Id = {{createReq107.response.body.id}}
+
+### G2. Oferente acepta solicitud #107
+POST {{baseUrl}}/api/v1/service-requests/{{req107Id}}/accept
+Authorization: Bearer {{offererToken}}
+
+### G3. Oferente crea propuesta de reprogramación para #107
+# @name createPropG
+POST {{baseUrl}}/api/v1/reschedule-proposals
+Authorization: Bearer {{offererToken}}
+Content-Type: application/json
+
+{
+  "requestId": {{req107Id}},
+  "reason": "Necesito cambiar la fecha",
+  "proposedDate": "2026-08-26T10:00:00"
+}
+
+@propGId = {{createPropG.response.body.id}}
+
+### G4. Cliente rechaza propuesta #{{propGId}}
+POST {{baseUrl}}/api/v1/reschedule-proposals/{{propGId}}/reject
+Authorization: Bearer {{clientToken}}
+
+### → VERIFICAR: oferente recibió notificación "... rechazó la propuesta"
+
+# =====================================================================
+# ESCENARIO H — Propuesta reprogramación: oferente retira
+#                (notifica cliente → notifica oferente)
+# =====================================================================
+
+### H1. Cliente crea solicitud #108
+# @name createReq108
+POST {{baseUrl}}/api/v1/service-requests
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+  "serviceId": 5,
+  "addressId": {{addressId}},
+  "scheduledDate": "2026-08-10T16:00:00"
+}
+
+@req108Id = {{createReq108.response.body.id}}
+
+### H2. Oferente acepta solicitud #108
+POST {{baseUrl}}/api/v1/service-requests/{{req108Id}}/accept
+Authorization: Bearer {{offererToken}}
+
+### H3. Oferente crea propuesta de reprogramación para #108
+# @name createPropH
+POST {{baseUrl}}/api/v1/reschedule-proposals
+Authorization: Bearer {{offererToken}}
+Content-Type: application/json
+
+{
+  "requestId": {{req108Id}},
+  "reason": "Propuesta por error",
+  "proposedDate": "2026-08-27T10:00:00"
+}
+
+@propHId = {{createPropH.response.body.id}}
+
+### H4. Oferente retira (cancela) propuesta #{{propHId}}
+POST {{baseUrl}}/api/v1/reschedule-proposals/{{propHId}}/cancel
+Authorization: Bearer {{offererToken}}
+
+### → VERIFICAR: cliente recibió notificación "... retiró la propuesta"
+
+# =====================================================================
+# 4. VERIFICACIONES FINALES — listar notificaciones recibidas
+# =====================================================================
+
+### 4a. Notificaciones del cliente (debería ver ~8 no leídas)
+GET {{baseUrl}}/api/v1/notifications?page=0&size=20&filter=ALL
+Authorization: Bearer {{clientToken}}
+
+### 4b. Notificaciones del oferente (debería ver ~8 no leídas)
+GET {{baseUrl}}/api/v1/notifications?page=0&size=20&filter=ALL
+Authorization: Bearer {{offererToken}}
+
+### 4c. Solo no leídas del cliente
+GET {{baseUrl}}/api/v1/notifications?page=0&size=20&filter=UNREAD
+Authorization: Bearer {{clientToken}}
+
+### 4d. Solo no leídas del oferente
+GET {{baseUrl}}/api/v1/notifications?page=0&size=20&filter=UNREAD
+Authorization: Bearer {{offererToken}}
+
+### 4e. Marcar primera notificación del cliente como leída (reemplazar {deliveryId})
+PUT {{baseUrl}}/api/v1/notifications/1/read
+Authorization: Bearer {{clientToken}}
+
+### 4f. Marcar todas como leídas (cliente) — si existe endpoint
+PUT {{baseUrl}}/api/v1/notifications/read-all
+Authorization: Bearer {{clientToken}}
+
+# =====================================================================
+# 5. MAPA DE NOTIFICACIONES ESPERADAS
+# =====================================================================
+#
+# Cliente recibe (5 notificaciones):
+#   A2 → "aceptada por [nombre]"                         (request_accepted)
+#   B2 → "rechazada por [nombre]"                        (request_rejected)
+#   C3 → "[nombre] declaró el servicio como realizado"   (service_completed)
+#   F3 → "[nombre] propuso reprogramar para [fecha]"     (reschedule_proposed)
+#   H4 → "[nombre] retiró la propuesta"                  (reschedule_cancelled)
+#
+# Oferente recibe (~13 notificaciones):
+#   A1/B1/C1/D1/E1/F1/G1/H1 → 8 × "Nueva solicitud"     (new_request)
+#   C4 → "confirmó que el servicio fue completado"        (completion_confirmed)
+#   D2 → "cancelada por el Cliente"                      (request_cancelled)
+#   E3 → "[cliente] reprogramó para [fecha]"             (request_rescheduled)
+#   F4 → "[cliente] aceptó la propuesta"                 (reschedule_accepted)
+#   G4 → "[cliente] rechazó la propuesta"                (reschedule_rejected)
+#
+# =====================================================================

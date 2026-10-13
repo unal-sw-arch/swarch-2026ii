@@ -1,0 +1,227 @@
+.hero {
+    background: linear-gradient(145deg, #E0F7FA 0%, #F0FBFC 55%, #fff 100%);
+    padding: 80px 32px 64px;
+    text-align: center;
+    position: relative;
+    overflow: hidden
+}
+
+.hero::before {
+    content: '';
+    position: absolute;
+    top: -80px;
+    right: -80px;
+    width: 320px;
+    height: 320px;
+    border-radius: 50%;
+    background: rgba(6, 182, 212, .07);
+    pointer-events: none
+}
+
+.hero::after {
+    content: '';
+    position: absolute;
+    bottom: -60px;
+    left: -60px;
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    background: rgba(6, 182, 212, .05);
+    pointer-events: none
+}
+
+.hero h1 {
+    font-size: 48px;
+    font-weight: 800;
+    color: var(--c-text);
+    line-height: 1.1;
+    margin-bottom: 16px;
+    position: relative;
+    z-index: 1;
+    letter-spacing: -1.5px
+}
+
+.hero h1 span {
+    color: var(--c-primary)
+}
+
+.hero p {
+    font-size: 17px;
+    color: var(--c-mid);
+    max-width: 520px;
+    margin: 0 auto 36px;
+    line-height: 1.7;
+    position: relative;
+    z-index: 1
+}
+
+.hero-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    justify-content: center;
+    position: relative;
+    z-index: 1
+}
+
+.hero {
+    background: linear-gradient(145deg, #E0F7FA 0%, #F0FBFC 55%, #fff 100%);
+    padding: 80px 32px 64px;
+    text-align: center;
+    position: relative;
+    overflow: hidden
+}
+
+.hero::before {
+    content: '';
+    position: absolute;
+    top: -80px;
+    right: -80px;
+    width: 320px;
+    height: 320px;
+    border-radius: 50%;
+    background: rgba(6, 182, 212, .07);
+    pointer-events: none
+}
+
+.hero::after {
+    content: '';
+    position: absolute;
+    bottom: -60px;
+    left: -60px;
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    background: rgba(6, 182, 212, .05);
+    pointer-events: none
+}
+
+.hero h1 {
+    font-size: 48px;
+    font-weight: 800;
+    color: var(--c-text);
+    line-height: 1.1;
+    margin-bottom: 16px;
+    position: relative;
+    z-index: 1;
+    letter-spacing: -1.5px
+}
+
+.hero h1 span {
+    color: var(--c-primary)
+}
+
+.hero p {
+    font-size: 17px;
+    color: var(--c-mid);
+    max-width: 520px;
+    margin: 0 auto 36px;
+    line-height: 1.7;
+    position: relative;
+    z-index: 1
+}
+
+.hero-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    justify-content: center;
+    position: relative;
+    z-index: 1
+}
+
+.search-box {
+    background: white;
+    border-radius: 100px;
+    border: 2px solid var(--c-primary);
+    display: flex;
+    align-items: center;
+    max-width: 600px;
+    margin: 0 auto 22px;
+    padding: 5px 5px 5px 18px;
+    box-shadow: var(--sh);
+    position: relative;
+    z-index: 1;
+    gap: 8px
+}
+
+.search-box input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    color: var(--c-text);
+    background: transparent;
+    font-family: var(--font);
+    min-width: 0
+}
+
+.search-box input::placeholder {
+    color: var(--c-soft)
+}
+
+.s-div {
+    width: 1px;
+    height: 20px;
+    background: var(--c-border);
+    flex-shrink: 0
+}
+
+.search-box select {
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 12px;
+    color: var(--c-mid);
+    cursor: pointer;
+    font-family: var(--font);
+    padding: 0 4px;
+    appearance: none;
+    -webkit-appearance: none
+}
+
+.chip {
+    background: white;
+    border: 1.5px solid var(--c-border);
+    padding: 8px 16px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--c-mid);
+    cursor: pointer;
+    transition: all .2s;
+}
+
+.chip.active {
+    background: var(--c-primary);
+    border-color: var(--c-primary);
+    color: white;
+}
+
+@media(max-width:900px) {
+    .stats-bar {
+        grid-template-columns: 1fr 1fr
+    }
+}
+
+@media(max-width:768px) {
+    .hero h1 {
+        font-size: 32px
+    }
+
+    .hero {
+        padding: 52px 18px 44px
+    }
+}
+
+@media(max-width:480px) {
+    .s-div,
+    .search-box select {
+        display: none
+    }
+
+    .hero h1 {
+        font-size: 26px;
+        letter-spacing: -.5px
+    }
+}

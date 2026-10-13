@@ -1,0 +1,13 @@
+/.idea/
+/CLAUDE.md
+/NOTAS.txt
+/.claude/
+AGENTS.md
+/.env
+/documents/project-structure/estado-frontend-pendientes.md
+
+# Redis (infra) — secretos y archivos generados (ver documents/redis/ guia §4)
+/infra/redis/.env
+/infra/redis/acl/users*.acl
+*.rdb
+*.aof
