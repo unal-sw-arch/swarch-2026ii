@@ -1,6 +1,6 @@
 # Prototype 1 — Simple Architectural Structure
 
-> **Software Architecture 2025-II — Universidad Nacional de Colombia**
+> **Software Architecture 2026-II — Universidad Nacional de Colombia**
 > Entrega 1 (Prototype 1). Prototipo vertical de un sistema de software distribuido basado en un
 > diseño arquitectónico inicial.
 
