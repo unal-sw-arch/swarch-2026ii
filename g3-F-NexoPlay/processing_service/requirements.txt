@@ -1,0 +1,5 @@
+-r ../shared/requirements.txt
+PyJWT>=2.10,<3
+fastapi
+uvicorn[standard]
+python-multipart

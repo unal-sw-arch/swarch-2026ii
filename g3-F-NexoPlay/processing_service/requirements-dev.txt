@@ -1,0 +1,2 @@
+# Compatibility path; development dependencies for all components live at root.
+-r ../requirements-dev.txt
