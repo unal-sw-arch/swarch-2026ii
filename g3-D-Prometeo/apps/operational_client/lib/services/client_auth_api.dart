@@ -1,5 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
 import '../models/client_user.dart';
 import 'client_session_store.dart';
@@ -11,20 +13,21 @@ class ClientLoginException implements Exception {
 }
 
 Future<ClientSession> loginClient(String username, String password) async {
-  final client = HttpClient();
   try {
-    final request = await client.postUrl(cloudApiUri('/api/v1/auth/login'));
-    request.headers.contentType = ContentType.json;
-    request.write(jsonEncode({'username': username, 'password': password}));
-    final response = await request.close().timeout(const Duration(seconds: 10));
-    final body = await utf8.decoder.bind(response).join();
-    if (response.statusCode == HttpStatus.unauthorized) {
+    final response = await http
+        .post(
+          cloudApiUri('/api/v1/auth/login'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'username': username, 'password': password}),
+        )
+        .timeout(const Duration(seconds: 10));
+    if (response.statusCode == 401) {
       throw const ClientLoginException('INVALID_CREDENTIALS');
     }
-    if (response.statusCode != HttpStatus.ok) {
+    if (response.statusCode != 200) {
       throw ClientLoginException('HTTP_${response.statusCode}');
     }
-    final decoded = jsonDecode(body);
+    final decoded = jsonDecode(response.body);
     if (decoded is! Map<String, dynamic> ||
         decoded['user'] is! Map<String, dynamic> ||
         decoded['token'] is! String ||
@@ -39,30 +42,29 @@ Future<ClientSession> loginClient(String username, String password) async {
     try {
       await saveClientSessionToken(session.token);
     } on Object catch (error) {
-      stderr.writeln('No se pudo guardar la sesión de forma segura: $error');
+      debugPrint('No se pudo guardar la sesión de forma segura: $error');
     }
     return session;
   } on ClientLoginException {
     rethrow;
   } on Object {
     throw const ClientLoginException('CONNECTION_FAILED');
-  } finally {
-    client.close(force: true);
   }
 }
 
 Future<ClientSession?> verifyClientSession(String token) async {
-  final client = HttpClient();
   try {
-    final request = await client.getUrl(cloudApiUri('/api/v1/auth/session'));
-    request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
-    final response = await request.close().timeout(const Duration(seconds: 10));
-    final body = await utf8.decoder.bind(response).join();
-    if (response.statusCode == HttpStatus.unauthorized) return null;
-    if (response.statusCode != HttpStatus.ok) {
+    final response = await http
+        .get(
+          cloudApiUri('/api/v1/auth/session'),
+          headers: {'Authorization': 'Bearer $token'},
+        )
+        .timeout(const Duration(seconds: 10));
+    if (response.statusCode == 401) return null;
+    if (response.statusCode != 200) {
       throw ClientLoginException('HTTP_${response.statusCode}');
     }
-    final decoded = jsonDecode(body);
+    final decoded = jsonDecode(response.body);
     if (decoded is! Map<String, dynamic> ||
         decoded['user'] is! Map<String, dynamic> ||
         decoded['expiresAt'] is! String) {
@@ -77,8 +79,6 @@ Future<ClientSession?> verifyClientSession(String token) async {
     rethrow;
   } on Object {
     throw const ClientLoginException('CONNECTION_FAILED');
-  } finally {
-    client.close(force: true);
   }
 }
 
@@ -107,19 +107,16 @@ Future<ClientSession?> restoreStoredClientSession({
 }
 
 Future<void> logoutClient(ClientSession session) async {
-  final client = HttpClient();
   try {
-    final request = await client.postUrl(cloudApiUri('/api/v1/auth/logout'));
-    request.headers.set(
-      HttpHeaders.authorizationHeader,
-      'Bearer ${session.token}',
-    );
-    final response = await request.close().timeout(const Duration(seconds: 10));
-    await response.drain<void>();
+    await http
+        .post(
+          cloudApiUri('/api/v1/auth/logout'),
+          headers: {'Authorization': 'Bearer ${session.token}'},
+        )
+        .timeout(const Duration(seconds: 10));
   } on Object {
     // El cierre local debe funcionar incluso si el servidor está desconectado.
   } finally {
-    client.close(force: true);
     try {
       await clearClientSessionToken();
     } on Object {

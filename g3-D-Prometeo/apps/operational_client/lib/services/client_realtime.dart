@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
+
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../models/client_user.dart';
 import 'cloud_api.dart';
@@ -48,7 +49,8 @@ class ClientRealtimeService {
       StreamController<ClientRealtimeConnectionState>.broadcast();
   final _subscriptions = <int>{};
   final _versions = <String, int>{};
-  WebSocket? _socket;
+  WebSocketChannel? _socket;
+  bool _socketOpen = false;
   Timer? _reconnectTimer;
   bool _closed = false;
   bool _connecting = false;
@@ -83,19 +85,21 @@ class ClientRealtimeService {
     _connecting = true;
     _setConnectionState(ClientRealtimeConnectionState.connecting);
     try {
-      final socket = await WebSocket.connect(
-        cloudWebSocketUri('/api/v1/realtime').toString(),
-        headers: {HttpHeaders.authorizationHeader: 'Bearer ${session.token}'},
-      ).timeout(const Duration(seconds: 10));
+      // The token travels as a query parameter because browsers cannot set
+      // custom headers on the WebSocket handshake. Works on web and native.
+      final socket = WebSocketChannel.connect(
+        cloudRealtimeUri(session.token),
+      );
+      await socket.ready.timeout(const Duration(seconds: 10));
       if (_closed) {
-        await socket.close();
+        await socket.sink.close();
         return;
       }
       _socket = socket;
-      socket.pingInterval = const Duration(seconds: 10);
+      _socketOpen = true;
       _attempt = 0;
       _setConnectionState(ClientRealtimeConnectionState.connected);
-      socket.listen(
+      socket.stream.listen(
         _receive,
         onError: (_) => _disconnected(socket),
         onDone: () => _disconnected(socket),
@@ -185,14 +189,15 @@ class ClientRealtimeService {
   }
 
   void _send(Map<String, dynamic> message) {
-    if (_socket?.readyState == WebSocket.open) {
-      _socket!.add(jsonEncode(message));
+    if (_socketOpen && _socket != null) {
+      _socket!.sink.add(jsonEncode(message));
     }
   }
 
-  void _disconnected(WebSocket socket) {
+  void _disconnected(WebSocketChannel socket) {
     if (!identical(socket, _socket)) return;
     _socket = null;
+    _socketOpen = false;
     _setConnectionState(ClientRealtimeConnectionState.disconnected);
     _scheduleReconnect();
   }
@@ -214,7 +219,8 @@ class ClientRealtimeService {
     _reconnectTimer?.cancel();
     final socket = _socket;
     _socket = null;
-    if (socket != null) await socket.close(1000, 'Client closed');
+    _socketOpen = false;
+    if (socket != null) await socket.sink.close(1000, 'Client closed');
     _setConnectionState(ClientRealtimeConnectionState.closed);
     await _events.close();
     await _connectionStates.close();

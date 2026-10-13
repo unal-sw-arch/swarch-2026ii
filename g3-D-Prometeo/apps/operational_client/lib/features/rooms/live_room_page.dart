@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -244,7 +244,10 @@ class _LiveRoomPageState extends State<LiveRoomPage> {
   }
 
   bool get _desktop =>
-      Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.linux ||
+          defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.windows);
   bool get _canInteract => !_loading && !_saving;
 
   @override

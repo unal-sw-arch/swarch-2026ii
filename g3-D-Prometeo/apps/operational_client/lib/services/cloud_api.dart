@@ -1,7 +1,7 @@
-import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
+
+import 'package:http/http.dart' as http;
 
 /// Origin of the Cloudflare Worker used by the application.
 ///
@@ -27,23 +27,39 @@ Uri cloudWebSocketUri(String path) {
   return uri.replace(scheme: uri.scheme == 'https' ? 'wss' : 'ws');
 }
 
+/// Realtime endpoint URI carrying the session token as a query parameter.
+///
+/// Browsers cannot set custom headers on the WebSocket handshake, so the token
+/// travels as `access_token`. The Worker accepts it as an alternative to the
+/// Authorization header. Over `wss` the query string is encrypted in transit.
+Uri cloudRealtimeUri(String token) {
+  final uri = cloudWebSocketUri('/api/v1/realtime');
+  return uri.replace(
+    queryParameters: {...uri.queryParameters, 'access_token': token},
+  );
+}
+
 Future<void> verifyCloudApiIsRunning() async {
-  final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
-  try {
-    final request = await client.getUrl(cloudApiUri('/health'));
-    request.headers.set(HttpHeaders.acceptHeader, ContentType.json.mimeType);
-    final response = await request.close().timeout(const Duration(seconds: 8));
-    final body = await utf8.decoder.bind(response).join();
-    if (response.statusCode != HttpStatus.ok) {
-      throw HttpException('HTTP_${response.statusCode}');
-    }
-    final decoded = jsonDecode(body);
-    if (decoded is! Map<String, dynamic> || decoded['status'] != 'ok') {
-      throw const FormatException('INVALID_HEALTH_RESPONSE');
-    }
-  } finally {
-    client.close(force: true);
+  final response = await http
+      .get(cloudApiUri('/health'), headers: {'Accept': 'application/json'})
+      .timeout(const Duration(seconds: 8));
+  if (response.statusCode != 200) {
+    throw HttpException('HTTP_${response.statusCode}');
   }
+  final decoded = jsonDecode(response.body);
+  if (decoded is! Map<String, dynamic> || decoded['status'] != 'ok') {
+    throw const FormatException('INVALID_HEALTH_RESPONSE');
+  }
+}
+
+/// Minimal replacement for `dart:io`'s HttpException so error messages stay the
+/// same without pulling in `dart:io` (unavailable on web).
+class HttpException implements Exception {
+  const HttpException(this.message);
+  final String message;
+
+  @override
+  String toString() => 'HttpException: $message';
 }
 
 String newIdempotencyKey() {

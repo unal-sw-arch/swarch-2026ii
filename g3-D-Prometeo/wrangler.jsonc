@@ -4,7 +4,10 @@
   "main": "apps/cloud_api/index.ts",
   "compatibility_date": "2026-09-12",
   "vars": {
-    "ENVIRONMENT": "production"
+    "ENVIRONMENT": "production",
+    // Comma-separated browser origins allowed via CORS. Defaults in code to the
+    // local dev clients (http://localhost:8080, http://localhost:8081).
+    "ALLOWED_ORIGINS": "http://localhost:8080,http://localhost:8081"
   },
   "durable_objects": {
     "bindings": [

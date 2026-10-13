@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import authRoutes from './features/auth/routes';
 import { findSession } from './features/auth/session';
 import { RestaurantCoordinator } from './infrastructure/realtime/restaurant_coordinator';
@@ -11,6 +12,30 @@ import type { CloudEnvironment } from './types';
 
 const app = new Hono<CloudEnvironment>();
 const coordinatorName = 'restaurant:default';
+
+// Default browser origins for the containerized development clients
+// (web-operational on :8080, web-admin on :8081). Override in any environment
+// by setting the ALLOWED_ORIGINS var (comma-separated list).
+const defaultAllowedOrigins = [
+  'http://localhost:8080',
+  'http://localhost:8081',
+];
+
+app.use('*', (c, next) => {
+  const configured = c.env.ALLOWED_ORIGINS
+    ?.split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+  const allowedOrigins = configured && configured.length > 0
+    ? configured
+    : defaultAllowedOrigins;
+  return cors({
+    origin: (origin) => (allowedOrigins.includes(origin) ? origin : null),
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  })(c, next);
+});
 
 app.use('/api/v1/*', async (c, next) => {
   await next();
@@ -84,7 +109,13 @@ app.get('/api/v1/realtime', async (c) => {
   if (c.req.header('upgrade')?.toLowerCase() !== 'websocket') {
     return c.json({ error: 'WEBSOCKET_REQUIRED' }, 426);
   }
-  const session = await findSession(c.env.DB, c.req.header('authorization'));
+  // Browsers cannot set custom headers on the WebSocket handshake, so web
+  // clients authenticate with an `access_token` query parameter. Native
+  // clients may still use the Authorization header.
+  const queryToken = new URL(c.req.url).searchParams.get('access_token');
+  const authorization = c.req.header('authorization')
+    ?? (queryToken ? `Bearer ${queryToken}` : undefined);
+  const session = await findSession(c.env.DB, authorization);
   if (!session) return c.json({ error: 'INVALID_SESSION' }, 401);
   const headers = new Headers(c.req.raw.headers);
   headers.set('x-realtime-session-id', String(session.sessionId));

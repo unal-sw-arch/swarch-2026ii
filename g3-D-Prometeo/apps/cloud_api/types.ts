@@ -2,6 +2,9 @@ export type CloudBindings = {
   DB: D1Database;
   RESTAURANT_COORDINATOR: DurableObjectNamespace;
   ENVIRONMENT?: string;
+  // Comma-separated list of browser origins allowed via CORS. When unset the
+  // Worker falls back to the local development clients (ports 8080/8081).
+  ALLOWED_ORIGINS?: string;
 };
 
 export type AuthenticatedSession = {

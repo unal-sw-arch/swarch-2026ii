@@ -1,5 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
 import '../models/client_room.dart';
 import '../models/client_user.dart';
@@ -121,7 +123,7 @@ Future<void> saveTableOrder({
       'description': description,
       'items': items.map((item) => item.toJson()).toList(),
     },
-    expectedStatus: creating ? HttpStatus.created : HttpStatus.ok,
+    expectedStatus: creating ? 201 : 200,
   );
 }
 
@@ -141,7 +143,7 @@ Future<void> saveExternalOrder({
       'description': description,
       'items': items.map((item) => item.toJson()).toList(),
     },
-    expectedStatus: HttpStatus.created,
+    expectedStatus: 201,
   );
 }
 
@@ -276,27 +278,30 @@ Future<Map<String, dynamic>> _requestJson({
   required String method,
   required String path,
   Map<String, dynamic>? payload,
-  int expectedStatus = HttpStatus.ok,
+  int expectedStatus = 200,
 }) async {
-  final client = HttpClient();
   try {
-    final request = await client.openUrl(method, cloudApiUri(path));
-    request.headers.set(
-      HttpHeaders.authorizationHeader,
-      'Bearer ${session.token}',
-    );
+    final headers = <String, String>{
+      'Authorization': 'Bearer ${session.token}',
+    };
     if (method != 'GET' && method != 'HEAD') {
-      request.headers.set('Idempotency-Key', newIdempotencyKey());
+      headers['Idempotency-Key'] = newIdempotencyKey();
     }
     if (payload != null) {
-      request.headers.contentType = ContentType.json;
-      request.write(jsonEncode(payload));
+      headers['Content-Type'] = 'application/json';
     }
-    final response = await request.close().timeout(const Duration(seconds: 12));
-    final responseBody = await utf8.decoder.bind(response).join();
+    final request = http.Request(method, cloudApiUri(path))
+      ..headers.addAll(headers);
+    if (payload != null) {
+      request.body = jsonEncode(payload);
+    }
+    final streamed = await http.Client()
+        .send(request)
+        .timeout(const Duration(seconds: 12));
+    final response = await http.Response.fromStream(streamed);
     Object? decoded;
     try {
-      decoded = jsonDecode(responseBody);
+      decoded = jsonDecode(response.body);
     } on FormatException {
       throw ClientRoomsException('HTTP_${response.statusCode}');
     }
@@ -311,10 +316,8 @@ Future<Map<String, dynamic>> _requestJson({
   } on ClientRoomsException {
     rethrow;
   } on Object catch (error, stackTrace) {
-    stderr.writeln('Cloud API request failed ($method $path): $error');
-    stderr.writeln(stackTrace);
+    debugPrint('Cloud API request failed ($method $path): $error');
+    debugPrint('$stackTrace');
     throw const ClientRoomsException('CONNECTION_FAILED');
-  } finally {
-    client.close(force: true);
   }
 }
