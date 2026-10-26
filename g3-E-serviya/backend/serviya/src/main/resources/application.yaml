@@ -1,0 +1,202 @@
+spring:
+  application:
+    name: serviya
+  # Redis: usamos RedisTemplate directo (no repos Redis) y un health por PING (RedisCoordConfig), porque
+  # el usuario de servicio tiene mínimo privilegio (sin INFO). Se excluyen los autoconfigs que asumen lo
+  # contrario: el escaneo de repos Redis (trata repos JPA como Redis) y los health indicators por INFO.
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.data.redis.RedisHealthContributorAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.data.redis.RedisReactiveHealthContributorAutoConfiguration
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  data:
+    web:
+      pageable:
+        default-page-size: 20
+        max-page-size: 20
+  # RabbitMQ: bus hacia notifications-service. Solo PRODUCE (outbox relay). publisher-confirm-type simple:
+  # el relay espera la confirmación del broker antes de borrar la fila del outbox (entrega ≥1).
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:serviya}
+    password: ${RABBITMQ_PASSWORD:}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    publisher-confirm-type: simple
+    connection-timeout: 5s
+
+server:
+  error:
+    include-stacktrace: never
+    include-message: never
+  # El contenedor resuelve la IP real del cliente desde X-Forwarded-For/Forwarded PERO solo cuando el
+  # salto inmediato es un proxy de confianza (rate limit por IP, D-09). Asi request.getRemoteAddr() no es
+  # falsificable con el backend expuesto directo. En prod: declarar los proxies con server.tomcat.remoteip.*
+  # si el balanceador no esta en un rango privado.
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:native}
+
+app:
+  upload:
+    dir: ${UPLOAD_DIR:uploads}
+  # Redis (contrato §3.3 de documents/redis/). Dos nodos por propósito (ADR-001). Vía B: solo 'coord'
+  # se cablea como bean (RedisCoordConfig); 'cache' queda como contrato para la Fase 6.
+  redis:
+    coord:
+      mode: ${REDIS_COORD_MODE:standalone}        # standalone | sentinel | cluster (solo standalone, Fase 1)
+      host: ${REDIS_COORD_HOST:localhost}
+      port: ${REDIS_COORD_PORT:6379}
+      nodes: ${REDIS_COORD_NODES:}
+      sentinel-master: ${REDIS_COORD_SENTINEL_MASTER:}
+      username: ${REDIS_COORD_USER:}
+      password: ${REDIS_COORD_PASSWORD:}
+      ssl: ${REDIS_COORD_SSL:false}
+      timeout: ${REDIS_COORD_TIMEOUT:2s}                      # command timeout del lock (background)
+      connect-timeout: ${REDIS_COORD_CONNECT_TIMEOUT:2s}
+      hot-command-timeout: ${REDIS_COORD_HOT_TIMEOUT:300ms}   # command timeout del rate limit (hot-path, Fase 4)
+    cache:
+      mode: ${REDIS_CACHE_MODE:standalone}
+      host: ${REDIS_CACHE_HOST:localhost}
+      port: ${REDIS_CACHE_PORT:6379}
+      nodes: ${REDIS_CACHE_NODES:}
+      sentinel-master: ${REDIS_CACHE_SENTINEL_MASTER:}
+      username: ${REDIS_CACHE_USER:}
+      password: ${REDIS_CACHE_PASSWORD:}
+      ssl: ${REDIS_CACHE_SSL:false}
+      timeout: ${REDIS_CACHE_TIMEOUT:1s}
+      connect-timeout: ${REDIS_CACHE_CONNECT_TIMEOUT:2s}
+  # Rate limiting distribuido (deuda #6 / M13). Políticas en config (no en código) para ajustarlas sin
+  # recompilar. algorithm: TOKEN_BUCKET (techo global, admite ráfaga) | SLIDING_WINDOW (exacto, sin
+  # ráfaga de borde, para auth/costosos). failure-mode: OPEN (deja pasar si Redis cae) | CLOSED (rechaza).
+  # Sujeto estandarizado (D-09): ip (anónimo), user (autenticado), email (solo ataque dirigido a cuenta).
+  ratelimit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    policies:
+      # --- Nivel 1: techo global de la API (api-default), por user/ip. OPEN: no tumbar la API si Redis cae.
+      api-default:       { algorithm: TOKEN_BUCKET, capacity: 200, refill-per-second: 5, failure-mode: OPEN }
+      # --- Nivel 2 (auth públicos): login OPEN (disponibilidad del acceso); registro/reset CLOSED (abuso/Brevo).
+      login-ip:          { algorithm: SLIDING_WINDOW, capacity: 10, window: 15m, failure-mode: OPEN }
+      register-ip:       { algorithm: SLIDING_WINDOW, capacity: 5, window: 60m, failure-mode: CLOSED }
+      reset-ip:          { algorithm: SLIDING_WINDOW, capacity: 5, window: 15m, failure-mode: CLOSED }
+      reset-email:       { algorithm: SLIDING_WINDOW, capacity: 3, window: 60m, failure-mode: CLOSED }
+      reset-validate-ip: { algorithm: SLIDING_WINDOW, capacity: 20, window: 15m, failure-mode: CLOSED }
+      reset-confirm-ip:  { algorithm: SLIDING_WINDOW, capacity: 10, window: 15m, failure-mode: CLOSED }
+      # --- Nivel 2 (autenticados que NOTIFICAN por correo): OPEN + modo degradado de notificaciones (D-07/1a).
+      request-write:     { algorithm: SLIDING_WINDOW, capacity: 30, window: 10m, failure-mode: OPEN }
+      proposal-write:    { algorithm: SLIDING_WINDOW, capacity: 20, window: 15m, failure-mode: OPEN }
+      report-create:     { algorithm: SLIDING_WINDOW, capacity: 10, window: 60m, failure-mode: OPEN }
+      # --- Nivel 2 (autenticados costosos: subida de ficheros / geocoding externo). CLOSED.
+      service-write:     { algorithm: SLIDING_WINDOW, capacity: 20, window: 60m, failure-mode: CLOSED }
+      profile-photo:     { algorithm: SLIDING_WINDOW, capacity: 10, window: 60m, failure-mode: CLOSED }
+      address-verify:    { algorithm: SLIDING_WINDOW, capacity: 20, window: 60m, failure-mode: CLOSED }
+      account-security:  { algorithm: SLIDING_WINDOW, capacity: 5, window: 15m, failure-mode: CLOSED }
+      # --- Nivel 2 (lecturas públicas pesadas), por ip. OPEN.
+      search:            { algorithm: SLIDING_WINDOW, capacity: 60, window: 1m, failure-mode: OPEN }
+      stats:             { algorithm: SLIDING_WINDOW, capacity: 30, window: 1m, failure-mode: OPEN }
+  # Geocodificación de direcciones (RF-009, RNF-019). Usa Nominatim (OpenStreetMap) por defecto.
+  # enabled=false para deshabilitar en tests o entornos sin internet.
+  geocoding:
+    enabled: ${GEOCODING_ENABLED:true}
+    nominatim:
+      base-url: ${GEOCODING_NOMINATIM_BASE_URL:https://nominatim.openstreetmap.org}
+      user-agent: ${GEOCODING_NOMINATIM_USER_AGENT:ServiYa/1.0}
+      timeout-seconds: ${GEOCODING_NOMINATIM_TIMEOUT_SECONDS:5}
+
+# Circuit breaker sobre redis-coord (Fase 4). Una sola instancia "redis-coord" compartida por el lock
+# distribuido y el rate limiter: si Redis cae o se pone lento, el breaker ABRE y ambos aplican su modo de
+# fallo (D-07/D-08) al instante, sin esperar el command timeout. Todo es afinable en caliente desde aquí.
+resilience4j:
+  circuitbreaker:
+    instances:
+      redis-coord:
+        register-health-indicator: false           # NO en /health: breaker ABIERTO = degradado-pero-OK (las OPEN pasan); un health DOWN sacaría la instancia del balanceador. El estado se observa por métrica resilience4j.circuitbreaker.state (Fase 5).
+        sliding-window-type: COUNT_BASED            # decide sobre las últimas N llamadas (predecible)
+        sliding-window-size: 20                     # ventana = últimas 20 llamadas a redis-coord
+        minimum-number-of-calls: 10                 # no evalúa (ni abre) hasta tener 10 llamadas: evita abrir por un blip aislado
+        failure-rate-threshold: 50                  # abre si ≥50% de esas llamadas fallan (excepción/timeout)
+        slow-call-duration-threshold: 300ms         # una llamada > 300ms cuenta como "lenta" (= hot timeout): detecta Redis lento
+        slow-call-rate-threshold: 80                # abre si ≥80% de las llamadas son lentas (Redis degradado, no caído)
+        wait-duration-in-open-state: 10s            # abierto: 10s de fail-fast antes de volver a probar
+        permitted-number-of-calls-in-half-open-state: 3   # en half-open deja 3 pruebas; si pasan, cierra
+        automatic-transition-from-open-to-half-open-enabled: true  # pasa a half-open por tiempo aunque no llegue tráfico
+
+management:
+  # Puerto de management SEPARADO y NO publicado al host (Fase 5): docker-compose solo expone el 8080,
+  # así que 9090 solo es alcanzable dentro de la red interna (donde un futuro Prometheus lo scrapeará).
+  # El Actuator NO está tras Spring Security; servirlo en un puerto no publicado evita filtrar health
+  # detallado y, sobre todo, /prometheus (métricas internas) por el 8080 público. Adelanta parte de Fase 7.
+  server:
+    port: ${MANAGEMENT_PORT:9090}
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus   # health (liveness) + prometheus (scrapeo de métricas), solo por 9090
+  health:
+    # RabbitMQ caído = degradado-pero-OK: las notificaciones esperan en el outbox; la API sigue sirviendo.
+    rabbit:
+      enabled: false
+  endpoint:
+    health:
+      show-details: when_authorized
+      # Grupo dedicado para verificar el estado de Redis sin exponer el resto de componentes.
+      # show-details: when_authorized (NO 'always'): un llamante no autenticado solo ve {"status":"UP"}.
+      # Doble defensa: aunque esté en el puerto no publicado, se mantiene el mínimo de detalle.
+      group:
+        redis:
+          include: redis
+          show-details: when_authorized
+
+# Filtro de palabras (RNF-006): se censuran en todo texto libre antes de persistir
+# (descripcion de perfil, motivo de reportes, resenas). Ampliar la lista NO requiere recompilar.
+serviya:
+  word-filter:
+    blocked-words: >-
+      idiota,imbecil,estupido,estupida,maldito,maldita,mierda,puta,puto,
+      cabron,gilipollas,pendejo,pendeja,marica,huevon,malparido,gonorrea,
+      hijueputa,verga,coño,joder,zorra,perra
+  # Notificaciones: las registra y entrega notifications-service (microservicio). El monolito solo deja
+  # el comando en el outbox (misma transacción del negocio) y un relay lo publica en RabbitMQ.
+  # El envío de correo (Brevo, EMAIL_*) se configura ahora en notifications-service, no aquí.
+  notifications:
+    # Clave COMPARTIDA con notifications-service para sellar (AES-GCM) correo + protectedData del mensaje.
+    payload-key: ${NOTIFICATIONS_PAYLOAD_KEY:}
+    outbox:
+      relay-enabled: ${NOTIFICATIONS_OUTBOX_RELAY_ENABLED:true}
+      poll-interval-ms: ${NOTIFICATIONS_OUTBOX_POLL_MS:1000}
+      batch-size: 100
+      confirm-timeout-ms: 5000
+  # Por entorno: dev http://localhost:5173/reset-password | docker http://localhost:8081/reset-password
+  frontend:
+    reset-url: ${FRONTEND_RESET_URL:http://localhost:5173/reset-password}
+  password-reset:
+    # Ventana de validez del enlace. Corta a proposito: es una credencial que viaja por correo.
+    token-ttl-minutes: ${PASSWORD_RESET_TTL_MINUTES:30}
+    cron:
+      # Limpieza de tokens caducados. Mantenimiento sin urgencia (la validacion ya los rechaza
+      # aunque sigan en la tabla), por eso a diario de madrugada.
+      cleanup-expired: ${PASSWORD_RESET_CLEANUP_CRON:0 30 3 * * *}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    use-root-path: true
+    enabled: true
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  show-actuator: false
+  packages-to-scan: com.parosurvivors.serviya

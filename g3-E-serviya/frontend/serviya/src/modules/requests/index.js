@@ -1,0 +1,12 @@
+export { ClientDashboardPage } from './pages/ClientDashboardPage/ClientDashboardPage';
+export { OffererDashboardPage } from './pages/OffererDashboardPage/OffererDashboardPage';
+export { ClientRequestsPage } from './pages/ClientRequestsPage/ClientRequestsPage';
+export { ReschedulesPage } from './pages/ReschedulesPage/ReschedulesPage';
+export { ClientSchedulePage } from './pages/ClientSchedulePage/ClientSchedulePage';
+export { OffererSchedulePage } from './pages/OffererSchedulePage/OffererSchedulePage';
+export { ClientHistoryPage } from './pages/ClientHistoryPage/ClientHistoryPage';
+export { OffererHistoryPage } from './pages/OffererHistoryPage/OffererHistoryPage';
+export { OffererRequestsPage } from './pages/OffererRequestsPage/OffererRequestsPage';
+export { OffererReschedulesPage } from './pages/OffererReschedulesPage/OffererReschedulesPage';
+export { RequestServicePage } from './pages/RequestServicePage/RequestServicePage';
+export { RequestDetailPage } from './pages/RequestDetailPage/RequestDetailPage';

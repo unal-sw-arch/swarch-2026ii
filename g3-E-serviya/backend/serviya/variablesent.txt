@@ -1,0 +1,5 @@
+$env:DB_URL="jdbc:mysql://localhost:3307/marketplace_services?useUnicode=true&connectionCollation=utf8mb4_unicode_ci&serverTimezone=UTC"
+$env:DB_USER="root"
+$env:DB_PASSWORD="dev"
+$env:DB_NAME="marketplace_services"
+$env:MYSQL_ROOT_PASSWORD="dev"

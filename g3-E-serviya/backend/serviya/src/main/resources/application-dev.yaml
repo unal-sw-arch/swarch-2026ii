@@ -1,0 +1,17 @@
+# Development profile configuration
+# This profile enables debug features that should NOT be used in production
+# Activate with: --spring.profiles.active=dev
+
+spring:
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.springframework.web: DEBUG
+
+server:
+  error:
+    include-stacktrace: always
+    include-message: always

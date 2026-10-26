@@ -1,0 +1,28 @@
+.wa-btn {
+    padding: 9px 14px;
+    background: #25D366;
+    color: white;
+    border: none;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-family: var(--font);
+    transition: filter .15s;
+}
+
+.wa-btn:hover {
+    filter: brightness(.95);
+}
+
+.wa-btn-block {
+    width: 100%;
+    border-radius: var(--r);
+    padding: 10px;
+    gap: 8px;
+    font-weight: 700;
+}

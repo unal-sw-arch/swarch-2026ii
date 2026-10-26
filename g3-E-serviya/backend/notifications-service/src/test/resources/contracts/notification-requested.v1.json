@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "eventId": "6f1c2a0e-6c43-4a5e-9a51-0d2f6f7c9b10",
+  "occurredAt": "2026-10-12T21:00:00Z",
+  "userId": 42,
+  "type": "password_reset",
+  "title": "Restablece tu contraseña",
+  "message": "Recibimos una solicitud para restablecer la contraseña de tu cuenta de ServiYa.",
+  "entityType": "USER",
+  "entityId": 42,
+  "channels": ["EMAIL"],
+  "sealed": "AQIDBAUGBwgJCgsMTARrUZJs8Dq+SevhgZThNjFFNGnPSPP0gXlQuwcp392GFHmc5lxDE4GvawtjtL/HPmXzuMFzh7N+z3rJIw69tEtH4VO1uLO+c2xxhFFKQn+BfcCnTM8NpMhOv+S6TQur8f4RaqHmYdn9ZUwzmH/7UJGzWSnzsJ2+Ag=="
+}

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 148 40" fill="none">
+  <!-- House body -->
+  <path d="M18 8 L4 19 L4 36 L14 36 L14 26 L22 26 L22 36 L32 36 L32 19 Z" stroke="#06B6D4" stroke-width="2.2" stroke-linejoin="round" fill="none"/>
+  <!-- Window grid -->
+  <rect x="11" y="14" width="14" height="10" rx="1" fill="#06B6D4" opacity="0.18"/>
+  <line x1="18" y1="14" x2="18" y2="24" stroke="#06B6D4" stroke-width="1.4"/>
+  <line x1="11" y1="19" x2="25" y2="19" stroke="#06B6D4" stroke-width="1.4"/>
+  <!-- Check badge -->
+  <circle cx="29" cy="9" r="6" fill="#06B6D4"/>
+  <path d="M26.5 9 L28.5 11 L31.5 7" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- servi -->
+  <text x="40" y="29" font-family="-apple-system,'Segoe UI',system-ui,sans-serif" font-size="21" font-weight="800" fill="#0F172A" letter-spacing="-0.4">servi</text>
+  <!-- Ya -->
+  <text x="98" y="29" font-family="-apple-system,'Segoe UI',system-ui,sans-serif" font-size="21" font-weight="800" fill="#06B6D4" letter-spacing="-0.4">Ya</text>
+</svg>

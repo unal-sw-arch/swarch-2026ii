@@ -1,0 +1,50 @@
+.page-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.filter-chips {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+}
+
+.rq-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 11px;
+}
+
+.rq-main {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.rq-meta {
+    font-size: 12px;
+    color: var(--c-mid);
+    margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.rq-meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pager {
+    display: flex;
+    justify-content: center;
+    margin-top: 22px;
+    gap: 5px;
+}

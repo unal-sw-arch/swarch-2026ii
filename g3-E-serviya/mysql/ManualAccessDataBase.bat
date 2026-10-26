@@ -1,0 +1,1 @@
+docker exec -it serviya-mysql mysql -u root -pdev marketplace_services
