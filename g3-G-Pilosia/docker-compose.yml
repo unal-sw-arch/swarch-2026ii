@@ -1,0 +1,67 @@
+name: pilosia
+
+services:
+  # ---------- Presentación ----------
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - courses-service
+      - grades-service
+
+  # ---------- Lógica ----------
+  courses-service:
+    build: ./courses-service
+    environment:
+      DATABASE_URL: postgresql://pilosia:pilosia@courses-db:5432/courses_db
+      CURRENT_PERIOD: "2025-2"
+    ports:
+      - "8000:8000"
+    depends_on:
+      courses-db:
+        condition: service_healthy
+
+  grades-service:
+    build: ./grades-service
+    environment:
+      MONGO_URL: mongodb://grades-db:27017
+      COURSES_SERVICE_URL: http://courses-service:8000
+    ports:
+      - "4000:4000"
+    depends_on:
+      grades-db:
+        condition: service_healthy
+      courses-service:
+        condition: service_started
+
+  # ---------- Datos ----------
+  courses-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: courses_db
+      POSTGRES_USER: pilosia
+      POSTGRES_PASSWORD: pilosia
+    volumes:
+      - ./databases/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - courses-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pilosia -d courses_db"]
+      interval: 5s
+      retries: 10
+
+  grades-db:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_DATABASE: grades_db
+    volumes:
+      - ./databases/mongo/init.js:/docker-entrypoint-initdb.d/init.js:ro
+      - grades-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  courses-data:
+  grades-data:
