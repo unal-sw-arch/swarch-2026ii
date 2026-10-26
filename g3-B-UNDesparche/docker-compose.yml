@@ -1,0 +1,52 @@
+services:
+  events_service:
+    build: ./events_service
+    container_name: events_service
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./events_service/events_service/.env
+    volumes:
+      - ./firebase_credentials.json:/app/firebase_credentials.json:ro
+      - events_data:/data
+    restart: unless-stopped
+
+  users_service:
+    build: ./users_service
+    container_name: users_service
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./users_service/users_service/.env
+    volumes:
+      - ./firebase_credentials.json:/app/firebase_credentials.json:ro
+      - users_data:/data
+    restart: unless-stopped
+
+  inventory_service:
+    build: ./inventory_service
+    container_name: inventory_service
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./inventory_service/inventory_service/.env
+    volumes:
+      - ./firebase_credentials.json:/app/firebase_credentials.json:ro
+      - inventory_data:/data
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend_web
+    container_name: frontend_web
+    ports:
+      - "5172:5172"
+    depends_on:
+      - events_service
+      - users_service
+      - inventory_service
+    restart: unless-stopped
+
+volumes:
+  events_data:
+  users_data:
+  inventory_data:

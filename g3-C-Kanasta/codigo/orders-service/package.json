@@ -1,0 +1,13 @@
+{
+  "name": "orders-service",
+  "version": "1.0.0",
+  "description": "Shopping carts and orders for Kanasta (GraphQL API)",
+  "main": "src/index.js",
+  "scripts": { "start": "node src/index.js" },
+  "dependencies": {
+    "express": "4.21.2",
+    "graphql": "16.9.0",
+    "graphql-http": "1.22.3",
+    "mongodb": "6.12.0"
+  }
+}

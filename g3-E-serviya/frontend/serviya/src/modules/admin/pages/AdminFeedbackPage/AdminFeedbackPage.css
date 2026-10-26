@@ -1,0 +1,20 @@
+.feedback-filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.feedback-result-card {
+    margin-bottom: 12px;
+    transition: border-color 0.15s;
+}
+
+.feedback-result-card:hover {
+    border-color: var(--c-primary);
+}
+
+@media (max-width: 768px) {
+    .feedback-filters-grid {
+        grid-template-columns: 1fr;
+    }
+}

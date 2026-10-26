@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Producto | Kanasta</title>
+  <link rel="icon" href="img/icono.svg">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="index.html"><img src="img/logo.svg" alt="Kanasta" class="logo"></a>
+    <nav>
+      <a href="index.html">Catálogo</a>
+      <a href="pedidos.html">Mis pedidos</a>
+      <a href="admin.html">Administrar</a>
+      <a href="carrito.html" class="cart-link">Carrito <span id="cart-count">0</span></a>
+    </nav>
+  </header>
+  <div id="message" class="message hidden"></div>
+  <main>
+    <a href="index.html" class="back">← Volver al catálogo</a>
+    <section id="product" class="product-detail"><p class="muted">Cargando producto...</p></section>
+  </main>
+  <footer class="footer">Kanasta · Tienda en línea · Bogotá, Colombia</footer>
+  <script src="js/api.js"></script>
+  <script src="js/producto.js"></script>
+</body>
+</html>

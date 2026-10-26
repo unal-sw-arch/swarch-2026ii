@@ -1,0 +1,193 @@
+services:
+  # ---------------------------------------------------------------------------------------------------
+  # API gateway: ÚNICO punto de entrada HTTP (host :8080). Enruta /api/v1/notifications/** y
+  # /api/v1/notification-channels a notifications-service y todo lo demás al monolito. Centraliza CORS.
+  # ---------------------------------------------------------------------------------------------------
+  gateway:
+    build: ./backend/api-gateway
+    container_name: serviya-gateway
+    restart: on-failure
+    ports:
+      - "8080:8080"
+    environment:
+      MONOLITH_URI: http://backend:8080
+      NOTIFICATIONS_SERVICE_URI: http://notifications-service:8082
+      # Mismos orígenes que tenía el CORS del monolito (incluida la IP de red local y el túnel ngrok).
+      GATEWAY_CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081,http://127.0.0.1:8081,http://192.168.1.2:8081,https://nonfervently-expiational-amani.ngrok-free.dev}
+    depends_on:
+      - backend
+      - notifications-service
+
+  # ---------------------------------------------------------------------------------------------------
+  # Monolito (identity, catálogo, solicitudes, feedback, métricas, reportes, admin). Ya NO se publica al
+  # host: se llega a él a través del gateway. Las notificaciones las PIDE vía outbox → RabbitMQ.
+  # ---------------------------------------------------------------------------------------------------
+  backend:
+    build: ./backend/serviya
+    container_name: serviya-backend
+    # En el primer `up` con volumen limpio, MySQL puede pasar su healthcheck (socket interno,
+    # port 0) antes de aceptar en 3306; el backend arranca, no conecta y muere. on-failure lo
+    # reintenta hasta que MySQL acepta conexiones de verdad. Ver NOTAS.txt (2026-07-04).
+    restart: on-failure
+    expose:
+      - "8080"
+    env_file: .env.example
+    environment:
+      DB_URL: ${DB_URL}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      # Bus hacia notifications-service. Si RabbitMQ cae, el negocio sigue: las notificaciones esperan en
+      # la tabla notification_outbox y el relay las publica al volver (por eso no hay depends_on).
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:-serviya}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      # Clave compartida con notifications-service para sellar correo + protectedData (DEBE ser la misma).
+      NOTIFICATIONS_PAYLOAD_KEY: ${NOTIFICATIONS_PAYLOAD_KEY}
+      # Base del enlace de recuperacion de contrasena (RF-003). Con el frontend dockerizado
+      # el origen es :8081, no el :5173 de Vite.
+      FRONTEND_RESET_URL: ${FRONTEND_RESET_URL:-http://localhost:8081/reset-password}
+      # Redis coord (locks). El contenedor vive en infra/redis/docker-compose.redis.yml (red compartida
+      # serviya-redis-net). La app tolera Redis caído al arrancar; el lock de @Scheduled llega en Fase 2.
+      REDIS_COORD_HOST: ${REDIS_COORD_HOST:-redis-coord}
+      REDIS_COORD_PORT: ${REDIS_COORD_PORT:-6379}
+      REDIS_COORD_USER: ${REDIS_COORD_USER:-svc-serviya-coord}
+      REDIS_COORD_PASSWORD: ${REDIS_COORD_PASSWORD:-}
+      REDIS_COORD_SSL: ${REDIS_COORD_SSL:-false}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - default
+      - redis-net
+
+  mysql:
+    image: mysql
+    container_name: serviya-mysql
+    env_file: .env.example
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+      interval: 3s
+
+  # ---------------------------------------------------------------------------------------------------
+  # notifications-service: primer microservicio extraído (ESTADO §7.4 paso 1). BD PROPIA + consumidor
+  # RabbitMQ + bandeja REST (vía gateway) + envío de correo (Brevo) + reintento programado.
+  # ---------------------------------------------------------------------------------------------------
+  notifications-service:
+    build: ./backend/notifications-service
+    container_name: serviya-notifications
+    restart: on-failure
+    expose:
+      - "8082"
+    environment:
+      NOTIFICATIONS_DB_URL: jdbc:mysql://notifications-mysql:3306/serviya_notifications?useUnicode=true&connectionCollation=utf8mb4_unicode_ci&serverTimezone=UTC
+      NOTIFICATIONS_DB_USER: ${NOTIFICATIONS_DB_USER:-notifications}
+      NOTIFICATIONS_DB_PASSWORD: ${NOTIFICATIONS_DB_PASSWORD}
+      # Mismo secreto que el monolito: el servicio solo VERIFICA los JWT que emite identity.
+      JWT_SECRET: ${JWT_SECRET}
+      # Clave PROPIA del servicio para el correo del destinatario en reposo (distinta de la del monolito).
+      ENCRYPTION_KEY: ${NOTIFICATIONS_ENCRYPTION_KEY}
+      NOTIFICATIONS_PAYLOAD_KEY: ${NOTIFICATIONS_PAYLOAD_KEY}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:-serviya}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      # Envío de correo (opcional). Con EMAIL_ENABLED distinto de true, el canal EMAIL degrada a FAILED.
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_API_URL: ${EMAIL_API_URL:-https://api.brevo.com/v3/smtp/email}
+      EMAIL_API_KEY: ${EMAIL_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-no-reply@serviya.com}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-ServiYa}
+      # Modo degradado D-07/1a (sondeo PING a redis-coord). Lo activa infra/redis/docker-compose.redis.yml.
+      COORDINATION_PROBE_ENABLED: ${COORDINATION_PROBE_ENABLED:-false}
+      REDIS_COORD_HOST: ${REDIS_COORD_HOST:-redis-coord}
+      REDIS_COORD_PORT: ${REDIS_COORD_PORT:-6379}
+      NOTIFICATIONS_REDIS_COORD_USER: svc-notifications-coord
+      NOTIFICATIONS_REDIS_COORD_PASSWORD: ${REDIS_SVC_NOTIFICATIONS_COORD_PASSWORD:-}
+    depends_on:
+      notifications-mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - default
+      - redis-net
+
+  notifications-mysql:
+    image: mysql:8.4
+    container_name: serviya-notifications-mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${NOTIFICATIONS_MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: serviya_notifications
+      MYSQL_USER: ${NOTIFICATIONS_DB_USER:-notifications}
+      MYSQL_PASSWORD: ${NOTIFICATIONS_DB_PASSWORD}
+    ports:
+      - "3308:3306"
+    volumes:
+      # El esquema NO se monta aquí: lo crea Flyway al arrancar el servicio (backend/notifications-service/
+      # src/main/resources/db/migration).
+      - notifications_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+      interval: 3s
+
+  # ---------------------------------------------------------------------------------------------------
+  # Bus de eventos (ESTADO §7.5). 5672 solo en la red interna; consola de administración en :15672.
+  # ---------------------------------------------------------------------------------------------------
+  rabbitmq:
+    image: rabbitmq:4.1-management-alpine
+    container_name: serviya-rabbitmq
+    # Como 'rabbitmq' (no root): el healthcheck se ejecuta con el usuario del contenedor y HOME=/var/lib/rabbitmq;
+    # como root creaba .erlang.cookie con dueño root antes que el servidor y este no arrancaba (eacces).
+    user: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-serviya}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      timeout: 10s
+      retries: 10
+      interval: 5s
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend/serviya
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+    container_name: serviya-frontend
+    depends_on:
+      - gateway
+    ports:
+      - "8081:80"
+
+volumes:
+  mysql_data:
+  notifications_mysql_data:
+  rabbitmq_data:
+
+networks:
+  # Red compartida con infra/redis/docker-compose.redis.yml. Declarada aquí también para que el compose
+  # raíz siga siendo ejecutable en solitario (sin el archivo de Redis). internal: sin salida a Internet.
+  redis-net:
+    name: serviya-redis-net
+    internal: true

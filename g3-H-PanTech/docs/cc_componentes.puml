@@ -1,0 +1,102 @@
+@startuml
+!theme plain
+top to bottom direction
+skinparam componentStyle uml2
+skinparam shadowing false
+skinparam defaultFontSize 14
+skinparam nodesep 12
+skinparam ranksep 55
+skinparam ArrowFontSize 12
+skinparam titleFontSize 18
+skinparam titleFontStyle bold
+
+skinparam component {
+  BackgroundColor<<Cliente web>> #BBDEFB
+  BorderColor<<Cliente web>> #1565C0
+  BackgroundColor<<Servicio>> #C8E6C9
+  BorderColor<<Servicio>> #2E7D32
+  FontStyle bold
+}
+skinparam database {
+  BackgroundColor<<BD relacional>> #FFE0B2
+  BorderColor<<BD relacional>> #E65100
+  BackgroundColor<<BD NoSQL clave-valor>> #FFCDD2
+  BorderColor<<BD NoSQL clave-valor>> #C62828
+  FontStyle bold
+}
+skinparam actor {
+  BackgroundColor #FFF9C4
+  BorderColor #F9A825
+}
+skinparam note {
+  BackgroundColor transparent
+  BorderColor transparent
+  FontStyle bold
+}
+skinparam interface {
+  BackgroundColor #FFFFFF
+  BorderColor #424242
+}
+
+title Vista C&C (Componentes y Conectores) - Panadería Express
+
+actor "Empleado\n(Mesero / Cocinero / Despachador / Administrador)" as Empleado
+
+component "Web App" as Frontend <<Cliente web>>
+interface " " as IOrder
+component "Order Manager" as Order <<Servicio>>
+interface " " as ISched
+component "Queue Scheduler" as Scheduler <<Servicio>>
+interface " " as ISQL
+interface " " as IRedis
+database "Relational DB" as RDB <<BD relacional>>
+database "NoSQL DB" as NDB <<BD NoSQL clave-valor>>
+
+' Interfaces provistas (lollipop)
+IOrder -down- Order
+ISched -down- Scheduler
+ISQL -down- RDB
+IRedis -down- NDB
+ISQL -[hidden]right- IRedis
+
+' Etiquetas flotantes de las interfaces (nombre y puerto)
+note as NOrder
+REST API
+:8000
+end note
+note as NSched
+Scheduler API
+:8001
+end note
+note as NSQL
+SQL
+:5432
+end note
+note as NRedis
+Redis protocol
+:6379
+end note
+IOrder -[hidden]right- NOrder
+ISched -[hidden]right- NSched
+NSQL -[hidden]right- ISQL
+IRedis -[hidden]right- NRedis
+
+' Usuario final
+Empleado -[#F9A825]down-> Frontend : Navegador web
+
+' Conectores (interfaz requerida), coloreados por tipo
+Frontend .[#1565C0]down.> IOrder : <<HTTP / REST>>\n1. Pedidos, menú, productos y reservas
+Order .[#1565C0]down.> ISched : <<HTTP / REST>>\n3. Encolar pedido nuevo
+Frontend .[#6A1B9A]down.> ISched : <<HTTP Polling>>\n2. Cola, despacho, estados e historial
+Scheduler .[#E65100]down.> ISQL : <<SQL / TCP>>\n6. Tiempos base e historial de estados
+Order .[#E65100]down.> ISQL : <<SQL / TCP>>\n4. Persistir productos, pedidos y reservas
+Scheduler .[#C62828]down.> IRedis : <<Redis / TCP>>\n5. Cola priorizada y estados
+
+legend right
+  <color:#1565C0>■</color> HTTP / REST
+  <color:#6A1B9A>■</color> HTTP Polling
+  <color:#E65100>■</color> SQL / TCP
+  <color:#C62828>■</color> Redis / TCP
+endlegend
+
+@enduml

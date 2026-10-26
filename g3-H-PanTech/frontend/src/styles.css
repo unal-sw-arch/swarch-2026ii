@@ -1,0 +1,472 @@
+:root {
+  --bg: #fdf7ef;
+  --card: #ffffff;
+  --primary: #c6772b;
+  --primary-dark: #a15f1d;
+  --ink: #3b2f27;
+  --muted: #8a7b6e;
+  --border: #eadfd2;
+  --success: #2e7d32;
+  --danger: #c62828;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.app {
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: #fff;
+  border-bottom: 3px solid var(--primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.brand-logo {
+  font-size: 2.2rem;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.brand p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.roles {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.role-button {
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.role-button:hover {
+  border-color: var(--primary);
+}
+
+.role-button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.grid.two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1.25rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.25rem;
+}
+
+.card h2 {
+  margin-top: 0;
+}
+
+h3 {
+  margin-bottom: 0.5rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+label.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  background: #fff;
+  color: var(--ink);
+}
+
+.row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.row > label {
+  flex: 1;
+  min-width: 120px;
+}
+
+button {
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.15s ease;
+}
+
+button:hover {
+  border-color: var(--primary);
+}
+
+button.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+button.primary:hover {
+  background: var(--primary-dark);
+}
+
+button.success {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+}
+
+button.danger {
+  background: #fff;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+button.link {
+  border: none;
+  background: none;
+  color: var(--primary);
+  padding: 0;
+  text-decoration: underline;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.menu-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.menu-table th,
+.menu-table td {
+  text-align: left;
+  padding: 0.5rem 0.4rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.menu-table input {
+  width: 70px;
+  margin: 0;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.list li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.error {
+  background: #fdecea;
+  color: var(--danger);
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+}
+
+.ok {
+  background: #e8f5e9;
+  color: var(--success);
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+}
+
+.tag {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  background: #eee;
+}
+
+.tag.vitrina {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.tag.preparado {
+  background: #fbe9e7;
+  color: #c62828;
+}
+
+.tag.pendiente {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.tag.en_preparacion {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.kitchen-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-left: 6px solid var(--primary);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.kitchen-card.en_preparacion {
+  border-left-color: var(--success);
+}
+
+.kitchen-card header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.kitchen-card ul,
+.dispatch-card ul {
+  margin: 0.5rem 0;
+  padding-left: 1.1rem;
+}
+
+.priority {
+  background: var(--primary);
+  color: #fff;
+  border-radius: 50%;
+  width: 1.7rem;
+  height: 1.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.estimate {
+  margin-top: 0.5rem;
+  font-weight: 700;
+  color: var(--primary-dark);
+}
+
+.dispatch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+
+.dispatch-column {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.dispatch-column h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0.5rem;
+}
+
+.badge {
+  background: var(--primary);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.dispatch-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.dispatch-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* Historial de estados de las comandas (Requerimiento 9) */
+.tag.listo {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.tag.entregado {
+  background: #eceff1;
+  color: #546e7a;
+}
+
+.hist-title {
+  margin: 0.85rem 0 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-top: 1px dashed var(--border);
+  padding-top: 0.55rem;
+}
+
+.timeline {
+  list-style: none;
+  position: relative;
+  margin: 0.25rem 0 0;
+  padding: 0 0 0 1.15rem;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 0.34rem;
+  top: 0.45rem;
+  bottom: 0.45rem;
+  width: 2px;
+  background: var(--border);
+}
+
+.timeline li {
+  position: relative;
+  padding: 0.15rem 0 0.15rem 0.35rem;
+  font-size: 0.8rem;
+  border-bottom: none;
+}
+
+.timeline li::before {
+  content: '';
+  position: absolute;
+  left: -0.72rem;
+  top: 0.42rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--muted);
+}
+
+.timeline li.done::before {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.timeline li.current::before {
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(198, 119, 43, 0.2);
+}
+
+.timeline li .t {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  margin-right: 0.35rem;
+}

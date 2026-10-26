@@ -1,0 +1,5 @@
+# Fin de línea LF obligatorio para los artefactos de Redis que se montan en contenedores Linux
+# o se ejecutan con sh: en un clon en Windows, CRLF rompería render-acl.sh (\r en las guardas y en
+# los hashes) y podría afectar a coord.conf / users.acl montados en el contenedor. Acotado a infra/redis
+# para no cambiar la política de fin de línea del resto del repositorio.
+infra/redis/** text eol=lf

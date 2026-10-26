@@ -1,0 +1,74 @@
+.role-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 7px;
+    margin-bottom: 22px;
+}
+
+.role-tab {
+    padding: 10px 6px;
+    border-radius: var(--r);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    border: 1.5px solid var(--c-border);
+    background: var(--c-bg-s);
+    color: var(--c-mid);
+    transition: all .15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.role-tab:hover {
+    border-color: var(--c-primary);
+    background: var(--c-primary-xl);
+}
+
+.role-tab.active {
+    border-color: var(--c-primary);
+    background: var(--c-primary-l);
+    color: var(--c-primary-d);
+}
+
+.remember-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+}
+
+.ck-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--c-mid);
+    cursor: pointer;
+}
+
+.ck-label input {
+    accent-color: var(--c-primary);
+}
+
+.forgot {
+    font-size: 13px;
+    color: var(--c-primary);
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.err-box {
+    background: var(--c-danger-bg);
+    border: 1px solid #FECACA;
+    border-radius: var(--r);
+    padding: 11px 13px;
+    font-size: 13px;
+    color: #991B1B;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}

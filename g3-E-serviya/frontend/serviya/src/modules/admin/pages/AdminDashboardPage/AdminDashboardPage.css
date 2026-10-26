@@ -1,0 +1,43 @@
+.sec-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cell-user {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.report-context {
+    background: var(--c-bg-s);
+    border-radius: var(--r);
+    padding: 12px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: var(--c-mid);
+}
+
+.user-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.ck-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    color: var(--c-mid);
+    margin-bottom: 7px;
+}
+
+.ck-row input {
+    accent-color: var(--c-primary);
+}

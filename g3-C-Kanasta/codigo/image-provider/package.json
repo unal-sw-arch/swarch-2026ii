@@ -1,0 +1,8 @@
+{
+  "name": "image-provider",
+  "version": "1.0.0",
+  "description": "Serves product images for Kanasta",
+  "main": "src/index.js",
+  "scripts": { "start": "node src/index.js" },
+  "dependencies": { "express": "4.21.2" }
+}

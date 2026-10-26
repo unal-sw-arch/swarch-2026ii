@@ -1,0 +1,20 @@
+# Artefactos de build locales (se regeneran dentro de la imagen)
+build/
+.dart_tool/
+.flutter-plugins-dependencies
+
+# Carpetas nativas no necesarias para el build web
+android/
+ios/
+linux/
+macos/
+windows/
+
+# Metadatos y tests
+test/
+.gitignore
+.metadata
+
+# Docker
+Dockerfile
+.dockerignore

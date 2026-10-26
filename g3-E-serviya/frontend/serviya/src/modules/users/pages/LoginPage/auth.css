@@ -1,0 +1,129 @@
+/* Shared styles for the authentication pages (login / register / recover). */
+body {
+    background: var(--c-bg-s);
+}
+
+.auth-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: calc(100vh - 60px);
+}
+
+.auth-side {
+    background: linear-gradient(150deg, #E0F7FA, #B2EBF2);
+    padding: 48px 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.auth-side-title {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--c-text);
+    line-height: 1.25;
+    margin-bottom: 20px;
+}
+
+.auth-side-title span {
+    color: var(--c-primary-d);
+}
+
+.auth-side-foot {
+    font-size: 11px;
+    color: rgba(15, 23, 42, .4);
+}
+
+.auth-feat {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    margin-bottom: 14px;
+}
+
+.auth-feat-ico {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--c-primary);
+}
+
+.auth-feat-txt {
+    font-size: 13px;
+    color: var(--c-text);
+    line-height: 1.55;
+    padding-top: 6px;
+}
+
+.auth-form {
+    background: white;
+    padding: 48px 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.auth-title {
+    font-size: 24px;
+    font-weight: 800;
+    margin-bottom: 3px;
+}
+
+.auth-sub {
+    font-size: 13px;
+    color: var(--c-mid);
+    margin-bottom: 26px;
+}
+
+.auth-foot {
+    text-align: center;
+    font-size: 13px;
+    color: var(--c-mid);
+    margin-top: 18px;
+}
+
+.auth-foot a {
+    color: var(--c-primary);
+    font-weight: 600;
+}
+
+.google-btn {
+    width: 100%;
+    padding: 10px;
+    background: white;
+    border: 1.5px solid var(--c-border);
+    border-radius: var(--r);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    color: var(--c-text);
+    font-family: var(--font);
+    transition: all .18s;
+}
+
+.google-btn:hover {
+    border-color: var(--c-primary);
+}
+
+@media(max-width:768px) {
+    .auth-wrap {
+        grid-template-columns: 1fr;
+    }
+
+    .auth-side {
+        display: none;
+    }
+
+    .auth-form {
+        padding: 36px 22px;
+    }
+}

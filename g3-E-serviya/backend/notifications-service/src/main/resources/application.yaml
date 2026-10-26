@@ -1,0 +1,113 @@
+spring:
+  application:
+    name: notifications-service
+  # Redis se usa SOLO para el sondeo PING de disponibilidad (RedisCoordinationAvailabilityAdapter). Se
+  # excluye el escaneo de repositorios Redis (trataría los repos JPA como Redis).
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+  datasource:
+    url: ${NOTIFICATIONS_DB_URL:jdbc:mysql://localhost:3308/serviya_notifications?useUnicode=true&connectionCollation=utf8mb4_unicode_ci&serverTimezone=UTC}
+    username: ${NOTIFICATIONS_DB_USER:notifications}
+    password: ${NOTIFICATIONS_DB_PASSWORD:}
+  jpa:
+    hibernate:
+      # El esquema lo gobierna Flyway (M25). Hibernate solo VALIDA que las entidades casen con él.
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    web:
+      pageable:
+        default-page-size: 20
+        max-page-size: 20
+    # Conexión a redis-coord con el usuario ACL svc-notifications-coord (solo +ping). Timeouts cortos:
+    # el sondeo no debe frenar el envío de correo.
+    redis:
+      host: ${REDIS_COORD_HOST:localhost}
+      port: ${REDIS_COORD_PORT:6379}
+      username: ${NOTIFICATIONS_REDIS_COORD_USER:svc-notifications-coord}
+      password: ${NOTIFICATIONS_REDIS_COORD_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_COORD_SSL:false}
+      timeout: 300ms
+      connect-timeout: 500ms
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:serviya}
+    password: ${RABBITMQ_PASSWORD:}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    listener:
+      simple:
+        # Rechazo sin reencolar → el mensaje va a la dead-letter queue (no bucle infinito de un mensaje roto).
+        default-requeue-rejected: false
+        prefetch: 10
+        retry:
+          # Fallos transitorios (BD caída...): reintento con backoff dentro del consumidor; agotado → DLQ.
+          enabled: true
+          max-attempts: 4
+          initial-interval: 1s
+          multiplier: 2
+          max-interval: 10s
+
+server:
+  port: ${SERVER_PORT:8082}
+  error:
+    include-stacktrace: never
+    include-message: never
+  forward-headers-strategy: native
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  health:
+    # El sondeo de Redis es OPCIONAL (degradación D-07/1a): Redis caído NO debe marcar el servicio DOWN.
+    redis:
+      enabled: false
+
+serviya:
+  security:
+    # Mismo JWT_SECRET que el monolito (solo se VERIFICA). Sin default: fail-fast si falta o es débil.
+    jwt-secret: ${JWT_SECRET:}
+    # Clave PROPIA del servicio para el correo del destinatario en reposo (no la del monolito).
+    encryption-key: ${ENCRYPTION_KEY:}
+  messaging:
+    # Clave COMPARTIDA con el monolito para abrir el campo 'sealed' de los mensajes.
+    payload-key: ${NOTIFICATIONS_PAYLOAD_KEY:}
+  coordination:
+    # Modo degradado D-07/1a: con redis-coord caído se difieren los correos. false = sin sondeo (asume OK).
+    enabled: ${COORDINATION_PROBE_ENABLED:false}
+    probe-cache-ms: 5000
+  notifications:
+    max-delivery-attempts: ${NOTIFICATIONS_MAX_DELIVERY_ATTEMPTS:3}
+    retry-batch-size: 100
+    cron:
+      retry-failed: ${NOTIFICATIONS_RETRY_CRON:0 */15 * * * *}
+  # Envío de correo (canal EMAIL). enabled=false por defecto: sin bean de EmailPort, la entrega EMAIL
+  # degrada a FAILED sin romper nada. El api-key es SECRETO -> solo por variable de entorno EMAIL_API_KEY.
+  email:
+    enabled: ${EMAIL_ENABLED:false}
+    provider-url: ${EMAIL_API_URL:https://api.brevo.com/v3/smtp/email}
+    api-key: ${EMAIL_API_KEY:}
+    from-email: ${EMAIL_FROM:no-reply@serviya.com}
+    from-name: ${EMAIL_FROM_NAME:ServiYa}
+    connect-timeout-ms: ${EMAIL_CONNECT_TIMEOUT_MS:3000}
+    read-timeout-ms: ${EMAIL_READ_TIMEOUT_MS:5000}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+  packages-to-scan: com.parosurvivors.notifications
