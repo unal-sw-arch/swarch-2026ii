@@ -1,0 +1,305 @@
+# Each service receives only the variables it uses. Hosts and ports point to
+# the internal network; .env keeps the values for running a service locally.
+x-metadata-db-environment: &metadata-db-environment
+  POSTGRES_HOST: metadataba-db
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: ${POSTGRES_DB:-metadataba_db}
+  POSTGRES_USER: ${POSTGRES_USER}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+x-videos-db-environment: &videos-db-environment
+  MINIO_ENDPOINT_URL: http://videos-db:9000
+  MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+  MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+  MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-streaming-videos}
+
+x-processing-environment: &processing-environment
+  <<: [*metadata-db-environment, *videos-db-environment]
+  RABBITMQ_HOST: transcoding-broker
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_USER: ${RABBITMQ_USER:-video_worker}
+  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-local_video_password}
+  RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+  HLS_SEGMENT_SECONDS: ${HLS_SEGMENT_SECONDS:-4}
+  TRANSCODE_MAX_ATTEMPTS: ${TRANSCODE_MAX_ATTEMPTS:-3}
+  TRANSCODE_RETRY_SECONDS: ${TRANSCODE_RETRY_SECONDS:-15}
+  WORKER_LEASE_SECONDS: ${WORKER_LEASE_SECONDS:-120}
+  TRANSCODE_TIMEOUT_SECONDS: ${TRANSCODE_TIMEOUT_SECONDS:-3600}
+  FFMPEG_THREADS: ${FFMPEG_THREADS:-2}
+  WORKER_HEALTH_PORT: ${WORKER_HEALTH_PORT:-8091}
+
+x-processing-service: &processing-service
+  restart: unless-stopped
+  environment: *processing-environment
+  networks:
+    - internal
+  init: true
+
+services:
+  metadataba-db:
+    image: postgres:16-alpine
+    container_name: metadataba-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-metadataba_db}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - metadataba_data:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    networks:
+      - internal
+      - host-access
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  videos-db:
+    image: "${MINIO_IMAGE:-elestio/minio:latest}"
+    container_name: videos-db
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    ports:
+      - "127.0.0.1:${MINIO_API_HOST_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
+    volumes:
+      - videos_data:/data
+    networks:
+      - internal
+      - host-access
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  streaming-service:
+    build:
+      context: ./streaming_service
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      <<: [*metadata-db-environment, *videos-db-environment]
+      MINIO_ENDPOINT_URL: http://videos-db:9000
+    ports:
+      - "127.0.0.1:${STREAMING_PORT:-8082}:8082"
+    networks:
+      - internal
+      - host-access
+    depends_on:
+      metadataba-db:
+        condition: service_healthy
+      videos-db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8082/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  transcoding-broker:
+    build:
+      context: .
+      dockerfile: ${TRANSCODING_BROKER_DOCKERFILE:-transcoding_broker/Dockerfile}
+    image: mvp1-transcoding-broker:local
+    hostname: transcoding-broker
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-video_worker}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-local_video_password}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
+    ports:
+      - "127.0.0.1:${RABBITMQ_HOST_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_HOST_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - internal
+      - host-access
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  processing-service:
+    <<: *processing-service
+    environment:
+      <<: *processing-environment
+      JWT_SECRET: ${JWT_SECRET}
+    build:
+      context: .
+      dockerfile: processing_service/Dockerfile
+    image: mvp1-processing-service:local
+    ports:
+      - "127.0.0.1:${PROCESSING_API_HOST_PORT:-8086}:8086"
+    networks:
+      - internal
+      - host-access
+    depends_on:
+      metadataba-db:
+        condition: service_healthy
+      videos-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8086/health', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 10
+      start_period: 15s
+
+  job-dispatcher:
+    <<: *processing-service
+    image: mvp1-processing-service:local
+    command: ["python", "-m", "processing_service.outbox_dispatcher"]
+    depends_on:
+      processing-service:
+        condition: service_healthy
+      transcoding-broker:
+        condition: service_healthy
+    stop_grace_period: 30s
+
+  encoder-worker:
+    <<: *processing-service
+    build:
+      context: .
+      dockerfile: encoder_worker/Dockerfile
+    image: mvp1-encoder-worker:local
+    deploy:
+      replicas: ${TRANSCODING_WORKER_REPLICAS:-1}
+    expose:
+      - "8091"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen('http://localhost:' + os.getenv('WORKER_HEALTH_PORT', '8091') + '/health', timeout=5)"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      processing-service:
+        condition: service_healthy
+      transcoding-broker:
+        condition: service_healthy
+    # SIGTERM stops new jobs and allows the current encode to finish.
+    stop_grace_period: 2m
+
+  users-db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${USERS_DB_USER}
+      POSTGRES_PASSWORD: ${USERS_DB_PASSWORD}
+      POSTGRES_DB: users
+    ports:
+      - "127.0.0.1:${USERS_DB_HOST_PORT:-5434}:5432"
+    volumes:
+      - users_data:/var/lib/postgresql/data
+      - ./auth_service/users_db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - internal
+      - host-access
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      retries: 10
+
+  auth-service:
+    build:
+      context: ./auth_service
+    restart: unless-stopped
+    environment:
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: http://localhost:${API_GATEWAY_HOST_PORT:-6767}/auth/google/callback
+      FRONTEND_URL: http://localhost:${FRONTEND_HOST_PORT:-8080}
+      DATABASE_URL: postgres://${USERS_DB_USER}:${USERS_DB_PASSWORD}@users-db:5432/users
+      JWT_SECRET: ${JWT_SECRET}
+    networks:
+      - internal
+      - host-access
+    depends_on:
+      users-db:
+        condition: service_healthy
+
+  api-gateway:
+    build:
+      context: ./api_gateway
+    restart: unless-stopped
+    ports:
+      - "${API_GATEWAY_HOST_PORT:-6767}:6767"
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      AUTH_URL: http://auth-service:8081
+      PROCESSING_URL: http://processing-service:8086
+      FRONTEND_ORIGIN: http://localhost:${FRONTEND_HOST_PORT:-8080}
+    networks:
+      - internal
+      - host-access
+    depends_on:
+      - auth-service
+      - processing-service
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:${API_GATEWAY_HOST_PORT:-6767}
+        VITE_STREAMING_URL: http://localhost:${STREAMING_PORT:-8082}
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_HOST_PORT:-8080}:80"
+    networks:
+      - host-access
+    depends_on:
+      - api-gateway
+
+volumes:
+  metadataba_data:
+    name: metadataba_data
+  videos_data:
+    name: videos_data
+  rabbitmq_data:
+    name: mvp1_rabbitmq_data
+  redis_data:
+    name: redis_streaming_data
+  users_data:
+    name: users_data
+
+networks:
+  internal:
+    name: metadataba_internal
+    internal: true
+    driver: bridge
+  host-access:
+    name: metadataba_host_access
+    driver: bridge

@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    sans-serif;
+  --color-brand-400: oklch(0.7 0.2 25);
+  --color-brand-500: oklch(0.63 0.23 27);
+  --color-brand-600: oklch(0.56 0.22 27);
+  --color-brand-700: oklch(0.48 0.19 27);
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-zinc-950 text-zinc-100 antialiased;
+  }
+}

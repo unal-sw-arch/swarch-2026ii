@@ -1,0 +1,8 @@
+.env
+pgdata/
+__pycache__/
+.venv/
+.pytest_cache/
+artifacts/
+tests
+node_modules/
