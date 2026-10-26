@@ -1,0 +1,27 @@
+# Dependencias (se instalan dentro de la imagen)
+node_modules/
+npm-debug.log*
+
+# Estado local de wrangler/miniflare (se monta como volumen, no se hornea)
+.wrangler/
+
+# Exportaciones locales de base de datos: producción usa D1
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+backups/
+
+# Clientes Flutter: no forman parte de la imagen del backend
+apps/operational_client/
+apps/admin_client/
+
+# Metadatos de herramientas
+.kiro/
+.git/
+.gitignore
+desktop.ini
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore

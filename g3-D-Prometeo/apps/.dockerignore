@@ -1,0 +1,25 @@
+# Contexto de build de admin_client (incluye operational_client por dependencia path).
+# Se excluyen artefactos pesados que se regeneran dentro de la imagen.
+
+# El backend no forma parte del build web de los clientes.
+cloud_api/
+
+# Artefactos de build locales de Flutter
+**/build/
+**/.dart_tool/
+**/.flutter-plugins-dependencies
+
+# Carpetas nativas no necesarias para el build web
+**/android/
+**/ios/
+**/linux/
+**/macos/
+**/windows/
+
+# Metadatos y tests
+**/test/
+**/.metadata
+
+# Docker
+**/Dockerfile
+**/.dockerignore

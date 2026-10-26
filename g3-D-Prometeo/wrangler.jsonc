@@ -1,0 +1,34 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "restauranteapp-cloud",
+  "main": "apps/cloud_api/index.ts",
+  "compatibility_date": "2026-09-12",
+  "vars": {
+    "ENVIRONMENT": "production",
+    // Comma-separated browser origins allowed via CORS. Defaults in code to the
+    // local dev clients (http://localhost:8080, http://localhost:8081).
+    "ALLOWED_ORIGINS": "http://localhost:8080,http://localhost:8081"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "RESTAURANT_COORDINATOR",
+        "class_name": "RestaurantCoordinator"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["RestaurantCoordinator"]
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "restaurante-db",
+      "database_id": "87cac56e-7ad5-489a-90a9-43a32a3a2cfa",
+      "migrations_dir": "database/d1/migrations"
+    }
+  ]
+}

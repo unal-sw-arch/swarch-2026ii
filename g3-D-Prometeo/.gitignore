@@ -1,0 +1,11 @@
+node_modules/
+npm-debug.log*
+backups/
+.wrangler/
+
+# Local database exports are never source artifacts. Production uses D1.
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+.kiro/
