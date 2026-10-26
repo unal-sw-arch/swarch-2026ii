@@ -3,21 +3,22 @@
 Course repository for the software architecture project. Each team owns one directory
 and works only inside it.
 
-Team directories are named `g3-<X>-<ProjectName>`. Once a team settles on a project
-name, rename the directory and update this table in the same Pull Request.
+Team directories follow the `g3-<X>-<Name>` naming convention. If a team changes
+its directory name, update this table in the same Pull Request. Each team's README
+contains its members, architecture, and local setup instructions.
 
 ## Teams
 
-| Directory | Team | Project |
-| --- | --- | --- |
-| [`g3-A-Unnamed`](g3-A-Unnamed) | Team A | Unnamed |
-| [`g3-B-Unnamed`](g3-B-Unnamed) | Team B | Unnamed |
-| [`g3-C-Unnamed`](g3-C-Unnamed) | Team C | Unnamed |
-| [`g3-D-Unnamed`](g3-D-Unnamed) | Team D | Unnamed |
-| [`g3-E-Unnamed`](g3-E-Unnamed) | Team E | Unnamed |
-| [`g3-F-Unnamed`](g3-F-Unnamed) | Team F | Unnamed |
-| [`g3-G-Pilosia`](g3-G-Pilosia) | Team G | Pilosia |
-| [`g3-H-Unnamed`](g3-H-Unnamed) | Team H | Unnamed |
+| Directory | Team | Project | Description |
+| --- | --- | --- | --- |
+| [`g3-A-BUFFIT`](g3-A-BUFFIT) | Team A | BUFF/T | Campus dining menu customization and lunch pickup orders. |
+| [`g3-B-UNDesparche`](g3-B-UNDesparche) | Team B | UNDesparche | Campus events and recreational equipment management. |
+| [`g3-C-Kanasta`](g3-C-Kanasta) | Team C | Kanasta | Online store with a product catalog, shopping cart, and order management. |
+| [`g3-D-Prometeo`](g3-D-Prometeo) | Team D | Prometeo | Restaurant operations and administration with real-time updates. |
+| [`g3-E-serviya`](g3-E-serviya) | Team E | ServiYa | Marketplace connecting customers with home service providers. |
+| [`g3-F-NexoPlay`](g3-F-NexoPlay) | Team F | NexoPlay | Video upload, processing, and streaming platform. |
+| [`g3-G-Pilosia`](g3-G-Pilosia) | Team G | Pilosia | Academic information system for course enrollment, schedules, and grades. |
+| [`g3-H-PanTech`](g3-H-PanTech) | Team H — PanTech | Panadería Express | Bakery order management and kitchen queue prioritization. |
 
 ## Working agreement
 
