@@ -1,0 +1,24 @@
+# Secretos: se inyectan en tiempo de ejecucion desde docker-compose.yml
+**/.env
+firebase_credentials.json
+
+# Base de datos local: dentro del contenedor se crea una nueva en el volumen
+db.sqlite3
+db.sqlite3-journal
+
+# Cache y entornos
+**/__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Control de versiones e IDE
+.git
+.gitignore
+.vscode/
+.idea/
+
+# Docker
+Dockerfile
+.dockerignore

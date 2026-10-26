@@ -1,0 +1,183 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-display: "Varela Round", sans-serif;
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* HeroUI Mint color palette (hue: 155, lightness: 0.82, chroma: 0.12) */
+  --color-mint-50: #F0FDF8;
+  --color-mint-100: #DCFCEE;
+  --color-mint-200: #B6F7DA;
+  --color-mint-300: #7EEDBF;
+  --color-mint-400: #3DDC9F;
+  --color-mint-500: #00D592;
+  --color-mint-600: #00BA7C;
+  --color-mint-700: #009262;
+  --color-mint-800: #04724E;
+  --color-mint-900: #065E42;
+  --color-mint-950: #023524;
+
+  /* Semantics */
+  --color-primary: #00D592;
+  --color-primary-foreground: #032B1D;
+
+  --color-undesparche-primary: #00D592;
+  --color-undesparche-primary-dark: #00BA7C;
+  --color-undesparche-secondary: #0E1720;
+  --color-undesparche-navy: #080E14;
+  --color-undesparche-lime: #00F5A0;
+  --color-undesparche-danger: #FF4D4F;
+  --color-undesparche-warning: #F5A623;
+  --color-undesparche-success: #00D592;
+  --radius-undesparche: 0.875rem;
+}
+
+/* Material Symbols configuration */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Global focus-visible styling (HeroUI Mint ring) */
+:focus-visible {
+  outline: 2px solid #00D592;
+  outline-offset: 2px;
+}
+
+/* Accessibility: Skip link */
+.skip-to-content {
+  position: absolute;
+  top: -9999px;
+  left: 1rem;
+  z-index: 100;
+  padding: 0.75rem 1.25rem;
+  background-color: #080E14;
+  color: #00F5A0;
+  border: 1px solid rgba(0, 213, 146, 0.4);
+  border-radius: 9999px;
+  font-weight: 600;
+  transition: top 0.15s ease-in-out;
+}
+
+.skip-to-content:focus {
+  top: 1rem;
+}
+
+/* Tabular figures for countdown timers, dates and coordinates */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* HeroUI Mint Glow & Ambient Backgrounds */
+.heroui-radial-glow {
+  background: radial-gradient(circle at 50% 0%, rgba(0, 213, 146, 0.12) 0%, rgba(0, 213, 146, 0.02) 45%, transparent 70%);
+}
+
+.heroui-card {
+  background-color: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 4px 12px -2px rgba(0, 0, 0, 0.03);
+  border-radius: 1rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dark .heroui-card {
+  background-color: #0E1620;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+}
+
+.heroui-card:hover {
+  border-color: rgba(0, 213, 146, 0.35);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.08);
+}
+
+.dark .heroui-card:hover {
+  border-color: rgba(0, 213, 146, 0.35);
+  box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+/* HeroUI Mint Buttons */
+.heroui-btn-solid {
+  background-color: #00D592;
+  color: #032B1D;
+  font-weight: 700;
+  border-radius: 9999px;
+  box-shadow: 0 4px 14px 0 rgba(0, 213, 146, 0.35);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.heroui-btn-solid:hover {
+  background-color: #00BA7C;
+  box-shadow: 0 6px 20px rgba(0, 213, 146, 0.45);
+  transform: translateY(-1px);
+}
+
+.heroui-btn-solid:active {
+  transform: scale(0.97);
+}
+
+.heroui-btn-flat {
+  background-color: rgba(0, 213, 146, 0.12);
+  color: #00875A;
+  font-weight: 600;
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 213, 146, 0.22);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dark .heroui-btn-flat {
+  color: #00F5A0;
+  background-color: rgba(0, 213, 146, 0.14);
+}
+
+.heroui-btn-flat:hover {
+  background-color: rgba(0, 213, 146, 0.22);
+  border-color: rgba(0, 213, 146, 0.45);
+}
+
+/* HeroUI Mint Chips */
+.heroui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: rgba(0, 213, 146, 0.12);
+  color: #007A52;
+  border: 1px solid rgba(0, 213, 146, 0.25);
+}
+
+.dark .heroui-chip {
+  color: #00F5A0;
+  background-color: rgba(0, 213, 146, 0.15);
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
