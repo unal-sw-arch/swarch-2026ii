@@ -1,0 +1,68 @@
+@startuml
+!theme plain
+top to bottom direction
+skinparam shadowing false
+skinparam defaultFontSize 14
+skinparam nodesep 40
+skinparam ranksep 55
+skinparam ArrowFontSize 12
+skinparam titleFontSize 18
+skinparam titleFontStyle bold
+skinparam node {
+  FontStyle bold
+}
+skinparam database {
+  FontStyle bold
+}
+
+title
+  Vista de Tiers (despliegue en contenedores) - Panadería Express
+  Prototipo 2
+end title
+
+node "Tier 1 - Presentación" as T1 #E3F2FD;line:1565C0;text:1565C0 {
+  node "Navegador web\n(equipo del empleado)" as Browser #FFF9C4;line:F9A825
+  node "Contenedor frontend\n:80" as CFront <<Docker>> #BBDEFB;line:1565C0
+}
+
+node "Tier 2 - Lógica y seguridad" as T2 #E8F5E9;line:2E7D32;text:2E7D32 {
+  node "Contenedor auth-service\n:8002" as CAuth <<Docker>> #E1BEE7;line:6A1B9A
+  node "Contenedor order-manager\n:8000" as COrder <<Docker>> #C8E6C9;line:2E7D32
+  node "Contenedor queue-scheduler\n:8001" as CSched <<Docker>> #C8E6C9;line:2E7D32
+}
+
+node "Tier 3 - Datos" as T3 #FFF3E0;line:E65100;text:E65100 {
+  database "Contenedor postgres\n:5432\n(esquema auth)" as CPg <<Docker>> #FFE0B2;line:E65100
+  database "Contenedor redis\n:6379" as CRedis <<Docker>> #FFCDD2;line:C62828
+}
+
+' Conexiones coloreadas por tipo
+Browser -[#757575]left-> CFront : Descarga de la SPA
+Browser -[#00897B]down-> CAuth : HTTPS / REST + JWT
+Browser -[#1565C0]down-> COrder : HTTP / REST + JWT
+Browser -[#6A1B9A]down-> CSched : HTTP Polling + JWT
+COrder -[#00838F]right-> CSched : HTTP / REST + credencial de servicio
+COrder -[#E65100]down-> CPg : SQL / TCP
+CSched -[#E65100]down-> CPg : SQL / TCP\n(tiempos base + historial)
+CSched -[#C62828]down-> CRedis : Redis / TCP
+CAuth -[#E65100]down-> CPg : SQL / TCP\n(usuarios y roles)
+
+note bottom of T3
+  6 contenedores orquestados con docker-compose
+  y una red interna común (panaderia-net).
+
+  Volúmenes: postgres_data y redis_data.
+  En producción no se publican 5432 ni 6379.
+end note
+
+legend right
+  <back:#757575>   </back> Descarga estática
+  <back:#00897B>   </back> HTTPS / REST
+  <back:#1565C0>   </back> HTTP / REST + JWT
+  <back:#6A1B9A>   </back> HTTP Polling + JWT
+  <back:#00838F>   </back> HTTP / REST interno
+  <back:#E65100>   </back> SQL / TCP
+  <back:#C62828>   </back> Redis / TCP
+endlegend
+
+@enduml

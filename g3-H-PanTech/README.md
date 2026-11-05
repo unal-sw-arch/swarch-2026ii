@@ -69,13 +69,31 @@ Para la cola de cocina se usa una regla sencilla basada en los tiempos estimados
 
 ### Estructura de Componentes y Conectores (C&C)
 
-#### Vista C&C
+#### Vista C&C — Prototipo 1
 
-![Vista C&C](docs/Vista%20CyC.png)
+![Vista C&C - Prototipo 1](docs/Vista%20CyC.png)
 
-#### Vista de tiers (despliegue en contenedores)
+#### Vista C&C — Prototipo 2 (diseño objetivo)
 
-![Vista de tiers](docs/tiers_despliegue.png)
+![Vista C&C - Prototipo 2](docs/Vista%20CyC%20P2.png)
+
+El diseño del Prototipo 2 conserva la estructura del Prototipo 1 y agrega:
+
+- **Auth Service** (`:8002`) como sexto componente, encargado del registro, inicio de sesión y emisión de JWT.
+- **Autenticación y autorización (JWT + RBAC):** Order Manager y Queue Scheduler validan el token localmente; los roles son `mesero`, `cocinero`, `despachador` y `admin`, e Historial queda como permiso de lectura.
+- **Queue Scheduler con priorización avanzada:** SJF + envejecimiento (aging) + capacidad de cocina + ETA, manteniendo el desempate FIFO.
+- **Mismo PostgreSQL con esquema `auth`** para usuarios y roles, sin agregar un contenedor de base de datos adicional.
+- **Polling** como mecanismo de actualización; WebSocket/SSE queda como extensión futura.
+
+> Los diagramas del Prototipo 2 representan el diseño objetivo. La implementación de estos cambios se realizará en la siguiente fase.
+
+#### Vista de tiers — Prototipo 1
+
+![Vista de tiers - Prototipo 1](docs/tiers_despliegue.png)
+
+#### Vista de tiers — Prototipo 2 (diseño objetivo)
+
+![Vista de tiers - Prototipo 2](docs/tiers_despliegue%20P2.png)
 
 #### Estilos arquitectónicos utilizados
 
@@ -99,6 +117,8 @@ Para la cola de cocina se usa una regla sencilla basada en los tiempos estimados
 | Relational DB | Base de datos relacional (datos) | PostgreSQL | 5432 | Datos persistentes: productos, tiempos base, pedidos, reservas e historial de estados de las comandas. |
 | NoSQL DB | Base de datos NoSQL clave-valor (datos) | Redis | 6379 | Cola activa de cocina y estados temporales de las comandas. |
 
+> En el diseño del Prototipo 2 se agrega el **Auth Service** (FastAPI, `:8002`), que centraliza usuarios, roles y emisión de JWT. Order Manager y Queue Scheduler validan el token localmente.
+
 **Actor externo**
 
 | Actor | Descripción |
@@ -116,11 +136,13 @@ Para la cola de cocina se usa una regla sencilla basada en los tiempos estimados
 | 5 | Queue Scheduler | NoSQL DB (Redis :6379) | Protocolo Redis sobre TCP | Mantener la cola priorizada y los estados temporales. |
 | 6 | Queue Scheduler | Relational DB (SQL :5432) | SQL sobre TCP | Leer los tiempos base de preparación y registrar el historial de estados de las comandas en `order_status_events`. |
 
+> El Prototipo 2 agrega el conector Web App → Auth Service (HTTPS / REST) y Auth Service → PostgreSQL (SQL / TCP, esquema `auth`). También cambia el conector Order Manager → Queue Scheduler para usar una credencial de servicio. El detalle está en la Vista C&C del Prototipo 2.
+
 #### Cumplimiento de los requisitos no funcionales
 
 | Requisito | Cómo se cumple |
 |---|---|
-| Arquitectura distribuida | Cinco componentes desplegados en contenedores independientes que se comunican por red. |
+| Arquitectura distribuida | Cinco componentes desplegados en contenedores independientes que se comunican por red. En el diseño del Prototipo 2 se agrega un sexto componente (Auth Service). |
 | Al menos un componente de presentación (web front-end) | Web App (React + Vite). |
 | Al menos dos componentes de lógica | Order Manager y Queue Scheduler. |
 | Al menos dos componentes de datos (relacional y NoSQL) | PostgreSQL y Redis. |
@@ -192,5 +214,6 @@ swarch-2026ii/               # Repositorio del curso (sección 3)
 - **El detalle de la comanda no se persiste en PostgreSQL.** El Queue Scheduler mantiene el detalle y el estado actual de las comandas en Redis; las comandas entregadas salen de las pantallas y se conservan en Redis con un TTL (1 hora por defecto, configurable con `DELIVERED_TTL_SECONDS`). Sin embargo, **el historial de estados sí se persiste** de forma durable en la tabla `order_status_events` (Requerimiento 9), por lo que los tiempos de preparación y entrega se conservan aunque expire el TTL. El Order Manager persiste el pedido base en PostgreSQL (`orders` / `order_items`) al crearlo.
 - La cola priorizada vive en un `ZSET` de Redis con `score` = tiempo estimado; el desempate por hora de llegada se resuelve al construir la vista de cocina.
 - El Prototipo 1 no incluye cobro/pago, priorización avanzada, alertas de tiempo, métricas, WebSocket/SSE ni autenticación.
+- El **Prototipo 2** incorpora en su diseño autenticación JWT/RBAC, el Auth Service, priorización con aging/capacidad/ETA y persistencia de Redis; su implementación está pendiente.
 - **Validación de pedidos (Requerimiento 1).** Un pedido `en_mesa` exige número de mesa; un pedido `para_llevar` no lo requiere, pero tampoco se rechaza si se envía un número de mesa.
 - **El envío de la comanda a cocina (parte del Requerimiento 5) ya está implementado:** al crear un pedido, el Order Manager lo encola en el Queue Scheduler. Lo único pendiente de ese requerimiento es el cobro / confirmación de pago.
