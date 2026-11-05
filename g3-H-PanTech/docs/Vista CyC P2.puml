@@ -58,30 +58,4 @@ Order -[#E65100]down-> RDB : <<SQL / TCP>>\n6. Persistir productos, pedidos y re
 Scheduler -[#E65100]down-> RDB : <<SQL / TCP>>\n7. Tiempos base e historial de estados
 Scheduler -[#C62828]down-> NDB : <<Redis / TCP>>\n8. Cola priorizada y estados
 
-legend right
-  <b>Conectores</b>
-  <back:#00897B>   </back> HTTPS / REST
-  <back:#1565C0>   </back> HTTP / REST + JWT
-  <back:#6A1B9A>   </back> HTTP Polling + JWT
-  <back:#00838F>   </back> HTTP / REST interno
-  <back:#E65100>   </back> SQL / TCP
-  <back:#C62828>   </back> Redis / TCP
-
-  <b>Seguridad</b>
-  JWT con firma, expiración y rol.
-  Order Manager y Queue Scheduler
-  validan el token localmente.
-  Order Manager -> Queue Scheduler
-  usa credencial de servicio.
-
-  <b>Queue Scheduler</b>
-  SJF + aging + capacidad + ETA.
-
-  <b>Datos</b>
-  PostgreSQL: orders, products,
-  reservations, order_status_events,
-  auth.users.
-  Redis: cola priorizada, estados y TTL.
-endlegend
-
 @enduml
