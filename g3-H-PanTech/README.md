@@ -33,6 +33,8 @@ Panadería Express resuelve el problema de la atención en una panadería con do
 
 Además de las vistas por rol, la Web App incluye una vista **Historial** para consultar los tiempos de las comandas (Requerimiento 9).
 
+> **Prototipo 2 (propuesto):** los roles pasan a ser `mesero`, `cocinero`, `despachador` y `admin`; la vista *Historial* deja de ser un rol y se convierte en un permiso de lectura para el personal autenticado.
+
 #### Alcance del Prototipo 1
 
 El Prototipo 1 es el flujo básico funcional: un empleado registra un pedido, selecciona los productos, la comanda aparece en cocina, el personal actualiza su estado y finalmente se confirma la entrega. Además, el sistema conserva el **historial de estados** de cada comanda (Requerimiento 9) para consultar los tiempos de preparación y entrega.
@@ -50,6 +52,45 @@ El Prototipo 1 es el flujo básico funcional: un empleado registra un pedido, se
 | 9 | Registrar y consultar el historial de estados de cada comanda | P1 | Implementar | Implementado. Cada transición (`pendiente → en_preparación → listo → entregado`) se guarda con marca de tiempo en PostgreSQL y se consulta desde la vista *Historial*. |
 
 Para la cola de cocina se usa una regla sencilla basada en los tiempos estimados de preparación (los productos más rápidos se atienden primero). El algoritmo de priorización más completo, las alertas de espera, la pantalla de despacho avanzada, la actualización en tiempo real con WebSocket y las métricas quedan para los siguientes prototipos.
+
+#### Alcance del Prototipo 2 (propuesto)
+
+El Prototipo 2 se enfoca en dos frentes: **autenticación y autorización de usuarios** y **priorización avanzada de la cola de cocina**. Los requerimientos se documentan como diseño objetivo; **aún no están implementados**.
+
+**Requerimientos funcionales nuevos**
+
+| N.º | Requerimiento | Prioridad | Alcance | Estado |
+|---|---|---|---|---|
+| 10 | Registro, inicio de sesión y sesión de usuario | P1 | Implementar | Pendiente. Auth Service con usuarios, credenciales y JWT. |
+| 11 | Autorización por roles y protección de endpoints | P1 | Implementar | Pendiente. Roles `mesero`, `cocinero`, `despachador` y `admin`; Historial como permiso de lectura. |
+| 12 | Priorización avanzada de la cola | P1 | Implementar | Pendiente. Ya existe SJF con desempate FIFO; faltan envejecimiento (aging), capacidad de cocina y ETA. |
+
+**Requerimientos funcionales modificados**
+
+| N.º | Requerimiento | Cambio para el Prototipo 2 |
+|---|---|---|
+| 1 | Crear pedido para llevar o en mesa | Exige sesión con rol `mesero` o `admin`; el Order Manager valida JWT y encola con credencial de servicio. |
+| 2 | Crear cita de reserva | Exige rol `mesero` o `admin`. |
+| 3 | Elegir productos de vitrina o preparados | Exige sesión autenticada; sigue siendo una operación de lectura. |
+| 4 | Ver menú y tiempos estimados | Exige sesión autenticada. |
+| 6 | Cambiar estado a *En preparación* o *Listo* | Exige rol `cocinero` o `admin`; valida capacidad de cocina si se implementa el scheduler avanzado. |
+| 7 | Confirmar entrega y retirar la orden | Exige rol `despachador` o `admin`. |
+| 8 | CRUD de productos (minutos de preparación base) | Exige rol `admin`. |
+| 9 | Registrar y consultar el historial de estados | Historial deja de ser un rol y pasa a ser un permiso de lectura para personal autenticado. |
+| 5 | Cobrar / confirmar pago y enviar comanda | Sin cambio: el cobro sigue fuera de alcance; el envío de la comanda a cocina ya existe. |
+
+**Requerimientos no funcionales que cambian**
+
+| Requerimiento | Cambio para el Prototipo 2 |
+|---|---|
+| Arquitectura distribuida | Se agrega `auth-service` y el sistema pasa de 5 a 6 componentes. |
+| Seguridad | Autenticación JWT, autorización por roles, HTTPS para Auth Service y credencial de servicio para la comunicación interna. |
+| Persistencia | Se agregan los volúmenes `postgres_data` y `redis_data`; Redis con AOF para conservar la cola activa. |
+| Despliegue | Red interna `panaderia-net`; en producción no se publican `5432` ni `6379`. |
+| Tipos de conector | Se agregan `HTTPS / REST`, `HTTP / REST + JWT`, `HTTP Polling + JWT` y credencial de servicio. |
+| Actualización de la interfaz | Se mantiene **polling**; WebSocket/SSE queda como extensión futura. |
+
+> La trazabilidad de los requerimientos del Prototipo 2 se completará cuando se implementen. Por ahora solo se documenta el alcance y los cambios respecto al Prototipo 1.
 
 #### Trazabilidad requerimiento → implementación
 
