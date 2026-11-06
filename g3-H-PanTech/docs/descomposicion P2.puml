@@ -1,0 +1,57 @@
+@startwbs
+!theme plain
+skinparam shadowing false
+skinparam defaultFontSize 13
+skinparam titleFontSize 18
+skinparam titleFontStyle bold
+skinparam wbs {
+  BackgroundColor #FFFFFF
+  BorderColor #757575
+  FontStyle bold
+}
+
+title Vista de descomposición - Panadería Express (Prototipo 2)
+
+*[#FFF9C4] Panadería Express
+**[#BBDEFB] Presentación
+***[#BBDEFB] Web SSR (Next.js + TypeScript)
+****[#BBDEFB] Storefront del cliente
+****[#BBDEFB] Backoffice del personal
+***[#B3E5FC] KDS / POS (Flutter + Dart)
+****[#B3E5FC] Cola de cocina
+****[#B3E5FC] Despacho y entrega
+**[#E1BEE7] Borde
+***[#E1BEE7] API Gateway (Go)
+****[#E1BEE7] Ruteo y agregación
+****[#E1BEE7] Validación de JWT
+****[#E1BEE7] Rate limiting
+**[#C8E6C9] Lógica de negocio
+***[#C8E6C9] Identity Service (Kotlin)
+****[#C8E6C9] Usuarios y credenciales
+****[#C8E6C9] Roles, permisos y jerarquía
+****[#C8E6C9] Auditoría
+***[#C8E6C9] Order Service (Python)
+****[#C8E6C9] Pedidos
+****[#C8E6C9] Reservas
+****[#C8E6C9] Pagos simulados
+****[#C8E6C9] Menú y catálogo
+***[#C8E6C9] Kitchen Service (Go)
+****[#C8E6C9] Cola priorizada (SJF + aging)
+****[#C8E6C9] Capacidad y ETA
+****[#C8E6C9] Estados de comanda
+***[#C8E6C9] Reporting Service (C#)
+****[#C8E6C9] Historial de pedidos
+****[#C8E6C9] Reportes y métricas
+***[#B2DFDB] Worker (Python + Celery)
+****[#B2DFDB] Consumidor de eventos
+****[#B2DFDB] Notificaciones simuladas
+****[#B2DFDB] Actualización de read models
+**[#FFE0B2] Datos
+***[#FFE0B2] PostgreSQL (relacional)
+***[#FFCDD2] MongoDB (documental)
+***[#F8BBD0] Redis (clave-valor)
+***[#D7CCC8] MinIO (objetos)
+**[#FFF9C4] Mensajería
+***[#FFF9C4] RabbitMQ (AMQP)
+
+@endwbs

@@ -2,7 +2,7 @@
 
 ## 1. Equipo
 
-**Nombre del equipo:** PanTech
+**Nombre del equipo:** PanTech (Team 3-H)
 
 | Integrante |
 |---|
@@ -34,7 +34,7 @@ Panadería Express resuelve el problema de la atención en una panadería con do
 
 Además de las vistas por rol, la Web App incluye una vista **Historial** para consultar los tiempos de las comandas (Requerimiento 9).
 
-> **Prototipo 2 (propuesto):** se agrega el rol `cliente`. Los roles de empleado pasan a ser `mesero`, `cocinero`, `despachador`, `supervisor` y `admin`, y la vista *Historial* deja de ser un rol para convertirse en un permiso de lectura. Cada empleado tiene su propia cuenta y puede tener uno o varios roles. El cliente se registra en la misma Web App, consulta el menú, **reserva una mesa**, crea pedidos **para llevar**, paga de forma simulada y sigue el estado de sus pedidos. También puede consultar y cancelar sus propias reservas. El personal conserva las vistas de cocina, despacho, catálogo e historial; el cliente no accede a ellas.
+> **Prototipo 2 (diseño objetivo):** se rediseña la arquitectura para cumplir los diez requisitos no funcionales del documento del proyecto. El sistema pasa de una SPA con dos servicios a **dos componentes de presentación** (Web SSR y KDS/POS), **cuatro servicios de lógica** (Identity, Order, Kitchen y Reporting), un **API Gateway**, un **broker de eventos**, un **worker asíncrono** y **cuatro almacenes de datos** (PostgreSQL, MongoDB, Redis y MinIO). Se agrega el rol `cliente`, los empleados pasan a tener cuentas personales multi-rol y la jerarquía es `admin` > `supervisor` > operativos. El cliente se registra, consulta el menú, **reserva una mesa**, crea pedidos **para llevar**, paga de forma simulada y sigue el estado de sus pedidos. También consulta y cancela sus propias reservas. El personal conserva las vistas de cocina, despacho, catálogo e historial; el cliente no accede a ellas.
 
 #### Alcance del Prototipo 1
 
@@ -55,21 +55,23 @@ El Prototipo 1 es el flujo básico funcional: un empleado registra un pedido, se
 
 Para la cola de cocina se usa una regla sencilla basada en los tiempos estimados de preparación (los productos más rápidos se atienden primero). El algoritmo de priorización más completo, las alertas de espera, la pantalla de despacho avanzada, la actualización en tiempo real con WebSocket y las métricas quedan para los siguientes prototipos.
 
-#### Alcance del Prototipo 2 (propuesto)
+#### Alcance del Prototipo 2 (diseño objetivo)
 
-El Prototipo 2 se enfoca en tres frentes: **autenticación, autorización y jerarquía de usuarios**, **autoservicio del cliente (reservas, pedidos y pago simulado)** y **priorización avanzada de la cola de cocina**. Además, recibe el Requerimiento 5, que no se implementó en el Prototipo 1. Los requerimientos se documentan como diseño objetivo; **aún no están implementados**.
+El Prototipo 2 se enfoca en tres frentes funcionales: **autenticación, autorización y jerarquía de usuarios**, **autoservicio del cliente (reservas, pedidos y pago simulado)** y **priorización avanzada de la cola de cocina**. Además, recibe el Requerimiento 5, que no se implementó en el Prototipo 1. Los requerimientos funcionales se documentan como diseño objetivo; **aún no están implementados**.
+
+El documento del proyecto no impone las funciones: deja la completitud funcional al equipo. Lo que sí impone son los **diez requisitos no funcionales** de la sección siguiente, que son los que gobiernan este rediseño.
 
 **Requerimientos funcionales nuevos**
 
 | N.º | Requerimiento | Prioridad | Alcance | Estado |
 |---|---|---|---|---|
-| 10 | Registro, inicio de sesión y sesión de usuario | P2 | Implementar | Pendiente. Auth Service con usuarios, credenciales y JWT. El registro público crea usuarios con rol `cliente`; las cuentas de personal las crea un `admin`. |
+| 10 | Registro, inicio de sesión y sesión de usuario | P2 | Implementar | Pendiente. Identity Service con usuarios, credenciales y JWT. El registro público crea usuarios con rol `cliente`; las cuentas de personal las crea un `admin`. |
 | 11 | Autorización por roles y protección de endpoints | P2 | Implementar | Pendiente. Roles `cliente`, `mesero`, `cocinero`, `despachador`, `supervisor` y `admin`; permisos por rol, cuentas multi-rol y validación de alcance. Historial como permiso de lectura. |
-| 12 | Priorización avanzada de la cola | P2 | Implementar | Pendiente. Ya existe SJF con desempate FIFO; faltan envejecimiento (aging), capacidad de cocina y ETA. |
+| 12 | Priorización avanzada de la cola | P2 | Implementar | Pendiente. Kitchen Service con SJF, envejecimiento (aging), capacidad de cocina y ETA, manteniendo el desempate FIFO. |
 | 13 | Registro público y autenticación de clientes | P2 | Implementar | Pendiente. El formulario público solo crea el rol `cliente`; los roles de personal los asigna un `admin` (o un `supervisor` para cuentas operativas) o los datos semilla. |
 | 14 | Autoservicio del cliente: menú, pedido para llevar y pago | P2 | Implementar | Pendiente. El cliente arma su pedido y paga de forma simulada; el total se calcula en el servidor. |
-| 15 | Seguimiento del estado del pedido por parte del cliente | P2 | Implementar | Pendiente. El cliente consulta por polling el estado de sus propios pedidos a través del Order Manager. |
-| 16 | Historial de pedidos del cliente, limitado a sus propios pedidos | P2 | Implementar | Pendiente. El cliente solo ve sus pedidos; el personal autorizado ve el historial general. |
+| 15 | Seguimiento del estado del pedido por parte del cliente | P2 | Implementar | Pendiente. El cliente consulta por polling el estado de sus propios pedidos a través del API Gateway y el Order Service. |
+| 16 | Historial de pedidos del cliente, limitado a sus propios pedidos | P2 | Implementar | Pendiente. El cliente solo ve sus pedidos; el personal autorizado ve el historial general a través de Reporting Service. |
 | 17 | Reservar mesa desde la cuenta del cliente | P2 | Implementar | Pendiente. El cliente crea, consulta y cancela sus propias reservas (fecha, hora, número de personas y notas); solo ve las suyas. La reserva guarda `customer_id` y un estado `pendiente`, `confirmada` o `cancelada`. |
 | 18 | Gestión de cuentas de empleados y jerarquía | P2 | Implementar | Pendiente. El `admin` crea, desactiva y asigna uno o varios roles a las cuentas del personal; el `supervisor` puede gestionar cuentas operativas si tiene el permiso. Las cuentas no se eliminan y toda asignación queda auditada. |
 
@@ -77,7 +79,7 @@ El Prototipo 2 se enfoca en tres frentes: **autenticación, autorización y jera
 
 | N.º | Requerimiento | Prioridad | Estado |
 |---|---|---|---|
-| 5 | Cobrar / confirmar pago y enviar comanda | P2 | Pendiente. El envío de la comanda a cocina ya está implementado; falta el cobro/confirmación de pago, que en el Prototipo 2 incluye el pago simulado del cliente y el cobro por `mesero`, `supervisor` o `admin`. |
+| 5 | Cobrar / confirmar pago y enviar comanda | P2 | Pendiente. El pago puede ser simulado por el cliente dueño del pedido o confirmado por `mesero`, `supervisor` o `admin`. El total se calcula en el servidor y el pedido se encola **solo después** de confirmar el pago. |
 
 **Requerimientos funcionales modificados**
 
@@ -88,26 +90,41 @@ El Prototipo 2 se enfoca en tres frentes: **autenticación, autorización y jera
 | 3 | Elegir productos de vitrina o preparados | Exige sesión autenticada; sigue siendo una operación de lectura. |
 | 4 | Ver menú y tiempos estimados | El menú lo consultan el `cliente` y todo el personal autenticado. |
 | 5 | Cobrar / confirmar pago y enviar comanda | El pago puede ser simulado por el cliente dueño del pedido o confirmado por `mesero`, `supervisor` o `admin`. El total se calcula en el servidor y el pedido se encola **solo después** de confirmar el pago. |
-| 6 | Cambiar estado a *En preparación* o *Listo* | Exige rol `cocinero`, `supervisor` o `admin`; valida capacidad de cocina si se implementa el scheduler avanzado. |
+| 6 | Cambiar estado a *En preparación* o *Listo* | Exige rol `cocinero`, `supervisor` o `admin`; valida capacidad de cocina. |
 | 7 | Confirmar entrega y retirar la orden | Exige rol `despachador`, `supervisor` o `admin`. |
 | 8 | CRUD de productos (minutos de preparación base) | Exige rol `admin`. |
 | 9 | Registrar y consultar el historial de estados | Historial deja de ser un rol y pasa a ser un permiso de lectura. El `cliente` solo consulta sus propios pedidos; el personal autorizado (`supervisor` o `admin`) consulta el historial general. |
 
-**Requerimientos no funcionales que cambian**
+**Requisitos no funcionales del Prototipo 2**
 
-| Requerimiento | Cambio para el Prototipo 2 |
-|---|---|
-| Arquitectura distribuida | Se agrega `auth-service` y el sistema pasa de 5 a 6 componentes. La misma Web App sirve a clientes y empleados. |
-| Seguridad | Autenticación JWT, autorización por roles, permisos por acción, validación de alcance, HTTPS para Auth Service y credencial de servicio para la comunicación interna. |
-| Privacidad y propiedad de los datos | Un cliente solo puede consultar y pagar sus propios pedidos y gestionar sus propias reservas; la validación de propiedad se hace en el servidor a partir del JWT. |
-| Jerarquía y alcance | Los roles tienen un nivel y un alcance de datos. `admin` ve todo; `supervisor` ve toda la operación; los operativos ven solo su función; el `cliente` ve solo lo propio. |
-| Cuentas multi-rol | Una cuenta personal puede tener varios roles. Los permisos efectivos son la unión de sus roles y el nivel efectivo es el mayor. No se comparten cuentas. |
-| Auditoría | Cada pago guarda `payment_method`, `total_amount`, `paid_at` y `paid_by`. También se auditan la asignación de roles, la desactivación de cuentas y las acciones sensibles. |
-| Registro de usuarios | El registro público siempre crea el rol `cliente`; los roles de personal solo los asigna un `admin` o, para cuentas operativas, un `supervisor` con el permiso correspondiente. |
-| Persistencia | Se agregan los volúmenes `postgres_data` y `redis_data`; Redis con AOF para conservar la cola activa. |
-| Despliegue | Red interna `panaderia-net`; en producción no se publican `5432` ni `6379`. |
-| Tipos de conector | Se agregan `HTTPS / REST`, `HTTP / REST + JWT`, `HTTP Polling + JWT` y credencial de servicio. |
-| Actualización de la interfaz | Se mantiene **polling**; WebSocket/SSE queda como extensión futura. |
+Estos son los diez requisitos del documento del proyecto y la forma en que Panadería Express los cumple.
+
+| # | Requisito del documento | Cómo se cumple en Panadería Express |
+|---:|---|---|
+| 1 | Arquitectura distribuida | 12 contenedores independientes orquestados con Docker Compose y comunicados por la red `panaderia-net`; además, un cliente de escritorio KDS/POS. |
+| 2 | Al menos dos componentes de presentación, uno web | **Web SSR** (Next.js) para clientes y personal, y **KDS/POS** (Flutter) para cocina y despacho. |
+| 3 | El front-end web debe usar SSR | **Web SSR** se ejecuta con Node.js y renderiza en el servidor con Next.js; no es una SPA estática. |
+| 4 | Al menos cuatro componentes de lógica | **Identity Service**, **Order Service**, **Kitchen Service** y **Reporting Service** (más el **Worker** asíncrono). |
+| 5 | Al menos un componente de comunicación/orquestación | **API Gateway** (Go) para el tráfico HTTP y **RabbitMQ** para los eventos de dominio. |
+| 6 | Al menos cuatro componentes de datos, con relacional y NoSQL | **PostgreSQL** (relacional), **MongoDB** (documental), **Redis** (clave-valor) y **MinIO** (objetos). |
+| 7 | Al menos un componente de procesos asíncronos | **Worker** (Python + Celery) que consume eventos de RabbitMQ y ejecuta tareas diferidas. |
+| 8 | Conectores basados en HTTP | HTTPS/REST en el borde y HTTP/REST entre servicios; el cliente consulta por polling. |
+| 9 | Al menos cuatro lenguajes de propósito general | **TypeScript** (Web SSR), **Dart** (KDS/POS), **Go** (Gateway y Kitchen), **Kotlin** (Identity), **Python** (Order y Worker) y **C#** (Reporting). |
+| 10 | Despliegue orientado a contenedores | Docker Compose, volúmenes persistentes, healthchecks y red interna. |
+
+> Nota sobre el requisito 6: PostgreSQL cubre la base relacional; MongoDB y Redis cubren NoSQL (documental y clave-valor). MinIO es el cuarto componente de datos, de tipo almacenamiento de objetos. Si el profesor exige que los cuatro sean bases de datos, se puede sustituir MinIO por un motor de búsqueda o analítico (por ejemplo OpenSearch o ClickHouse) sin cambiar el resto de la arquitectura.
+
+**Correspondencia entre el Prototipo 1 y el Prototipo 2**
+
+| Prototipo 1 | Prototipo 2 | Motivo |
+|---|---|---|
+| Web App (React + Vite, SPA) | Web SSR (Next.js) + KDS/POS (Flutter) | Cumplir los dos componentes de presentación y el SSR. |
+| Order Manager (FastAPI) | Order Service (FastAPI) | Mantener la lógica de pedidos, reservas y pagos; ahora detrás del Gateway. |
+| Queue Scheduler (FastAPI) | Kitchen Service (Go) | Separar la cola y la priorización en un servicio propio y sumar un lenguaje más. |
+| Auth Service (planeado) | Identity Service (Kotlin) | Convertirlo en el servicio de identidad, roles, permisos y auditoría. |
+| Vista Historial | Reporting Service (C#) | Separar el historial y los reportes en un servicio de lectura. |
+| PostgreSQL + Redis | PostgreSQL + MongoDB + Redis + MinIO | Cumplir los cuatro componentes de datos. |
+| Encolado directo Order Manager → Queue Scheduler | Order Service → RabbitMQ → Worker → Kitchen Service | Introducir el procesamiento asíncrono y desacoplar el pago del encolado. |
 
 ##### Roles, jerarquía y permisos
 
@@ -170,24 +187,32 @@ auth.audit_log             (id, user_id, action, entity, entity_id, created_at)
 
 **Autorización en los servicios**
 
-- El JWT incluye `sub`, `roles`, `permissions` y `level`.
-- Order Manager y Queue Scheduler validan la firma y los permisos localmente, sin consultar al Auth Service en cada petición.
+- El JWT lo emite **Identity Service** e incluye `sub`, `roles`, `permissions` y `level`.
+- **API Gateway** valida la firma y los permisos generales; los servicios de lógica vuelven a validar el permiso y el alcance antes de ejecutar la operación.
 - Cada endpoint usa una dependencia tipo `require_permission("orders:create")`.
 - Además del permiso, se valida el alcance: `own`, `shift`, `all` o `kitchen`.
 - El frontend oculta vistas y botones según los permisos, pero la decisión real se valida en el backend.
+- El cliente nunca accede directamente a Kitchen Service, al despacho, al catálogo ni al historial general.
+- El KDS/POS solo lo usan `cocinero` y `despachador` (o roles superiores); el cliente no tiene acceso.
 
 ##### Plan de implementación del Prototipo 2
 
-1. Crear `auth-service` con el esquema `auth`, migraciones y datos semilla.
-2. Implementar registro de clientes, login, JWT y permisos.
-3. Proteger Order Manager y Queue Scheduler con `require_permission` y validación de alcance.
-4. Reemplazar el selector libre de roles del frontend por login y rutas protegidas.
-5. Agregar la administración de cuentas y roles para `admin`, y la gestión de cuentas operativas para `supervisor`.
-6. Probar los casos de denegación: cocinero no cobra, mesero no cambia estados de cocina, cliente no ve pedidos ajenos y supervisor no gestiona roles.
+1. **Infraestructura:** crear `docker-compose.p2.yml` con la red, los volúmenes, los healthchecks y los 12 contenedores.
+2. **Identidad:** implementar `identity-service` con el esquema `auth`, migraciones, datos semilla, login, JWT y auditoría.
+3. **Borde:** implementar `api-gateway` con ruteo, validación de JWT, rate limiting y CORS.
+4. **Pedidos:** implementar `order-service` con pedidos, reservas, pagos simulados, catálogo y publicación de eventos.
+5. **Cocina:** implementar `kitchen-service` con SJF, aging, capacidad, ETA y estados de comanda.
+6. **Asíncrono:** implementar `worker` con Celery y RabbitMQ para encolar pedidos pagados, actualizar read models y generar comprobantes.
+7. **Reportes:** implementar `reporting-service` con historial, reportes y exportaciones a MinIO.
+8. **Presentación:** implementar `web-ssr` con Next.js y `kds-pos` con Flutter; reemplazar el selector libre de roles por login y rutas protegidas.
+9. **Integración:** probar los flujos de pago, reserva, cola y reportes, y los casos de denegación: cocinero no cobra, mesero no cambia estados de cocina, cliente no ve pedidos ajenos y supervisor no gestiona roles.
+10. **Entrega:** actualizar el README, las cuatro vistas arquitectónicas y las instrucciones de despliegue local.
 
-> La trazabilidad de los requerimientos del Prototipo 2 se completará cuando se implementen. Por ahora solo se documenta el alcance y los cambios respecto al Prototipo 1.
+> La trazabilidad de los requerimientos del Prototipo 2 se completará cuando se implementen. Por ahora solo se documenta el alcance y el diseño objetivo.
 
 #### Trazabilidad requerimiento → implementación
+
+**Prototipo 1**
 
 | N.º | Vistas (frontend) | Servicio y ruta (backend) | Lógica / persistencia |
 |---|---|---|---|
@@ -202,6 +227,21 @@ auth.audit_log             (id, user_id, action, entity, entity_id, created_at)
 
 > El Requerimiento 5 no aparece en esta trazabilidad porque se trasladó al Prototipo 2.
 
+**Prototipo 2 (objetivo)**
+
+| N.º | Componente principal | Rutas o responsabilidad |
+|---|---|---|
+| 5 | Order Service + Worker | `POST /orders/{id}/payment` marca el pago y publica `order.paid`; el Worker encola en Kitchen Service. |
+| 10 | Identity Service + Web SSR | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`; sesión y JWT. |
+| 11 | API Gateway + Identity Service | Validación de JWT, permisos y alcance en cada ruta; `require_permission(...)`. |
+| 12 | Kitchen Service | `GET /queue`, `PATCH /queue/orders/{id}/status`, `POST /queue/orders/{id}/deliver`; SJF + aging + capacidad + ETA. |
+| 13 | Identity Service + Web SSR | Registro público con rol `cliente`; administración de cuentas de personal. |
+| 14 | Order Service + Web SSR | `GET /menu`, `POST /orders`, `POST /orders/{id}/payment`; total calculado en el servidor. |
+| 15 | Order Service + Web SSR | `GET /orders/{id}/status` con polling; solo el dueño o personal autorizado. |
+| 16 | Reporting Service | `GET /history`, `GET /history/orders/{id}`; el cliente solo ve lo propio. |
+| 17 | Order Service | `GET/POST/PUT/DELETE /reservations`; propiedad validada con el JWT. |
+| 18 | Identity Service | `GET/POST/PATCH /users`, `GET/POST/DELETE /roles`, asignación multi-rol y auditoría. |
+
 ## 3. Estructuras arquitectónicas
 
 ### Estructura de Componentes y Conectores (C&C)
@@ -214,42 +254,104 @@ auth.audit_log             (id, user_id, action, entity, entity_id, created_at)
 
 ![Vista C&C - Prototipo 2](docs/Vista%20CyC%20P2.png)
 
-El diseño del Prototipo 2 conserva la estructura del Prototipo 1 y agrega:
+La vista C&C del Prototipo 2 muestra dos actores externos, dos componentes de presentación, un API Gateway, cuatro servicios de lógica, un worker asíncrono, un broker de eventos y cuatro almacenes de datos. La comunicación del cliente y del personal pasa siempre por el **API Gateway**; el cliente nunca habla directamente con Kitchen Service ni con los almacenes.
 
-- **Auth Service** (`:8002`) como sexto componente, encargado del registro, inicio de sesión, emisión de JWT y administración de usuarios, roles, permisos y jerarquía.
-- **Cliente como nuevo actor:** se registra en la misma Web App, consulta el menú, reserva mesa, crea pedidos `para_llevar`, paga de forma simulada y sigue el estado de sus pedidos. También consulta y cancela sus propias reservas. No accede a la cola de cocina, al despacho, al catálogo ni al historial general.
-- **Autenticación y autorización (JWT + RBAC):** Order Manager y Queue Scheduler validan el token localmente; los roles son `cliente`, `mesero`, `cocinero`, `despachador`, `supervisor` y `admin`, e Historial queda como permiso de lectura.
-- **Cuentas de empleado y jerarquía:** cada empleado tiene una cuenta personal y puede tener varios roles. La jerarquía es `admin` > `supervisor` > `mesero` / `cocinero` / `despachador`; el `cliente` es un actor externo separado. `productos` e `historial` son permisos, no roles.
-- **Pago simulado (Requerimiento 5):** la tabla `orders` guarda estado y datos de pago; el total se calcula en el servidor y el pedido se envía a cocina **solo después** de confirmar el pago.
-- **Queue Scheduler con priorización avanzada:** SJF + envejecimiento (aging) + capacidad de cocina + ETA, manteniendo el desempate FIFO.
-- **Mismo PostgreSQL con esquema `auth`** para usuarios, roles, permisos y jerarquía, sin agregar un contenedor de base de datos adicional.
-- **Polling** como mecanismo de actualización; WebSocket/SSE queda como extensión futura.
+**Elementos:** `Cliente`, `Empleado`, `Web SSR`, `KDS/POS`, `API Gateway`, `Identity Service`, `Order Service`, `Kitchen Service`, `Reporting Service`, `Worker`, `RabbitMQ`, `PostgreSQL`, `MongoDB`, `Redis` y `MinIO`.
 
-> Los diagramas del Prototipo 2 representan el diseño objetivo. La implementación de estos cambios se realizará en la siguiente fase.
+**Relaciones:** los actores usan las presentaciones; las presentaciones llaman al Gateway por HTTPS/REST; el Gateway enruta a los servicios por HTTP/REST; los servicios persisten en sus almacenes por SQL, MongoDB, Redis o S3; Order y Kitchen publican eventos en RabbitMQ; el Worker consume esos eventos y actualiza read models, encola pedidos y genera comprobantes. El detalle completo está en las secciones **Elementos arquitectónicos** y **Conectores**. Los estilos y patrones se describen en **Estilos arquitectónicos y patrones**.
 
-#### Vista de tiers — Prototipo 1
+#### Vista de despliegue — Prototipo 1
 
-![Vista de tiers - Prototipo 1](docs/tiers_despliegue.png)
+![Vista de despliegue - Prototipo 1](docs/tiers_despliegue.png)
 
-#### Vista de tiers — Prototipo 2 (diseño objetivo)
+#### Vista de despliegue — Prototipo 2 (diseño objetivo)
 
-![Vista de tiers - Prototipo 2](docs/tiers_despliegue%20P2.png)
+![Vista de despliegue - Prototipo 2](docs/tiers_despliegue%20P2.png)
 
-La misma Web App sirve a clientes y empleados mediante vistas por rol. No se agrega un contenedor de presentación adicional: siguen siendo **6 contenedores** (`frontend`, `auth-service`, `order-manager`, `queue-scheduler`, `postgres` y `redis`).
+El despliegue objetivo usa **12 contenedores** sobre Docker Compose y un **cliente de escritorio KDS/POS** que no se containeriza. Los contenedores comparten la red interna `panaderia-net`; solo `web-ssr` (:3000) y `api-gateway` (:8080) se publican al exterior. PostgreSQL, MongoDB, Redis, MinIO y RabbitMQ quedan en la red interna.
 
-#### Diagrama de secuencia — pedido y pago del cliente (Prototipo 2)
+**Elementos:** un host Docker, la red `panaderia-net`, 12 contenedores, cinco volúmenes persistentes y dos clientes externos (navegador y KDS/POS de escritorio).
+
+**Relaciones:** el navegador accede a `web-ssr` y al Gateway; el KDS/POS accede al Gateway; `web-ssr` accede al Gateway por la red interna; el Gateway enruta a los servicios de lógica; los servicios acceden a los almacenes y a RabbitMQ; los volúmenes se montan en PostgreSQL, MongoDB, Redis, MinIO y RabbitMQ.
+
+| Contenedor | Puerto | Función |
+|---|---:|---|
+| `web-ssr` | 3000 | Front-end web con SSR (Next.js). |
+| `api-gateway` | 8080 | Entrada única, ruteo, JWT y rate limiting. |
+| `identity-service` | 8002 | Usuarios, roles, permisos y auditoría. |
+| `order-service` | 8000 | Pedidos, reservas, pagos y catálogo. |
+| `kitchen-service` | 8001 | Cola priorizada, capacidad, ETA y estados. |
+| `reporting-service` | 8003 | Historial, reportes y exportaciones. |
+| `worker` | — | Consumidor de eventos y tareas asíncronas. |
+| `rabbitmq` | 5672 / 15672 | Broker de eventos y consola de administración. |
+| `postgres` | 5432 | Datos relacionales. |
+| `mongodb` | 27017 | Datos documentales y read models. |
+| `redis` | 6379 | Caché, sesión y cola priorizada. |
+| `minio` | 9000 / 9001 | Objetos: comprobantes, imágenes y exportaciones. |
+
+**Patrones de despliegue:** instancia de servicio por contenedor, configuración externalizada por variables de entorno, healthchecks, volúmenes persistentes (`postgres_data`, `mongo_data`, `redis_data`, `minio_data`, `rabbitmq_data`), red interna y exposición únicamente del borde. El KDS/POS se distribuye como aplicación de escritorio y se conecta al Gateway por HTTPS.
+
+#### Vista de capas — Prototipo 2
+
+![Vista de capas - Prototipo 2](docs/capas%20P2.png)
+
+La vista de capas organiza el sistema en cuatro niveles:
+
+1. **Presentación:** Web SSR y KDS/POS. Solo conocen el API Gateway.
+2. **Borde:** API Gateway. Valida el JWT, aplica rate limiting y enruta.
+3. **Lógica de negocio:** Identity, Order, Kitchen, Reporting y Worker.
+4. **Infraestructura:** PostgreSQL, MongoDB, Redis, MinIO y RabbitMQ.
+
+**Elementos:** las cuatro capas y los componentes de cada una: presentación (`Web SSR`, `KDS/POS`), borde (`API Gateway`), lógica (`Identity`, `Order`, `Kitchen`, `Reporting`, `Worker`) e infraestructura (`PostgreSQL`, `MongoDB`, `Redis`, `MinIO`, `RabbitMQ`).
+
+**Relaciones:** presentación → borde → lógica → infraestructura. Las flechas solo apuntan hacia abajo; no se permiten dependencias ascendentes ni saltos de capa.
+
+**Regla de dependencias:** una capa solo puede depender de la inmediatamente inferior. La presentación no accede a la lógica ni a los datos; el Gateway no accede directamente a los almacenes; la lógica no conoce la presentación. La comunicación asíncrona se hace por RabbitMQ.
+
+**Patrones:** arquitectura en capas, separación de responsabilidades, dependencias unidireccionales, API Gateway y puertos/adaptadores dentro de cada servicio.
+
+#### Vista de descomposición — Prototipo 2
+
+![Vista de descomposición - Prototipo 2](docs/descomposicion%20P2.png)
+
+La descomposición muestra los módulos funcionales de cada componente.
+
+**Elementos:** el sistema se descompone en presentación, borde, lógica de negocio, datos y mensajería; cada rama se subdivide en los módulos funcionales de la tabla.
+
+**Relaciones:** las ramas son relaciones de composición. Cada servicio es dueño de sus módulos y de sus datos; la presentación consume el borde; el borde consume la lógica; la lógica produce y consume eventos a través de la mensajería y persiste en los almacenes.
+
+| Componente | Módulos |
+|---|---|
+| Web SSR | Storefront del cliente; backoffice del personal. |
+| KDS/POS | Cola de cocina; despacho y entrega. |
+| API Gateway | Ruteo y agregación; validación de JWT; rate limiting. |
+| Identity Service | Usuarios y credenciales; roles, permisos y jerarquía; auditoría. |
+| Order Service | Pedidos; reservas; pagos simulados; menú y catálogo. |
+| Kitchen Service | Cola priorizada (SJF + aging); capacidad y ETA; estados de comanda. |
+| Reporting Service | Historial de pedidos; reportes y métricas. |
+| Worker | Consumidor de eventos; notificaciones simuladas; actualización de read models. |
+| Datos | PostgreSQL, MongoDB, Redis y MinIO. |
+| Mensajería | RabbitMQ. |
+
+**Patrones:** descomposición modular por contextos delimitados (identidad, pedidos, cocina, reportes), responsabilidad única por servicio y propiedad lógica de los datos. PostgreSQL es la fuente de verdad transaccional; MongoDB contiene read models denormalizados; Redis guarda estado efímero; MinIO almacena objetos.
+
+#### Diagramas de secuencia — Prototipo 2
+
+**Pedido y pago del cliente**
 
 ![Secuencia - Pedido y pago del cliente](docs/secuencia_cliente_pedido.png)
 
-El flujo muestra el registro o inicio de sesión, la consulta del menú, la creación de un pedido `para_llevar`, el pago simulado y el seguimiento del estado. El pedido se encola **después** de confirmar el pago y el cliente nunca accede directamente al Queue Scheduler ni a pedidos de otros clientes.
+El flujo muestra el registro o inicio de sesión, la consulta del menú, la creación de un pedido `para_llevar`, el pago simulado, la publicación de `order.paid`, el encolado asíncrono por parte del Worker y el seguimiento por polling. El pedido se encola **después** de confirmar el pago y el cliente nunca accede directamente a Kitchen Service ni a pedidos de otros clientes.
 
-#### Diagrama de secuencia — reserva de mesa del cliente (Prototipo 2)
+**Reserva de mesa del cliente**
 
-![Secuencia - Reserva de mesa del cliente](docs/secuencia_cliente_reserva.png)
+![Secuencia - Reserva de mesa](docs/secuencia_cliente_reserva.png)
 
-El cliente crea, consulta y cancela sus propias reservas. La reserva queda asociada a su `customer_id` y a un estado (`pendiente`, `confirmada` o `cancelada`); el personal con rol `mesero`, `supervisor` o `admin` conserva la gestión general de todas las reservas.
+El cliente crea, consulta y cancela sus propias reservas. La reserva queda asociada a su `customer_id` y a un estado (`pendiente`, `confirmada` o `cancelada`); el personal con rol `mesero`, `supervisor` o `admin` conserva la gestión general de todas las reservas. La creación y la cancelación publican eventos para actualizar los read models y las notificaciones simuladas.
 
-#### Estilos arquitectónicos utilizados
+### Estilos arquitectónicos y patrones
+
+#### Prototipo 1
 
 - **Arquitectura en capas (3 capas / 3 tiers):** presentación, lógica y datos, cada una en su propio nivel de despliegue. Cada capa solo se comunica con la inmediatamente inferior.
 - **Cliente-servidor:** la aplicación web (cliente) solicita servicios a los servicios de la capa lógica mediante HTTP.
@@ -259,45 +361,95 @@ El cliente crea, consulta y cancela sus propias reservas. La reserva queda asoci
 - **Consulta periódica (pull / polling):** el cliente consulta cada cierto tiempo el estado de la cola en lugar de recibir notificaciones del servidor. Se deja WebSocket para la siguiente entrega. Evidencia: `frontend/src/hooks.ts` (`usePolling`).
 - **Interfaz de usuario basada en componentes:** la Web App se compone de vistas por rol y hooks reutilizables. En el Prototipo 1 el cambio de rol se resuelve por estado local; en el Prototipo 2 se resuelve con la sesión autenticada y los permisos. Evidencia: `frontend/src/App.tsx`, `frontend/src/views/` y `frontend/src/hooks.ts`.
 
-#### Elementos arquitectónicos
+#### Prototipo 2
 
-**Componentes**
+- **Arquitectura distribuida orientada a servicios:** 12 contenedores con responsabilidades separadas y comunicación por red. Cada servicio puede desplegarse y escalarse de forma independiente.
+- **Server-Side Rendering (SSR):** Web SSR renderiza las vistas en el servidor con Next.js. El navegador recibe HTML; la hidratación se encarga de la interacción. Esto cumple el requisito de SSR y mejora el tiempo de primera carga.
+- **API Gateway:** un único punto de entrada para clientes y personal. Centraliza el ruteo, la validación del JWT, el rate limiting y CORS. Evita que los clientes conozcan la topología interna.
+- **Arquitectura en capas:** presentación → borde → lógica → infraestructura. Las dependencias son unidireccionales.
+- **Event-driven / pub-sub:** Order Service publica `order.paid` y eventos de reserva; Kitchen Service publica `order.ready`; el Worker consume los eventos. RabbitMQ desacopla a productores y consumidores.
+- **Procesamiento asíncrono:** el Worker ejecuta tareas que no deben bloquear la petición del usuario: encolar pedidos pagados, actualizar read models, generar comprobantes y enviar notificaciones simuladas.
+- **CQRS ligero:** PostgreSQL es la fuente de verdad transaccional; MongoDB mantiene read models denormalizados para menú, historial y reportes. La consistencia es eventual.
+- **REST sobre HTTP:** los servicios exponen recursos con JSON; el borde usa HTTPS y la red interna HTTP.
+- **Polling:** el cliente consulta el estado de sus pedidos cada cierto tiempo. No se usa WebSocket/SSE en el Prototipo 2.
+- **Poliglotía:** TypeScript, Dart, Go, Kotlin, Python y C# en componentes distintos, justificados por la responsabilidad de cada uno.
+- **Despliegue en contenedores:** Docker Compose, volúmenes, healthchecks y configuración por variables de entorno.
+
+### Elementos arquitectónicos
+
+#### Prototipo 1
 
 | Componente | Tipo | Tecnología | Puerto | Responsabilidad |
 |---|---|---|---|---|
-| Web App | Cliente web (presentación) | React + Vite (JS/TS) | 80 | Interfaz por permisos. En el Prototipo 1 sirve al personal: mesero, cocina, despacho, administración del catálogo e historial. En el Prototipo 2 también sirve al cliente: registro, menú, reservas, pedido, pago y seguimiento. El menú y las vistas se generan según los permisos de la cuenta. |
-| Order Manager | Servicio (lógica) | Python + FastAPI | 8000 | Gestión de pedidos, reservas y catálogo de productos (CRUD con tiempos de preparación base). |
-| Queue Scheduler | Servicio (lógica) | Python + FastAPI | 8001 | Gestión de la cola de cocina: ordena los pedidos con la regla de priorización, administra los estados de las comandas y persiste su historial. |
-| Relational DB | Base de datos relacional (datos) | PostgreSQL | 5432 | Datos persistentes: productos, tiempos base, pedidos, reservas e historial de estados de las comandas. |
-| NoSQL DB | Base de datos NoSQL clave-valor (datos) | Redis | 6379 | Cola activa de cocina y estados temporales de las comandas. |
+| Web App | Cliente web (presentación) | React + Vite (JS/TS) | 80 | Interfaz por roles: mesero, cocina, despacho, catálogo e historial. |
+| Order Manager | Servicio (lógica) | Python + FastAPI | 8000 | Gestión de pedidos, reservas y catálogo de productos. |
+| Queue Scheduler | Servicio (lógica) | Python + FastAPI | 8001 | Cola de cocina, priorización, estados e historial. |
+| Relational DB | Base de datos relacional (datos) | PostgreSQL | 5432 | Productos, pedidos, reservas e historial de estados. |
+| NoSQL DB | Base de datos NoSQL clave-valor (datos) | Redis | 6379 | Cola activa y estados temporales. |
 
-> En el diseño del Prototipo 2 se agrega el **Auth Service** (FastAPI, `:8002`), que centraliza usuarios, roles, permisos, jerarquía y emisión de JWT. Order Manager y Queue Scheduler validan el token localmente. La misma Web App expone las vistas del cliente y del personal según los permisos.
+#### Prototipo 2
+
+| Componente | Tipo | Tecnología / lenguaje | Puerto | Responsabilidad | Datos que posee |
+|---|---|---|---:|---|---|
+| Web SSR | Presentación web | Next.js + TypeScript | 3000 | Storefront del cliente y backoffice del personal; renderizado en servidor. | — |
+| KDS/POS | Presentación de escritorio | Flutter + Dart | — | Cola de cocina, despacho y confirmación de entregas. | — |
+| API Gateway | Borde / orquestación | Go | 8080 | Ruteo, validación de JWT, rate limiting, CORS y agregación. | Redis (rate limiting) |
+| Identity Service | Lógica | Kotlin + Spring Boot | 8002 | Registro, login, usuarios, roles, permisos, jerarquía y auditoría. | PostgreSQL (`auth`), Redis (refresh tokens) |
+| Order Service | Lógica | Python + FastAPI | 8000 | Pedidos, reservas, pagos simulados, menú y catálogo; publica eventos. | PostgreSQL, MongoDB (read models), Redis (idempotencia) |
+| Kitchen Service | Lógica | Go | 8001 | Cola priorizada, SJF, aging, capacidad, ETA y estados de comanda. | PostgreSQL, Redis, RabbitMQ |
+| Reporting Service | Lógica | C# + .NET | 8003 | Historial, reportes, métricas y exportaciones. | PostgreSQL, MongoDB, MinIO |
+| Worker | Asíncrono | Python + Celery | — | Consume eventos, encola pedidos pagados, actualiza read models, genera comprobantes y notificaciones. | MongoDB, MinIO, RabbitMQ |
+| RabbitMQ | Mensajería | RabbitMQ | 5672 / 15672 | Broker de eventos de dominio. | — |
+| PostgreSQL | Datos relacionales | PostgreSQL | 5432 | Fuente de verdad: auth, productos, pedidos, pagos, reservas e historial de estados. | — |
+| MongoDB | Datos documentales | MongoDB | 27017 | Menú denormalizado, historial de pedidos del cliente y read models de reportes. | — |
+| Redis | Datos clave-valor | Redis | 6379 | Caché, sesión/refresh tokens, cola priorizada e idempotencia. | — |
+| MinIO | Almacenamiento de objetos | MinIO | 9000 / 9001 | Imágenes de productos, comprobantes PDF y exportaciones de reportes. | — |
 
 **Actor externo**
 
 | Actor | Descripción |
 |---|---|
-| Empleado (Mesero / Cocinero / Despachador / Supervisor / Administrador) | Usuario final del Prototipo 1. Interactúa con el sistema desde el navegador web. En el Prototipo 2 cada empleado tiene su propia cuenta y puede tener uno o varios roles. |
-| Cliente (Prototipo 2) | Usuario final que se registra en la Web App, consulta el menú, reserva mesa, crea pedidos para llevar, paga de forma simulada y sigue el estado de sus pedidos. También consulta y cancela sus propias reservas. No accede a la cola de cocina, al despacho, al catálogo ni al historial general. |
+| Empleado (Mesero / Cocinero / Despachador / Supervisor / Administrador) | Usuario final del Prototipo 1. En el Prototipo 2 cada empleado tiene su propia cuenta y puede tener uno o varios roles. Usa Web SSR o KDS/POS según su función. |
+| Cliente (Prototipo 2) | Usuario final que se registra en Web SSR, consulta el menú, reserva mesa, crea pedidos para llevar, paga de forma simulada y sigue el estado de sus pedidos. También consulta y cancela sus propias reservas. No accede a la cola de cocina, al despacho, al catálogo ni al historial general. |
 
 **Conectores**
 
 | N.º | Origen | Destino | Tipo de conector | Descripción |
-|---|---|---|---|---|
-| 1 | Web App | Order Manager (REST API :8000) | HTTP / REST | Crear pedidos y reservas, consultar el menú y administrar productos. |
-| 2 | Web App | Queue Scheduler (Scheduler API :8001) | HTTP Polling | Consulta periódica de la cola de cocina, de los pedidos listos y del historial; también el cambio de estado de las comandas. |
-| 3 | Order Manager | Queue Scheduler (Scheduler API :8001) | HTTP / REST | Encolar un pedido nuevo para cocina. |
-| 4 | Order Manager | Relational DB (SQL :5432) | SQL sobre TCP | Persistir productos, pedidos y reservas. |
-| 5 | Queue Scheduler | NoSQL DB (Redis :6379) | Protocolo Redis sobre TCP | Mantener la cola priorizada y los estados temporales. |
-| 6 | Queue Scheduler | Relational DB (SQL :5432) | SQL sobre TCP | Leer los tiempos base de preparación y registrar el historial de estados de las comandas en `order_status_events`. |
+|---:|---|---|---|---|
+| 1 | Cliente | Web SSR | HTTPS | Navegación y acciones del cliente. |
+| 2 | Empleado | Web SSR | HTTPS | Backoffice del personal. |
+| 3 | Empleado | KDS/POS | Interfaz local | Aplicación de escritorio para cocina y despacho. |
+| 4 | Web SSR | API Gateway | HTTP / REST | Llamadas del servidor Next.js y acciones del navegador. |
+| 5 | KDS/POS | API Gateway | HTTPS / REST | Cola, estados y confirmación de entregas. |
+| 6 | API Gateway | Identity Service | HTTP / REST | Registro, login, refresh y administración de cuentas. |
+| 7 | API Gateway | Order Service | HTTP / REST + JWT | Pedidos, reservas, pagos y menú. |
+| 8 | API Gateway | Kitchen Service | HTTP / REST + JWT | Cola, estados y ETA. |
+| 9 | API Gateway | Reporting Service | HTTP / REST + JWT | Historial y reportes. |
+| 10 | Identity Service | PostgreSQL | SQL / TCP | Usuarios, roles, permisos y auditoría. |
+| 11 | Identity Service | Redis | Redis / TCP | Refresh tokens y sesiones. |
+| 12 | Order Service | PostgreSQL | SQL / TCP | Productos, pedidos, pagos y reservas. |
+| 13 | Order Service | MongoDB | MongoDB / TCP | Menú denormalizado y read models. |
+| 14 | Order Service | Redis | Redis / TCP | Idempotencia de pagos y caché. |
+| 15 | Order Service | RabbitMQ | AMQP | Publica `order.paid`, `reservation.created` y `reservation.cancelled`. |
+| 16 | Kitchen Service | PostgreSQL | SQL / TCP | Tiempos base y historial de estados. |
+| 17 | Kitchen Service | Redis | Redis / TCP | Cola priorizada y ETA. |
+| 18 | Kitchen Service | RabbitMQ | AMQP | Publica `order.ready`. |
+| 19 | RabbitMQ | Worker | AMQP | Entrega de eventos al consumidor. |
+| 20 | Worker | Kitchen Service | HTTP / REST | Encola el pedido pagado. |
+| 21 | Worker | MongoDB | MongoDB / TCP | Actualiza read models. |
+| 22 | Worker | MinIO | S3 / HTTP | Genera comprobantes y reportes. |
+| 23 | Reporting Service | PostgreSQL | SQL / TCP | Consultas de historial. |
+| 24 | Reporting Service | MongoDB | MongoDB / TCP | Reportes precalculados. |
+| 25 | Reporting Service | MinIO | S3 / HTTP | Exportaciones. |
+| 26 | API Gateway | Redis | Redis / TCP | Rate limiting y caché de sesión. |
 
-> El Prototipo 2 agrega el conector Cliente → Web App (HTTPS) y los conectores Web App → Auth Service (HTTPS / REST) y Auth Service → PostgreSQL (SQL / TCP, esquema `auth`, usuarios, roles, permisos y jerarquía). También cambia el conector Order Manager → Queue Scheduler para usar una credencial de servicio y encolar solo pedidos pagados. El cliente consulta el estado y su historial a través del Order Manager, nunca directamente del Queue Scheduler. El detalle está en la Vista C&C y en los diagramas de secuencia del Prototipo 2.
+### Cumplimiento de los requisitos no funcionales
 
-#### Cumplimiento de los requisitos no funcionales
+#### Prototipo 1
 
 | Requisito | Cómo se cumple |
 |---|---|
-| Arquitectura distribuida | Cinco componentes desplegados en contenedores independientes que se comunican por red. En el diseño del Prototipo 2 se agrega un sexto componente (Auth Service). |
+| Arquitectura distribuida | Cinco componentes desplegados en contenedores independientes que se comunican por red. |
 | Al menos un componente de presentación (web front-end) | Web App (React + Vite). |
 | Al menos dos componentes de lógica | Order Manager y Queue Scheduler. |
 | Al menos dos componentes de datos (relacional y NoSQL) | PostgreSQL y Redis. |
@@ -305,11 +457,28 @@ El cliente crea, consulta y cancela sus propias reservas. La reserva queda asoci
 | Al menos dos lenguajes de programación de propósito general | JavaScript/TypeScript (frontend) y Python (servicios). |
 | Despliegue orientado a contenedores | Cada componente corre en su propio contenedor Docker, orquestados con Docker Compose. |
 
+#### Prototipo 2
+
+| # | Requisito | Evidencia en el diseño |
+|---:|---|---|
+| 1 | Arquitectura distribuida | 12 contenedores independientes en Docker Compose, red `panaderia-net` y un cliente de escritorio. |
+| 2 | Al menos dos componentes de presentación, uno web | `web-ssr` (Next.js) y `kds-pos` (Flutter). |
+| 3 | Front-end web con SSR | `web-ssr` ejecuta Next.js en Node.js y renderiza en el servidor. |
+| 4 | Al menos cuatro componentes de lógica | `identity-service`, `order-service`, `kitchen-service` y `reporting-service`; además, `worker`. |
+| 5 | Al menos un componente de comunicación/orquestación | `api-gateway` (HTTP) y `rabbitmq` (eventos). |
+| 6 | Al menos cuatro componentes de datos, con relacional y NoSQL | PostgreSQL (relacional), MongoDB (documental), Redis (clave-valor) y MinIO (objetos). |
+| 7 | Al menos un componente de procesos asíncronos | `worker` con Celery consumiendo RabbitMQ. |
+| 8 | Conectores basados en HTTP | HTTPS/REST en el borde y HTTP/REST entre servicios. |
+| 9 | Al menos cuatro lenguajes de propósito general | TypeScript, Dart, Go, Kotlin, Python y C#. |
+| 10 | Despliegue orientado a contenedores | Docker Compose, healthchecks, volúmenes y red interna. |
+
 ## 4. Prototipo
 
 ### Estructura del proyecto
 
-```
+**Prototipo 1 (implementado)**
+
+```text
 swarch-2026ii/               # Repositorio del curso (sección 3)
 └── g3-H-PanTech/            # Carpeta del equipo (Team 3-H · PanTech)
     ├── README.md
@@ -321,9 +490,36 @@ swarch-2026ii/               # Repositorio del curso (sección 3)
     └── queue-scheduler/       # Servicio de cola de cocina (FastAPI)
 ```
 
-> En el diseño del Prototipo 2 se agrega `auth-service/` (registro, login y JWT). La carpeta se creará cuando se implemente.
+**Prototipo 2 (objetivo, pendiente de implementación)**
+
+```text
+g3-H-PanTech/
+├── README.md
+├── docker-compose.p2.yml      # 12 contenedores + red + volúmenes
+├── .env.p2.example
+├── docs/
+│   ├── Vista CyC P2.puml
+│   ├── tiers_despliegue P2.puml
+│   ├── capas P2.puml
+│   ├── descomposicion P2.puml
+│   ├── secuencia_cliente_pedido.puml
+│   └── secuencia_cliente_reserva.puml
+├── web-ssr/                   # Next.js + TypeScript
+├── kds-pos/                   # Flutter + Dart (escritorio)
+├── api-gateway/               # Go
+├── identity-service/          # Kotlin + Spring Boot
+├── order-service/             # Python + FastAPI
+├── kitchen-service/           # Go
+├── reporting-service/         # C# + .NET
+├── worker/                    # Python + Celery
+└── infrastructure/            # init.sql, migraciones, seeds, configuración
+```
+
+> El código del Prototipo 1 se conserva como referencia histórica. La implementación del Prototipo 2 se hará en una rama de trabajo y no reemplaza todavía los contenedores actuales.
 
 ### Instrucciones para desplegar el sistema localmente
+
+#### Prototipo 1 (actual)
 
 **Requisitos previos**
 
@@ -366,11 +562,80 @@ swarch-2026ii/               # Repositorio del curso (sección 3)
    docker compose down -v
    ```
 
+#### Prototipo 2 (objetivo)
+
+> Estas instrucciones describen el despliegue planeado. Se activarán cuando exista `docker-compose.p2.yml` y los servicios del Prototipo 2 estén implementados.
+
+**Requisitos previos**
+
+- Git
+- Docker y Docker Compose (v2)
+- Flutter SDK (solo para compilar el KDS/POS de escritorio)
+
+**Pasos previstos**
+
+1. Ubicarse en la carpeta del equipo:
+
+   ```bash
+   cd swarch-2026ii/g3-H-PanTech
+   ```
+
+2. Copiar el archivo de variables de entorno:
+
+   ```bash
+   cp .env.p2.example .env.p2
+   ```
+
+3. Levantar los 12 contenedores:
+
+   ```bash
+   docker compose -f docker-compose.p2.yml --env-file .env.p2 up --build
+   ```
+
+4. Abrir las interfaces:
+
+   | Servicio | URL |
+   |---|---|
+   | Web SSR | http://localhost:3000 |
+   | API Gateway | http://localhost:8080 |
+   | Identity Service (API) | http://localhost:8002/docs |
+   | Order Service (API) | http://localhost:8000/docs |
+   | Kitchen Service (API) | http://localhost:8001/docs |
+   | Reporting Service (API) | http://localhost:8003/docs |
+   | RabbitMQ (consola) | http://localhost:15672 |
+   | MinIO (consola) | http://localhost:9001 |
+
+   PostgreSQL, MongoDB y Redis no se publican; se acceden solo desde la red interna.
+
+5. Compilar y ejecutar el KDS/POS de escritorio:
+
+   ```bash
+   cd kds-pos
+   flutter pub get
+   flutter run -d windows
+   ```
+
+6. Para detener el sistema:
+
+   ```bash
+   docker compose -f docker-compose.p2.yml down
+   ```
+
+   Para borrar también los datos:
+
+   ```bash
+   docker compose -f docker-compose.p2.yml down -v
+   ```
+
 ### Limitaciones conocidas
 
-- **El detalle de la comanda no se persiste en PostgreSQL.** El Queue Scheduler mantiene el detalle y el estado actual de las comandas en Redis; las comandas entregadas salen de las pantallas y se conservan en Redis con un TTL (1 hora por defecto, configurable con `DELIVERED_TTL_SECONDS`). Sin embargo, **el historial de estados sí se persiste** de forma durable en la tabla `order_status_events` (Requerimiento 9), por lo que los tiempos de preparación y entrega se conservan aunque expire el TTL. El Order Manager persiste el pedido base en PostgreSQL (`orders` / `order_items`) al crearlo.
-- La cola priorizada vive en un `ZSET` de Redis con `score` = tiempo estimado; el desempate por hora de llegada se resuelve al construir la vista de cocina.
-- El Prototipo 1 no incluye cobro/pago (Requerimiento 5, trasladado al Prototipo 2), priorización avanzada, alertas de tiempo, métricas, WebSocket/SSE ni autenticación.
-- El **Prototipo 2** incorpora en su diseño autenticación JWT/RBAC, el Auth Service, la jerarquía de roles de empleado (`admin` > `supervisor` > operativos), cuentas multi-rol, el rol `cliente` con autoservicio y pago simulado, el seguimiento e historial de pedidos propios, priorización con aging/capacidad/ETA, persistencia de Redis y el cobro/confirmación de pago (Requerimiento 5); su implementación está pendiente.
-- **Validación de pedidos (Requerimiento 1).** Un pedido `en_mesa` exige número de mesa; un pedido `para_llevar` no lo requiere, pero tampoco se rechaza si se envía un número de mesa.
-- **En el Prototipo 1, el envío de la comanda a cocina (parte del Requerimiento 5) ya está implementado:** al crear un pedido, el Order Manager lo encola en el Queue Scheduler. Lo único pendiente de ese requerimiento es el cobro / confirmación de pago. En el Prototipo 2 el encolado se hará **después** de confirmar el pago.
+- **El Prototipo 2 es un diseño objetivo, no una implementación.** El código actual sigue siendo el del Prototipo 1: una SPA con React/Vite, dos servicios FastAPI, PostgreSQL y Redis, y cinco contenedores.
+- **El diseño de 6 contenedores quedó superado.** El documento del Prototipo 2 exige dos presentaciones, SSR, cuatro servicios de lógica, cuatro almacenes de datos, un componente de orquestación, uno asíncrono y al menos cuatro lenguajes. Por eso el objetivo es de 13 componentes (12 contenedores + KDS/POS de escritorio).
+- **El KDS/POS no es un contenedor.** Es una aplicación de escritorio Flutter que se conecta al API Gateway. El despliegue containerizado cubre los servicios y los almacenes del sistema; el cliente se distribuye como artefacto de escritorio.
+- **El detalle de la comanda no se persiste en PostgreSQL en el Prototipo 1.** El Queue Scheduler mantiene el detalle y el estado actual en Redis; las comandas entregadas salen de las pantallas y se conservan en Redis con un TTL (1 hora por defecto, configurable con `DELIVERED_TTL_SECONDS`). El historial de estados sí se persiste en `order_status_events`. En el Prototipo 2, PostgreSQL será la fuente de verdad y MongoDB los read models.
+- **La cola priorizada del Prototipo 1 vive en un `ZSET` de Redis** con `score` = tiempo estimado; el desempate por hora de llegada se resuelve al construir la vista de cocina. El Prototipo 2 agrega aging, capacidad y ETA en Kitchen Service.
+- **El pago es simulado.** No se integra una pasarela real; el total se calcula en el servidor y el pedido se encola solo después de confirmar el pago.
+- **Se mantiene polling.** No se usa WebSocket/SSE en el Prototipo 2.
+- **La consistencia entre PostgreSQL y MongoDB es eventual.** Los read models se actualizan por eventos; PostgreSQL sigue siendo la fuente de verdad para pedidos, pagos y reservas.
+- **La entrega formal del PDF usa la rama `prototype_2` y la carpeta `project/prototype_2/X`.** El repositorio del curso está organizado por carpetas de equipo (`g3-H-PanTech`) y la rama de trabajo es `g3-H/Pantech-P2`. Antes de la entrega hay que confirmar con el profesor si se mantiene el esquema del repositorio o se replica literalmente el del documento.
+- **El PDF está fechado 2025-10-08 y fija entrega para el 22/10/2025.** Si la fecha ya no aplica, hay que confirmar la vigente; el contenido y el formato de las cuatro vistas siguen siendo la referencia.

@@ -1,8 +1,8 @@
 @startuml
 !theme plain
 skinparam shadowing false
-skinparam defaultFontSize 14
-skinparam ArrowFontSize 12
+skinparam defaultFontSize 13
+skinparam ArrowFontSize 11
 skinparam titleFontSize 18
 skinparam titleFontStyle bold
 skinparam ParticipantBackgroundColor #BBDEFB
@@ -14,6 +14,9 @@ skinparam ActorFontStyle bold
 skinparam DatabaseBackgroundColor #FFE0B2
 skinparam DatabaseBorderColor #E65100
 skinparam DatabaseFontStyle bold
+skinparam QueueBackgroundColor #FFF9C4
+skinparam QueueBorderColor #F9A825
+skinparam QueueFontStyle bold
 skinparam note {
   BackgroundColor #FFF9C4
   BorderColor #F9A825
@@ -23,52 +26,77 @@ skinparam note {
 title Secuencia - Pedido y pago del cliente (Prototipo 2)
 
 actor "Cliente" as Cliente
-participant "Web App" as Web
-participant "Auth Service\n:8002" as Auth
-participant "Order Manager\n:8000" as Order
-participant "Queue Scheduler\n:8001" as Sched
-database "PostgreSQL" as DB
+participant "Web SSR\nNext.js" as Web
+participant "API Gateway\nGo" as GW
+participant "Identity Service\nKotlin" as Identity
+participant "Order Service\nPython" as Order
+database "PostgreSQL" as PG
+database "MongoDB" as Mongo
+queue "RabbitMQ" as MQ
+participant "Worker\nCelery" as Worker
+participant "Kitchen Service\nGo" as Kitchen
 database "Redis" as Redis
+database "MinIO" as Minio
 
 == Registro o inicio de sesión ==
 Cliente -> Web : Registrarse o iniciar sesión
-Web -> Auth : POST /auth/register | /auth/login
-Auth -> DB : Crear o validar usuario (rol cliente)
-Auth --> Web : JWT con roles, permisos y nivel
+Web -> GW : POST /auth/register | /auth/login
+GW -> Identity : Reenviar credenciales
+Identity -> PG : Crear o validar usuario (rol cliente)
+Identity --> GW : JWT con roles, permisos y nivel
+GW --> Web : JWT
 Web --> Cliente : Sesión iniciada
 
 == Menú y creación del pedido ==
 Cliente -> Web : Consultar menú y armar pedido para llevar
-Web -> Order : GET /menu + JWT
-Order -> DB : Leer productos activos
-Order --> Web : Menú con precios y tiempos
-Cliente -> Web : Confirmar pedido
-Web -> Order : POST /orders + JWT
-Order -> DB : Guardar pedido pendiente de pago
-Order --> Web : Pedido creado y total del servidor
+Web -> GW : GET /menu + JWT
+GW -> Order : Reenviar con identidad validada
+Order -> Mongo : Leer catálogo y precios
+Order --> GW : Menú con precios y tiempos
+GW --> Web : Menú
+Web --> Cliente : Menú renderizado en el servidor
 
-== Pago simulado y envío a cocina ==
+Cliente -> Web : Confirmar pedido
+Web -> GW : POST /orders + JWT
+GW -> Order : Crear pedido
+Order -> PG : Guardar pedido pendiente de pago
+Order --> GW : Pedido creado y total del servidor
+GW --> Web : Pedido y total
+Web --> Cliente : Total a pagar
+
+== Pago simulado y evento ==
 Cliente -> Web : Pagar (tarjeta simulada o efectivo)
-Web -> Order : POST /orders/{id}/payment + JWT
-Order -> DB : Validar dueño y marcar pagado
-Order -> Sched : POST /queue/orders + credencial
-Sched -> Redis : Encolar pedido
-Sched --> Order : Pedido encolado
-Order --> Web : Pago confirmado
+Web -> GW : POST /orders/{id}/payment + JWT
+GW -> Order : Confirmar pago
+Order -> PG : Validar dueño y marcar pagado
+Order -> MQ : Publicar order.paid
+Order --> GW : Pago confirmado
+GW --> Web : Pago aceptado
 Web --> Cliente : Pedido en preparación
+
+== Proceso asíncrono ==
+MQ -> Worker : Entregar order.paid
+Worker -> Kitchen : POST /queue/orders
+Kitchen -> Redis : Encolar pedido priorizado
+Kitchen --> Worker : Pedido encolado
+Worker -> Mongo : Actualizar read model del pedido
+Worker -> Minio : Generar comprobante
+Worker --> MQ : Ack del evento
 
 == Seguimiento del pedido ==
 Cliente -> Web : Consultar el estado de su pedido
-Web -> Order : GET /orders/{id}/status + JWT
-Order -> Sched : Consultar estado del pedido
-Sched --> Order : pendiente | en_preparacion | listo | entregado
-Order --> Web : Estado actual y datos del pedido
-Web --> Cliente : Estado del pedido
+Web -> GW : GET /orders/{id}/status + JWT
+GW -> Order : Consultar estado
+Order -> Mongo : Leer read model
+Order --> GW : pendiente | en_preparacion | listo | entregado
+GW --> Web : Estado actual
+Web --> Cliente : Estado renderizado
 
 note over Order
-  El cliente no accede al Queue Scheduler
-  ni a pedidos ajenos. El pago es idempotente:
-  repetir la petición no encola dos veces.
+  El cliente no accede a Kitchen Service,
+  a RabbitMQ ni a pedidos ajenos.
+  El pago es idempotente: repetir la petición
+  no publica dos veces order.paid.
 end note
 
 @enduml
