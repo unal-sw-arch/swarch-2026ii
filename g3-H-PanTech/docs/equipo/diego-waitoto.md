@@ -24,6 +24,92 @@ Que cada persona pueda iniciar sesión con su cuenta, ver solo lo que le corresp
 3. **Autorización de interfaz:** mostrar u ocultar vistas y botones según permisos, sin confiar solo en el frontend.
 4. **Documentación:** flujo de autenticación, claims, matriz de permisos y diagramas de login.
 
+## Archivos que creo y modifico
+
+### `identity-service/` (crear)
+
+| Archivo | Contenido |
+|---|---|
+| `identity-service/build.gradle.kts` | Dependencias Spring Boot, JPA, Flyway y JWT |
+| `identity-service/settings.gradle.kts` | Nombre del proyecto |
+| `identity-service/Dockerfile` | Build multistage con JRE |
+| `identity-service/.dockerignore` | Excluir `build/`, tests y cachés |
+| `identity-service/src/main/resources/application.yml` | Puerto 8002, datasource, Flyway y claves JWT |
+| `identity-service/src/main/resources/db/migration/V1__init_auth.sql` | `users`, `roles`, `permissions`, `user_roles`, `role_permissions`, `refresh_tokens`, `audit_log` |
+| `identity-service/src/main/resources/db/migration/V2__seed_auth.sql` | Roles, permisos y usuarios demo |
+| `identity-service/src/main/kotlin/.../IdentityApplication.kt` | Punto de entrada |
+| `identity-service/src/main/kotlin/.../config/SecurityConfig.kt` | Spring Security y rutas públicas |
+| `identity-service/src/main/kotlin/.../config/JwtConfig.kt` | Claves RS256 y JWKS |
+| `identity-service/src/main/kotlin/.../auth/AuthController.kt` | `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/me` |
+| `identity-service/src/main/kotlin/.../auth/AuthService.kt` | Registro, login, refresh y logout |
+| `identity-service/src/main/kotlin/.../auth/JwtService.kt` | Emisión, firma y expiración |
+| `identity-service/src/main/kotlin/.../users/UserController.kt` | `/users/*` |
+| `identity-service/src/main/kotlin/.../users/UserService.kt` | Alta, baja lógica y asignación multi-rol |
+| `identity-service/src/main/kotlin/.../roles/RoleController.kt` | `/roles`, `/permissions` |
+| `identity-service/src/main/kotlin/.../audit/AuditService.kt` | Registro de acciones sensibles |
+| `identity-service/src/main/kotlin/.../domain/User.kt`, `Role.kt`, `Permission.kt` | Entidades |
+| `identity-service/src/main/kotlin/.../repository/*.kt` | Repositorios JPA |
+| `identity-service/src/test/kotlin/...` | Registro, login, expiración, multi-rol y denegaciones |
+| `identity-service/README.md` | Endpoints, variables y modelo de autorización |
+
+### `web-ssr/` (crear)
+
+| Archivo | Contenido |
+|---|---|
+| `web-ssr/package.json` | Next.js, React, TypeScript y Playwright |
+| `web-ssr/next.config.mjs` | `output: standalone` para el contenedor |
+| `web-ssr/tsconfig.json` | Configuración estricta |
+| `web-ssr/middleware.ts` | Protección de rutas y redirección por rol |
+| `web-ssr/Dockerfile` | Build y `next start` |
+| `web-ssr/.dockerignore` | Excluir `.next/`, `node_modules/` |
+| `web-ssr/.env.example` | `API_GATEWAY_URL`, `JWT_COOKIE_NAME` |
+| `web-ssr/app/layout.tsx` | Shell SSR |
+| `web-ssr/app/page.tsx` | Portada y menú |
+| `web-ssr/app/globals.css` | Estilos base |
+| `web-ssr/app/(auth)/login/page.tsx` | Login |
+| `web-ssr/app/(auth)/register/page.tsx` | Registro público |
+| `web-ssr/app/(shop)/menu/page.tsx` | Menú |
+| `web-ssr/app/(shop)/cart/page.tsx` | Carrito |
+| `web-ssr/app/(shop)/checkout/page.tsx` | Checkout y pago simulado |
+| `web-ssr/app/(shop)/orders/page.tsx` | Pedidos propios |
+| `web-ssr/app/(shop)/orders/[id]/page.tsx` | Seguimiento con polling |
+| `web-ssr/app/(shop)/reservations/page.tsx` | Reservas propias |
+| `web-ssr/app/(staff)/staff/orders/page.tsx` | Vista de mesero |
+| `web-ssr/app/(staff)/staff/reservations/page.tsx` | Reservas del personal |
+| `web-ssr/app/(staff)/staff/history/page.tsx` | Historial general |
+| `web-ssr/app/(staff)/staff/products/page.tsx` | CRUD de productos |
+| `web-ssr/app/(staff)/staff/users/page.tsx` | Cuentas de empleados |
+| `web-ssr/app/(staff)/staff/roles/page.tsx` | Roles y permisos |
+| `web-ssr/app/(staff)/staff/reports/page.tsx` | Reportes |
+| `web-ssr/app/(staff)/staff/kitchen/page.tsx` | Enlace o vista de solo lectura del KDS |
+| `web-ssr/components/*` | Tablas, formularios, navegación y estados |
+| `web-ssr/lib/api.ts` | Cliente del Gateway con cookie |
+| `web-ssr/lib/auth.ts` | Lectura y renovación de sesión |
+| `web-ssr/lib/permissions.ts` | `can(permission)` |
+| `web-ssr/tests/e2e/*.spec.ts` | Login, pedido, reserva y denegaciones |
+| `web-ssr/playwright.config.ts` | Configuración E2E |
+| `web-ssr/README.md` | Rutas, permisos y variables |
+
+### Archivos compartidos y quién más puede modificarlos
+
+| Archivo | Acción permitida | Quién más lo modifica | Regla |
+|---|---|---|---|
+| `docker-compose.p2.yml` | Agregar o ajustar los bloques `identity-service` y `web-ssr` | Jaime (dueño), Yeison y Axel (sus bloques) | Solo mi bloque; Jaime revisa y mergea |
+| `.env.p2.example` | Proponer `IDENTITY_*` y `WEB_SSR_*` | Jaime (dueño), Yeison y Axel | Jaime consolida |
+| `docs/equipo/contratos.md` | Proponer claims, JWKS y cookies | Jaime, Yeison y Axel | Jaime consolida |
+| `docs/secuencia_login.puml` | Crear y mantener el `.puml` | Jaime (renderiza y sube el `.png`) | Avisar a Jaime para que agregue el PNG al README |
+| `README.md` | No editar | Jaime | Mi documentación va en `identity-service/README.md` y `web-ssr/README.md` |
+| `docs/Vista CyC P2.puml`, `docs/tiers_despliegue P2.puml`, `docs/capas P2.puml`, `docs/descomposicion P2.puml` | No editar | Jaime | Propongo cambios por comentario en el PR |
+| `infrastructure/postgres/init.sql` | No editar | Jaime | Mi esquema va en las migraciones Flyway |
+| `infrastructure/minio/init.sh` | No editar | Jaime | No uso MinIO directamente |
+| `scripts/smoke_test.py` | No editar | Jaime | Agrego mis pruebas en `identity-service/` y `web-ssr/tests/` |
+
+### Archivos que no debo tocar
+
+- `order-service/`, `worker/`, `reporting-service/`, `api-gateway/`, `kitchen-service/` y `kds-pos/`.
+- `infrastructure/rabbitmq/definitions.json` y `infrastructure/redis/redis.conf`.
+- Los otros tres planes de `docs/equipo/`.
+
 ## Fases y tareas
 
 ### Fase 0 — Esqueleto y contratos (primera semana)

@@ -26,6 +26,106 @@ Que un cliente pueda consultar el menú, crear un pedido, pagarlo y seguirlo; qu
 5. **Reporting Service:** historial general, historial propio del cliente, reportes y exportaciones.
 6. **Documentación:** OpenAPI de cada servicio, contratos de eventos y README de cada carpeta.
 
+## Archivos que creo y modifico
+
+### `order-service/` (crear)
+
+| Archivo | Contenido |
+|---|---|
+| `order-service/requirements.txt` | FastAPI, SQLAlchemy, Alembic, pymongo, redis y pika |
+| `order-service/Dockerfile` | Imagen Python con Uvicorn |
+| `order-service/.dockerignore` | Excluir `.venv/`, `__pycache__/`, tests |
+| `order-service/.env.example` | URLs de PostgreSQL, MongoDB, Redis y RabbitMQ |
+| `order-service/app/main.py` | Arranque, routers y health |
+| `order-service/app/config.py` | Variables de entorno |
+| `order-service/app/database.py` | Sesiones SQLAlchemy y clientes Mongo/Redis |
+| `order-service/app/models.py` | `orders`, `order_items`, `payments`, `reservations`, `outbox` |
+| `order-service/app/schemas.py` | DTOs de pedidos, pagos y reservas |
+| `order-service/app/security.py` | Validación de JWT y `require_permission(...)` |
+| `order-service/app/routers/menu.py` | `GET /menu` |
+| `order-service/app/routers/products.py` | CRUD de productos |
+| `order-service/app/routers/orders.py` | `POST/GET /orders`, `GET /orders/{id}/status` |
+| `order-service/app/routers/payments.py` | `POST /orders/{id}/payment` |
+| `order-service/app/routers/reservations.py` | `GET/POST/PUT/DELETE /reservations` |
+| `order-service/app/services/order_service.py` | Reglas de pedido y cálculo del total |
+| `order-service/app/services/payment_service.py` | Pago simulado e idempotencia |
+| `order-service/app/services/reservation_service.py` | Reservas y validación de propiedad |
+| `order-service/app/services/menu_service.py` | Catálogo desde MongoDB |
+| `order-service/app/repositories/*.py` | Acceso a PostgreSQL y MongoDB |
+| `order-service/app/events/publisher.py` | Publicación en RabbitMQ |
+| `order-service/app/events/outbox.py` | Patrón outbox y reintentos |
+| `order-service/alembic.ini` | Configuración de migraciones |
+| `order-service/migrations/env.py` | Entorno Alembic |
+| `order-service/migrations/versions/0001_orders.py` | Tablas de pedidos y pagos |
+| `order-service/migrations/versions/0002_reservations.py` | Tabla de reservas |
+| `order-service/migrations/versions/0003_outbox.py` | Tabla outbox |
+| `order-service/migrations/mongo/001_indexes.js` | Índices de `menu`, `order_history` y `reservation_read` |
+| `order-service/tests/test_orders.py` | Creación, total y alcance |
+| `order-service/tests/test_payments.py` | Pago, monto alterado y pedido ajeno |
+| `order-service/tests/test_idempotency.py` | Pago repetido |
+| `order-service/tests/test_reservations.py` | Reservas propias y ajenas |
+| `order-service/tests/test_permissions.py` | Permisos y denegaciones |
+| `order-service/README.md` | Endpoints, eventos y variables |
+
+### `worker/` (crear)
+
+| Archivo | Contenido |
+|---|---|
+| `worker/requirements.txt` | Celery, pika, pymongo, minio y httpx |
+| `worker/Dockerfile` | Imagen Python para Celery |
+| `worker/.dockerignore` | Excluir `.venv/` y `__pycache__/` |
+| `worker/celery_app.py` | Configuración de Celery, colas y reintentos |
+| `worker/config.py` | Variables de entorno |
+| `worker/tasks/order_paid.py` | Encolar en Kitchen y actualizar read model |
+| `worker/tasks/order_ready.py` | Marcar listo y actualizar read model |
+| `worker/tasks/reservation_events.py` | `reservation.created` y `reservation.cancelled` |
+| `worker/tasks/receipts.py` | Generar comprobante en MinIO |
+| `worker/clients/kitchen_client.py` | `POST /queue/orders` |
+| `worker/clients/mongo_client.py` | Read models |
+| `worker/clients/minio_client.py` | Buckets y objetos |
+| `worker/tests/*` | Idempotencia, reintentos y DLQ |
+| `worker/README.md` | Eventos, colas y variables |
+
+### `reporting-service/` (crear)
+
+| Archivo | Contenido |
+|---|---|
+| `reporting-service/ReportingService.csproj` | .NET minimal API, Npgsql y Mongo |
+| `reporting-service/Program.cs` | Arranque, rutas y health |
+| `reporting-service/appsettings.json` | Configuración base |
+| `reporting-service/Dockerfile` | Build y runtime .NET |
+| `reporting-service/.dockerignore` | Excluir `bin/`, `obj/` |
+| `reporting-service/Controllers/HistoryController.cs` | `GET /history`, `GET /history/orders/{id}` |
+| `reporting-service/Controllers/ReportsController.cs` | `GET /reports/sales`, `GET /reports/times`, `POST /reports/export` |
+| `reporting-service/Services/HistoryService.cs` | Consultas con alcance por rol |
+| `reporting-service/Services/ReportService.cs` | Métricas y filtros por fecha |
+| `reporting-service/Services/ExportService.cs` | CSV/PDF a MinIO |
+| `reporting-service/Repositories/*.cs` | PostgreSQL y MongoDB de solo lectura |
+| `reporting-service/Tests/*` | Permisos, filtros y exportación |
+| `reporting-service/README.md` | Endpoints y variables |
+
+### Archivos compartidos y quién más puede modificarlos
+
+| Archivo | Acción permitida | Quién más lo modifica | Regla |
+|---|---|---|---|
+| `docker-compose.p2.yml` | Agregar o ajustar los bloques `order-service`, `worker` y `reporting-service` | Jaime (dueño), Diego y Axel (sus bloques) | Solo mis bloques; Jaime revisa y mergea |
+| `.env.p2.example` | Proponer `ORDER_*`, `WORKER_*` y `REPORTING_*` | Jaime (dueño), Diego y Axel | Jaime consolida |
+| `infrastructure/rabbitmq/definitions.json` | Proponer `order.paid`, `reservation.created` y `reservation.cancelled` | Jaime (dueño) y Axel (`order.ready`) | Jaime aplica exchange, colas, bindings y DLQ |
+| `infrastructure/mongodb/init.js` | No editar | Jaime | Mis colecciones e índices van en `order-service/migrations/mongo/` |
+| `infrastructure/minio/init.sh` | Proponer los buckets `receipts` y `reports` | Jaime | Jaime crea los buckets y las políticas |
+| `docs/equipo/contratos.md` | Proponer los esquemas de eventos y los endpoints | Jaime, Diego y Axel | Jaime consolida |
+| `docs/secuencia_cliente_pedido.puml`, `docs/secuencia_cliente_reserva.puml` | Actualizar el `.puml` cuando cambie el flujo | Jaime (renderiza y sube el `.png`) | Avisar a Jaime para regenerar la imagen |
+| `README.md` | No editar | Jaime | Mi documentación va en los README de mis carpetas |
+| `docs/Vista CyC P2.puml`, `docs/tiers_despliegue P2.puml`, `docs/capas P2.puml`, `docs/descomposicion P2.puml` | No editar | Jaime | Propongo cambios por comentario en el PR |
+| `scripts/smoke_test.py` | No editar | Jaime | Agrego mis pruebas en `order-service/tests/` |
+
+### Archivos que no debo tocar
+
+- `identity-service/`, `web-ssr/`, `api-gateway/`, `kitchen-service/` y `kds-pos/`.
+- `infrastructure/postgres/init.sql` y `infrastructure/redis/redis.conf`.
+- Las migraciones de los otros servicios.
+- Los otros tres planes de `docs/equipo/`.
+
 ## Fases y tareas
 
 ### Fase 0 — Esqueleto y contratos (primera semana)

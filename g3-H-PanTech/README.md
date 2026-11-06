@@ -20,7 +20,7 @@
 | Yeison Camilo Aparicio Aponte | Pedidos, asincronía y reportes | `order-service/`, `worker/`, `reporting-service/` | [Plan](docs/equipo/yeison-aparicio.md) |
 | Axel Gómez Moreno | Borde, cocina y cliente de escritorio | `api-gateway/`, `kitchen-service/`, `kds-pos/` | [Plan](docs/equipo/axel-gomez.md) |
 
-Cada persona trabaja en su rama personal y abre un PR hacia `g3-H/Pantech-P2`. Jaime revisa, integra y abre el PR final hacia `main`. Los planes incluyen fases, tareas, entregables, contratos y criterios de aceptación.
+Cada persona trabaja en su rama personal y abre un PR hacia `g3-H/Pantech-P2`. Jaime revisa, integra y abre el PR final hacia `main`. Los planes incluyen fases, tareas, entregables, contratos y criterios de aceptación. Cada plan lista además **los archivos que esa persona crea y modifica**, y **quién más puede tocar cada archivo compartido** (`docker-compose.p2.yml`, `.env.p2.example`, `infrastructure/`, `docs/` y `README.md`).
 
 ## 2. Sistema de software
 

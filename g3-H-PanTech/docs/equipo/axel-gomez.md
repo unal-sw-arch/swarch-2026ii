@@ -25,6 +25,97 @@ Que todo el tráfico entre por un solo punto, que la cola de cocina priorice bie
 4. **Contratos del borde:** tabla de rutas, códigos de error y encabezados internos.
 5. **Documentación:** OpenAPI, configuración de la cola y README de cada carpeta.
 
+## Archivos que creo y modifico
+
+### `api-gateway/` (crear)
+
+| Archivo | Contenido |
+|---|---|
+| `api-gateway/go.mod`, `api-gateway/go.sum` | Módulo Go y dependencias |
+| `api-gateway/Dockerfile` | Build multistage |
+| `api-gateway/.dockerignore` | Excluir binarios y tests |
+| `api-gateway/.env.example` | Puertos, URLs internas y secreto de servicio |
+| `api-gateway/cmd/gateway/main.go` | Punto de entrada |
+| `api-gateway/internal/config/config.go` | Variables de entorno |
+| `api-gateway/internal/router/router.go` | Construcción del router |
+| `api-gateway/internal/router/routes.go` | Tabla de prefijos y destinos |
+| `api-gateway/internal/middleware/auth.go` | Validación RS256 con JWKS |
+| `api-gateway/internal/middleware/permissions.go` | Permisos generales por prefijo |
+| `api-gateway/internal/middleware/rate_limit.go` | Rate limiting con Redis |
+| `api-gateway/internal/middleware/cors.go` | Orígenes permitidos |
+| `api-gateway/internal/middleware/request_id.go` | `X-Request-Id` |
+| `api-gateway/internal/middleware/logging.go` | Logs estructurados |
+| `api-gateway/internal/proxy/reverse_proxy.go` | Proxy hacia los servicios |
+| `api-gateway/internal/jwks/cache.go` | Caché de la clave pública |
+| `api-gateway/internal/http/errors.go` | Formato uniforme de error |
+| `api-gateway/tests/*_test.go` | Ruteo, 401, 403 y 429 |
+| `api-gateway/README.md` | Rutas, encabezados y variables |
+
+### `kitchen-service/` (crear)
+
+| Archivo | Contenido |
+|---|---|
+| `kitchen-service/go.mod`, `kitchen-service/go.sum` | Módulo Go y dependencias |
+| `kitchen-service/Dockerfile` | Build multistage |
+| `kitchen-service/.dockerignore` | Excluir binarios y tests |
+| `kitchen-service/.env.example` | PostgreSQL, Redis y RabbitMQ |
+| `kitchen-service/cmd/kitchen/main.go` | Punto de entrada |
+| `kitchen-service/internal/config/config.go` | Variables de entorno |
+| `kitchen-service/internal/http/routes.go` | Rutas de cola y health |
+| `kitchen-service/internal/http/handlers.go` | Handlers de encolar, consultar, estado y entrega |
+| `kitchen-service/internal/queue/priority.go` | SJF, aging y desempate FIFO |
+| `kitchen-service/internal/queue/redis_store.go` | `ZSET`, hashes y persistencia |
+| `kitchen-service/internal/queue/capacity.go` | Capacidad de cocina |
+| `kitchen-service/internal/queue/eta.go` | Cálculo de ETA |
+| `kitchen-service/internal/events/publisher.go` | Publicación de `order.ready` |
+| `kitchen-service/internal/repository/postgres.go` | Tiempos, estados y capacidad |
+| `kitchen-service/internal/repository/models.go` | Modelos de datos |
+| `kitchen-service/migrations/0001_init.sql` | `prep_times`, `order_status_events`, `kitchen_capacity` |
+| `kitchen-service/tests/priority_test.go` | SJF, aging y FIFO |
+| `kitchen-service/tests/handlers_test.go` | Transiciones y permisos |
+| `kitchen-service/tests/integration_test.go` | Redis y PostgreSQL |
+| `kitchen-service/README.md` | Algoritmo, rutas y variables |
+
+### `kds-pos/` (crear)
+
+| Archivo | Contenido |
+|---|---|
+| `kds-pos/pubspec.yaml` | Flutter, HTTP y almacenamiento seguro |
+| `kds-pos/analysis_options.yaml` | Reglas de análisis |
+| `kds-pos/lib/main.dart` | Punto de entrada |
+| `kds-pos/lib/app.dart` | Tema y navegación |
+| `kds-pos/lib/config.dart` | URL del Gateway |
+| `kds-pos/lib/api/gateway_client.dart` | Cliente HTTP con token |
+| `kds-pos/lib/auth/login_page.dart` | Login del personal |
+| `kds-pos/lib/auth/session_store.dart` | Almacenamiento seguro del token |
+| `kds-pos/lib/kitchen/queue_page.dart` | Cola de cocina con polling |
+| `kds-pos/lib/kitchen/order_card.dart` | Tarjeta de comanda |
+| `kds-pos/lib/kitchen/status_buttons.dart` | *En preparación* y *Listo* |
+| `kds-pos/lib/dispatch/dispatch_page.dart` | Pedidos listos y entrega |
+| `kds-pos/lib/models/queue_item.dart` | Modelo de la cola |
+| `kds-pos/test/*` | Widget tests |
+| `kds-pos/README.md` | Instalación, build y variables |
+
+### Archivos compartidos y quién más puede modificarlos
+
+| Archivo | Acción permitida | Quién más lo modifica | Regla |
+|---|---|---|---|
+| `docker-compose.p2.yml` | Agregar o ajustar los bloques `api-gateway` y `kitchen-service` | Jaime (dueño), Diego y Yeison (sus bloques) | El KDS no va en el compose; solo mis dos bloques |
+| `.env.p2.example` | Proponer `GATEWAY_*` y `KITCHEN_*` | Jaime (dueño), Diego y Yeison | Jaime consolida |
+| `infrastructure/rabbitmq/definitions.json` | Proponer la cola y el binding de `order.ready` | Jaime (dueño) y Yeison (`order.paid` y reservas) | Jaime aplica el exchange y la DLQ |
+| `infrastructure/redis/redis.conf` | Proponer AOF y límites de memoria | Jaime | Jaime es el dueño del archivo |
+| `docs/equipo/contratos.md` | Proponer encabezados internos y `order.ready` | Jaime, Diego y Yeison | Jaime consolida |
+| `docs/Vista CyC P2.puml`, `docs/tiers_despliegue P2.puml` | No editar | Jaime | Propongo cambios por comentario en el PR |
+| `README.md` | No editar | Jaime | Mi documentación va en los README de mis carpetas |
+| `scripts/smoke_test.py` | No editar | Jaime | Agrego mis pruebas en `kitchen-service/tests/` |
+
+### Archivos que no debo tocar
+
+- `identity-service/`, `web-ssr/`, `order-service/`, `worker/` y `reporting-service/`.
+- `infrastructure/postgres/init.sql` y `infrastructure/mongodb/init.js`.
+- Las migraciones de los otros servicios.
+- Los otros tres planes de `docs/equipo/`.
+
 ## Fases y tareas
 
 ### Fase 0 — Esqueleto y contratos (primera semana)

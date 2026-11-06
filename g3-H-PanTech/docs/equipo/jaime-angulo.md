@@ -26,6 +26,57 @@ Que los cuatro componentes de cada persona se puedan levantar juntos, se comuniq
 5. **Documentación:** README, vistas C&C y despliegue, enlaces a los planes de equipo y matriz NFR.
 6. **Entrega:** revisión de PRs, resolución de conflictos, rama de integración y PR final.
 
+## Archivos que creo y modifico
+
+### Archivos propios (crear)
+
+| Archivo | Contenido |
+|---|---|
+| `docker-compose.p2.yml` | 12 servicios, red `panaderia-net`, volúmenes, healthchecks y dependencias |
+| `.env.p2.example` | Variables de todos los componentes, sin secretos reales |
+| `infrastructure/postgres/init.sql` | Base `panaderia`, esquemas `auth`, `orders`, `kitchen`, `reporting` y extensiones |
+| `infrastructure/mongodb/init.js` | Colecciones e índices base |
+| `infrastructure/redis/redis.conf` | Persistencia AOF, límites y políticas |
+| `infrastructure/minio/init.sh` | Buckets `receipts`, `products` y `reports` con sus políticas |
+| `infrastructure/rabbitmq/definitions.json` | Exchange `panaderia.events`, colas, bindings y DLQ |
+| `scripts/smoke_test.py` | Flujo end-to-end registro → pago → cocina → entrega → historial |
+| `scripts/seed_demo.py` | Usuarios por rol, usuario multi-rol y productos de demostración |
+| `scripts/wait_for_services.ps1` | Espera de healthchecks antes de las pruebas |
+| `.github/workflows/ci-p2.yml` | Build, pruebas y validación de `docker compose config` |
+| `docs/equipo/contratos.md` | Puertos, JWT, eventos y encabezados internos |
+| `docs/equipo/demo.md` | Guion de demostración reproducible |
+| `docs/equipo/jaime-angulo.md` | Este plan |
+
+### Archivos propios (modificar)
+
+| Archivo | Cambio |
+|---|---|
+| `README.md` | Sección del Prototipo 2, reparto de trabajo, matriz NFR y despliegue |
+| `docs/Vista CyC P2.puml` | Mantenerla alineada con el compose real |
+| `docs/tiers_despliegue P2.puml` | Contenedores, puertos y volúmenes reales |
+| `docs/capas P2.puml` | Capas y dependencias permitidas |
+| `docs/descomposicion P2.puml` | Módulos por componente |
+| `.gitignore` | Artefactos de P2: `node_modules`, `.next`, `bin/`, `obj/`, `.venv`, etc. |
+
+### Archivos compartidos y quién más puede modificarlos
+
+| Archivo | Quién más puede modificarlo | Regla |
+|---|---|---|
+| `docker-compose.p2.yml` | Diego (`identity-service`, `web-ssr`), Yeison (`order-service`, `worker`, `reporting-service`), Axel (`api-gateway`, `kitchen-service`) | Cada uno toca solo el bloque de su servicio y las variables que consume. Yo reviso y mergeo. |
+| `.env.p2.example` | Diego, Yeison y Axel, mediante propuesta | Cada uno propone las variables de su componente; yo mantengo el orden, los valores por defecto y los secretos de ejemplo. |
+| `infrastructure/rabbitmq/definitions.json` | Yeison y Axel, mediante propuesta | Yeison propone `order.paid`, `reservation.created` y `reservation.cancelled`; Axel propone `order.ready`. Yo aplico y valido los bindings. |
+| `docs/*.puml` de arquitectura | Nadie directamente | Los dueños proponen cambios; yo edito el `.puml`, renderizo y subo el `.png`. |
+| `docs/equipo/contratos.md` | Diego (JWT y cookies), Yeison (eventos), Axel (encabezados y `order.ready`) | Cada uno propone su parte; yo consolido la versión final. |
+| `docs/equipo/jaime-angulo.md` | Nadie | Es mi plan; los comentarios van en el PR. |
+| `README.md` | Nadie | Cada dueño documenta su servicio en su propio `README.md`. |
+
+### Archivos que no debo tocar
+
+- El código interno de `identity-service/`, `web-ssr/`, `order-service/`, `worker/`, `reporting-service/`, `api-gateway/`, `kitchen-service/` y `kds-pos/`.
+- Las migraciones propias de cada servicio (`Flyway`, `Alembic`, `EF Core`).
+- Los `Dockerfile` de cada servicio, salvo revisión en el PR.
+- Los planes de las otras tres personas.
+
 ## Fases y tareas
 
 ### Fase 0 — Contratos y esqueleto (primera semana)
