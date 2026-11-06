@@ -9,6 +9,7 @@
 | Jaime Darley Angulo Tenorio |
 | Diego Fernando Waitoto Quintero |
 | Yeison Camilo Aparicio Aponte |
+| Axel Gómez Moreno |
 
 ## 2. Sistema de software
 
