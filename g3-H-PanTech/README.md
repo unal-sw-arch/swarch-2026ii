@@ -163,6 +163,12 @@ La misma Web App sirve a clientes y empleados mediante vistas por rol. No se agr
 
 El flujo muestra el registro o inicio de sesión, la consulta del menú, la creación de un pedido `para_llevar`, el pago simulado y el seguimiento del estado. El pedido se encola **después** de confirmar el pago y el cliente nunca accede directamente al Queue Scheduler ni a pedidos de otros clientes.
 
+#### Diagrama de secuencia — reserva de mesa del cliente (Prototipo 2)
+
+![Secuencia - Reserva de mesa del cliente](docs/secuencia_cliente_reserva.png)
+
+El cliente crea, consulta y cancela sus propias reservas. La reserva queda asociada a su `customer_id` y a un estado (`pendiente`, `confirmada` o `cancelada`); el personal con rol `mesero` o `admin` conserva la gestión general de todas las reservas.
+
 #### Estilos arquitectónicos utilizados
 
 - **Arquitectura en capas (3 capas / 3 tiers):** presentación, lógica y datos, cada una en su propio nivel de despliegue. Cada capa solo se comunica con la inmediatamente inferior.

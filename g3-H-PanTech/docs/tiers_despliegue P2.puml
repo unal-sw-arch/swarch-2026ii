@@ -51,6 +51,9 @@ note bottom of T3
   La misma SPA sirve a clientes y empleados con vistas por rol:
   cliente, mesero, cocinero, despachador y admin.
 
+  El cliente reserva mesa, pide para llevar y paga;
+  el personal gestiona la operación.
+
   Volúmenes: postgres_data y redis_data.
   En producción no se publican 5432 ni 6379.
 end note
