@@ -18,8 +18,8 @@ skinparam database {
 title Vista de Tiers (despliegue en contenedores) - Panadería Express (Prototipo 2)
 
 node "Tier 1 - Presentación" as T1 #E3F2FD;line:1565C0;text:1565C0 {
-  node "Navegador web\n(equipo del empleado)" as Browser #FFF9C4;line:F9A825
-  node "Contenedor frontend\n:80" as CFront <<Docker>> #BBDEFB;line:1565C0
+  node "Navegador web\n(cliente o empleado)" as Browser #FFF9C4;line:F9A825
+  node "Contenedor frontend\n:80\n(vistas por rol)" as CFront <<Docker>> #BBDEFB;line:1565C0
 }
 
 node "Tier 2 - Lógica y seguridad" as T2 #E8F5E9;line:2E7D32;text:2E7D32 {
@@ -47,6 +47,9 @@ CAuth -[#E65100]down-> CPg : SQL / TCP\n(usuarios y roles)
 note bottom of T3
   6 contenedores orquestados con docker-compose
   y una red interna común (panaderia-net).
+
+  La misma SPA sirve a clientes y empleados con vistas por rol:
+  cliente, mesero, cocinero, despachador y admin.
 
   Volúmenes: postgres_data y redis_data.
   En producción no se publican 5432 ni 6379.

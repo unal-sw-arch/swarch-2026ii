@@ -1,0 +1,74 @@
+@startuml
+!theme plain
+skinparam shadowing false
+skinparam defaultFontSize 14
+skinparam ArrowFontSize 12
+skinparam titleFontSize 18
+skinparam titleFontStyle bold
+skinparam ParticipantBackgroundColor #BBDEFB
+skinparam ParticipantBorderColor #1565C0
+skinparam ParticipantFontStyle bold
+skinparam ActorBackgroundColor #FFF9C4
+skinparam ActorBorderColor #F9A825
+skinparam ActorFontStyle bold
+skinparam DatabaseBackgroundColor #FFE0B2
+skinparam DatabaseBorderColor #E65100
+skinparam DatabaseFontStyle bold
+skinparam note {
+  BackgroundColor #FFF9C4
+  BorderColor #F9A825
+  FontStyle bold
+}
+
+title Secuencia - Pedido y pago del cliente (Prototipo 2)
+
+actor "Cliente" as Cliente
+participant "Web App" as Web
+participant "Auth Service\n:8002" as Auth
+participant "Order Manager\n:8000" as Order
+participant "Queue Scheduler\n:8001" as Sched
+database "PostgreSQL" as DB
+database "Redis" as Redis
+
+== Registro o inicio de sesión ==
+Cliente -> Web : Registrarse o iniciar sesión
+Web -> Auth : POST /auth/register | /auth/login
+Auth -> DB : Crear o validar usuario (rol cliente)
+Auth --> Web : JWT con rol y datos del usuario
+Web --> Cliente : Sesión iniciada
+
+== Menú y creación del pedido ==
+Cliente -> Web : Consultar menú y armar pedido para llevar
+Web -> Order : GET /menu + JWT
+Order -> DB : Leer productos activos
+Order --> Web : Menú con precios y tiempos
+Cliente -> Web : Confirmar pedido
+Web -> Order : POST /orders + JWT
+Order -> DB : Guardar pedido pendiente de pago
+Order --> Web : Pedido creado y total del servidor
+
+== Pago simulado y envío a cocina ==
+Cliente -> Web : Pagar (tarjeta simulada o efectivo)
+Web -> Order : POST /orders/{id}/payment + JWT
+Order -> DB : Validar dueño y marcar pagado
+Order -> Sched : POST /queue/orders + credencial
+Sched -> Redis : Encolar pedido
+Sched --> Order : Pedido encolado
+Order --> Web : Pago confirmado
+Web --> Cliente : Pedido en preparación
+
+== Seguimiento del pedido ==
+Cliente -> Web : Consultar el estado de su pedido
+Web -> Order : GET /orders/{id}/status + JWT
+Order -> Sched : Consultar estado del pedido
+Sched --> Order : pendiente | en_preparacion | listo | entregado
+Order --> Web : Estado actual y datos del pedido
+Web --> Cliente : Estado del pedido
+
+note over Order
+  El cliente no accede al Queue Scheduler
+  ni a pedidos ajenos. El pago es idempotente:
+  repetir la petición no encola dos veces.
+end note
+
+@enduml
