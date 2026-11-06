@@ -11,6 +11,17 @@
 | Yeison Camilo Aparicio Aponte |
 | Axel Gómez Moreno |
 
+### Reparto de trabajo del Prototipo 2
+
+| Integrante | Rol principal | Componentes | Plan |
+|---|---|---|---|
+| Jaime Darley Angulo Tenorio | Plataforma, integración y entrega | `docker-compose.p2.yml`, `infrastructure/`, `scripts/`, CI, documentación y PR final | [Plan](docs/equipo/jaime-angulo.md) |
+| Diego Fernando Waitoto Quintero | Identidad y experiencia web | `identity-service/`, `web-ssr/` | [Plan](docs/equipo/diego-waitoto.md) |
+| Yeison Camilo Aparicio Aponte | Pedidos, asincronía y reportes | `order-service/`, `worker/`, `reporting-service/` | [Plan](docs/equipo/yeison-aparicio.md) |
+| Axel Gómez Moreno | Borde, cocina y cliente de escritorio | `api-gateway/`, `kitchen-service/`, `kds-pos/` | [Plan](docs/equipo/axel-gomez.md) |
+
+Cada persona trabaja en su rama personal y abre un PR hacia `g3-H/Pantech-P2`. Jaime revisa, integra y abre el PR final hacia `main`. Los planes incluyen fases, tareas, entregables, contratos y criterios de aceptación.
+
 ## 2. Sistema de software
 
 ### Nombre
