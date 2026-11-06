@@ -34,7 +34,7 @@ Panadería Express resuelve el problema de la atención en una panadería con do
 
 Además de las vistas por rol, la Web App incluye una vista **Historial** para consultar los tiempos de las comandas (Requerimiento 9).
 
-> **Prototipo 2 (propuesto):** se agrega el rol `cliente`. Los roles de empleado pasan a ser `mesero`, `cocinero`, `despachador` y `admin`, y la vista *Historial* deja de ser un rol para convertirse en un permiso de lectura. El cliente se registra en la misma Web App, consulta el menú, crea pedidos **para llevar**, paga de forma simulada y sigue el estado de sus propios pedidos. El personal conserva las vistas de cocina, despacho, catálogo e historial; el cliente no accede a ellas.
+> **Prototipo 2 (propuesto):** se agrega el rol `cliente`. Los roles de empleado pasan a ser `mesero`, `cocinero`, `despachador` y `admin`, y la vista *Historial* deja de ser un rol para convertirse en un permiso de lectura. El cliente se registra en la misma Web App, consulta el menú, **reserva una mesa**, crea pedidos **para llevar**, paga de forma simulada y sigue el estado de sus pedidos. También puede consultar y cancelar sus propias reservas. El personal conserva las vistas de cocina, despacho, catálogo e historial; el cliente no accede a ellas.
 
 #### Alcance del Prototipo 1
 
@@ -57,7 +57,7 @@ Para la cola de cocina se usa una regla sencilla basada en los tiempos estimados
 
 #### Alcance del Prototipo 2 (propuesto)
 
-El Prototipo 2 se enfoca en tres frentes: **autenticación y autorización de usuarios**, **autoservicio del cliente con pago simulado** y **priorización avanzada de la cola de cocina**. Además, recibe el Requerimiento 5, que no se implementó en el Prototipo 1. Los requerimientos se documentan como diseño objetivo; **aún no están implementados**.
+El Prototipo 2 se enfoca en tres frentes: **autenticación y autorización de usuarios**, **autoservicio del cliente (reservas, pedidos y pago simulado)** y **priorización avanzada de la cola de cocina**. Además, recibe el Requerimiento 5, que no se implementó en el Prototipo 1. Los requerimientos se documentan como diseño objetivo; **aún no están implementados**.
 
 **Requerimientos funcionales nuevos**
 
@@ -70,6 +70,7 @@ El Prototipo 2 se enfoca en tres frentes: **autenticación y autorización de us
 | 14 | Autoservicio del cliente: menú, pedido para llevar y pago | P2 | Implementar | Pendiente. El cliente arma su pedido y paga de forma simulada; el total se calcula en el servidor. |
 | 15 | Seguimiento del estado del pedido por parte del cliente | P2 | Implementar | Pendiente. El cliente consulta por polling el estado de sus propios pedidos a través del Order Manager. |
 | 16 | Historial de pedidos del cliente, limitado a sus propios pedidos | P2 | Implementar | Pendiente. El cliente solo ve sus pedidos; el personal autorizado ve el historial general. |
+| 17 | Reservar mesa desde la cuenta del cliente | P2 | Implementar | Pendiente. El cliente crea, consulta y cancela sus propias reservas (fecha, hora, número de personas y notas); solo ve las suyas. La reserva guarda `customer_id` y un estado `pendiente`, `confirmada` o `cancelada`. |
 
 **Requerimientos del Prototipo 1 que pasan al Prototipo 2**
 
@@ -82,7 +83,7 @@ El Prototipo 2 se enfoca en tres frentes: **autenticación y autorización de us
 | N.º | Requerimiento | Cambio para el Prototipo 2 |
 |---|---|---|
 | 1 | Crear pedido para llevar o en mesa | Admite pedidos creados por `cliente` (solo `para_llevar`) y por `mesero` o `admin` (para llevar o en mesa). El pedido guarda `customer_id` tomado del JWT, nunca del cuerpo de la petición. |
-| 2 | Crear cita de reserva | Exige rol `mesero` o `admin`. |
+| 2 | Crear cita de reserva | El `cliente` puede crear, consultar y cancelar sus propias reservas; `mesero` o `admin` gestionan todas. La reserva guarda `customer_id` tomado del JWT y un estado `pendiente`, `confirmada` o `cancelada`. |
 | 3 | Elegir productos de vitrina o preparados | Exige sesión autenticada; sigue siendo una operación de lectura. |
 | 4 | Ver menú y tiempos estimados | El menú lo consultan el `cliente` y el personal autenticado. |
 | 5 | Cobrar / confirmar pago y enviar comanda | El pago puede ser simulado por el cliente dueño del pedido o confirmado por `mesero`/`admin`. El total se calcula en el servidor y el pedido se encola **solo después** de confirmar el pago. |
@@ -97,7 +98,7 @@ El Prototipo 2 se enfoca en tres frentes: **autenticación y autorización de us
 |---|---|
 | Arquitectura distribuida | Se agrega `auth-service` y el sistema pasa de 5 a 6 componentes. La misma Web App sirve a clientes y empleados. |
 | Seguridad | Autenticación JWT, autorización por roles, HTTPS para Auth Service y credencial de servicio para la comunicación interna. |
-| Privacidad y propiedad de los datos | Un cliente solo puede consultar y pagar sus propios pedidos; la validación de propiedad se hace en el servidor a partir del JWT. |
+| Privacidad y propiedad de los datos | Un cliente solo puede consultar y pagar sus propios pedidos y gestionar sus propias reservas; la validación de propiedad se hace en el servidor a partir del JWT. |
 | Auditoría | Cada pago guarda `payment_method`, `total_amount`, `paid_at` y `paid_by`. |
 | Registro de usuarios | El registro público siempre crea el rol `cliente`; los roles de personal solo los asigna un `admin` o los datos semilla. |
 | Persistencia | Se agregan los volúmenes `postgres_data` y `redis_data`; Redis con AOF para conservar la cola activa. |
@@ -137,7 +138,7 @@ El Prototipo 2 se enfoca en tres frentes: **autenticación y autorización de us
 El diseño del Prototipo 2 conserva la estructura del Prototipo 1 y agrega:
 
 - **Auth Service** (`:8002`) como sexto componente, encargado del registro, inicio de sesión y emisión de JWT.
-- **Cliente como nuevo actor:** se registra en la misma Web App, consulta el menú, crea pedidos `para_llevar`, paga de forma simulada y sigue el estado de sus pedidos. No accede a la cola de cocina, al despacho, al catálogo ni al historial general.
+- **Cliente como nuevo actor:** se registra en la misma Web App, consulta el menú, reserva mesa, crea pedidos `para_llevar`, paga de forma simulada y sigue el estado de sus pedidos. También consulta y cancela sus propias reservas. No accede a la cola de cocina, al despacho, al catálogo ni al historial general.
 - **Autenticación y autorización (JWT + RBAC):** Order Manager y Queue Scheduler validan el token localmente; los roles son `cliente`, `mesero`, `cocinero`, `despachador` y `admin`, e Historial queda como permiso de lectura.
 - **Pago simulado (Requerimiento 5):** la tabla `orders` guarda estado y datos de pago; el total se calcula en el servidor y el pedido se envía a cocina **solo después** de confirmar el pago.
 - **Queue Scheduler con priorización avanzada:** SJF + envejecimiento (aging) + capacidad de cocina + ETA, manteniendo el desempate FIFO.
@@ -191,7 +192,7 @@ El flujo muestra el registro o inicio de sesión, la consulta del menú, la crea
 | Actor | Descripción |
 |---|---|
 | Empleado (Mesero / Cocinero / Despachador / Administrador del catálogo) | Usuario final del Prototipo 1. Interactúa con el sistema desde el navegador web. |
-| Cliente (Prototipo 2) | Usuario final que se registra en la Web App, consulta el menú, crea pedidos para llevar, paga de forma simulada y sigue el estado de sus propios pedidos. No accede a la cola de cocina, al despacho, al catálogo ni al historial general. |
+| Cliente (Prototipo 2) | Usuario final que se registra en la Web App, consulta el menú, reserva mesa, crea pedidos para llevar, paga de forma simulada y sigue el estado de sus pedidos. También consulta y cancela sus propias reservas. No accede a la cola de cocina, al despacho, al catálogo ni al historial general. |
 
 **Conectores**
 

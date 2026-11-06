@@ -105,7 +105,7 @@ Scheduler .[#C62828]down.> IRedis : <<Redis / TCP>>\n8. Cola priorizada y estado
 Auth .[#E65100]down.> ISQL : <<SQL / TCP>>\n9. Usuarios y roles (esquema auth)
 
 note left of Cliente
-  El cliente solo ve sus propios pedidos.
+  El cliente reserva mesa y solo ve sus pedidos y reservas.
   No accede a cola, despacho, catálogo ni historial general.
   El pago es simulado y el total se calcula en el servidor.
 end note
