@@ -34,7 +34,7 @@ database "Redis" as Redis
 Cliente -> Web : Registrarse o iniciar sesión
 Web -> Auth : POST /auth/register | /auth/login
 Auth -> DB : Crear o validar usuario (rol cliente)
-Auth --> Web : JWT con rol y datos del usuario
+Auth --> Web : JWT con roles, permisos y nivel
 Web --> Cliente : Sesión iniciada
 
 == Menú y creación del pedido ==

@@ -42,17 +42,20 @@ COrder -[#00838F]right-> CSched : HTTP / REST + credencial de servicio
 COrder -[#E65100]down-> CPg : SQL / TCP
 CSched -[#E65100]down-> CPg : SQL / TCP\n(tiempos base + historial)
 CSched -[#C62828]down-> CRedis : Redis / TCP
-CAuth -[#E65100]down-> CPg : SQL / TCP\n(usuarios y roles)
+CAuth -[#E65100]down-> CPg : SQL / TCP\n(usuarios, roles y jerarquía)
 
 note bottom of T3
   6 contenedores orquestados con docker-compose
   y una red interna común (panaderia-net).
 
   La misma SPA sirve a clientes y empleados con vistas por rol:
-  cliente, mesero, cocinero, despachador y admin.
+  cliente, mesero, cocinero, despachador, supervisor y admin.
 
   El cliente reserva mesa, pide para llevar y paga;
   el personal gestiona la operación.
+
+  El auth-service administra cuentas, roles y permisos;
+  la jerarquía es admin > supervisor > operativos.
 
   Volúmenes: postgres_data y redis_data.
   En producción no se publican 5432 ni 6379.

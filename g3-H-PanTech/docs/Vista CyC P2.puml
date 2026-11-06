@@ -41,7 +41,7 @@ skinparam interface {
 title Vista C&C (Componentes y Conectores) - Panadería Express (Prototipo 2)
 
 actor "Cliente\n(autoregistro)" as Cliente
-actor "Empleado\n(Mesero / Cocinero / Despachador / Administrador)" as Empleado
+actor "Empleado\n(Mesero / Cocinero / Despachador / Supervisor / Administrador)" as Empleado
 
 component "Web App" as Frontend <<Cliente web>>
 interface " " as IOrder
@@ -102,7 +102,7 @@ Order .[#1565C0]right.> ISched : <<HTTP / REST + credencial de servicio>>\n5. En
 Order .[#E65100]down.> ISQL : <<SQL / TCP>>\n6. Persistir productos, pedidos, pagos y reservas
 Scheduler .[#E65100]down.> ISQL : <<SQL / TCP>>\n7. Tiempos base e historial de estados
 Scheduler .[#C62828]down.> IRedis : <<Redis / TCP>>\n8. Cola priorizada y estados
-Auth .[#E65100]down.> ISQL : <<SQL / TCP>>\n9. Usuarios y roles (esquema auth)
+Auth .[#E65100]down.> ISQL : <<SQL / TCP>>\n9. Usuarios, roles y jerarquía (esquema auth)
 
 note left of Cliente
   El cliente reserva mesa y solo ve sus pedidos y reservas.

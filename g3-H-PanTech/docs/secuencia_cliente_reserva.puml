@@ -32,7 +32,7 @@ database "PostgreSQL" as DB
 Cliente -> Web : Iniciar sesión
 Web -> Auth : POST /auth/login
 Auth -> DB : Validar credenciales
-Auth --> Web : JWT con rol cliente
+Auth --> Web : JWT con roles, permisos y nivel
 Web --> Cliente : Sesión iniciada
 
 == Crear reserva ==
@@ -57,7 +57,7 @@ Order --> Web : Reserva cancelada
 Web --> Cliente : Confirmación de cancelación
 
 note over Order
-  El personal con rol mesero o admin
+  El personal con rol mesero, supervisor o admin
   gestiona todas las reservas.
   El cliente solo crea, consulta y cancela las suyas.
 end note
