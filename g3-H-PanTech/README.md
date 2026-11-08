@@ -22,7 +22,7 @@
 
 Cada persona trabaja en su rama personal y abre un PR hacia `g3-H/Pantech-P2`. Jaime revisa, integra y abre el PR final hacia `main`. Los planes incluyen fases, tareas, entregables, contratos y criterios de aceptación. Cada plan lista además **los archivos que esa persona crea y modifica**, y **quién más puede tocar cada archivo compartido** (`docker-compose.p2.yml`, `.env.p2.example`, `infrastructure/`, `docs/` y `README.md`).
 
-Los contratos técnicos que todos deben respetar —puertos, JWT, eventos, encabezados, errores y estados— están en [`docs/equipo/contratos.md`](docs/equipo/contratos.md).
+Los contratos técnicos que todos deben respetar —puertos, JWT, eventos, encabezados, errores y estados— están en [`docs/equipo/contratos.md`](docs/equipo/contratos.md). Cada pull request ejecuta el workflow `.github/workflows/ci-p2.yml`, que valida el compose, el JSON de RabbitMQ, la sintaxis de los scripts de inicialización y la presencia de los planes y diagramas.
 
 ## 2. Sistema de software
 
@@ -586,7 +586,7 @@ g3-H-PanTech/
 
 #### Prototipo 2 (objetivo)
 
-> Estas instrucciones describen el despliegue planeado. Se activarán cuando exista `docker-compose.p2.yml` y los servicios del Prototipo 2 estén implementados.
+> Estas instrucciones describen el despliegue planeado. El compose y la infraestructura ya existen; se podrán ejecutar de punta a punta cuando los servicios del Prototipo 2 estén implementados en los PRs de cada dueño.
 
 **Requisitos previos**
 
@@ -620,14 +620,15 @@ g3-H-PanTech/
    |---|---|
    | Web SSR | http://localhost:3000 |
    | API Gateway | http://localhost:8080 |
-   | Identity Service (API) | http://localhost:8002/docs |
-   | Order Service (API) | http://localhost:8000/docs |
-   | Kitchen Service (API) | http://localhost:8001/docs |
-   | Reporting Service (API) | http://localhost:8003/docs |
    | RabbitMQ (consola) | http://localhost:15672 |
    | MinIO (consola) | http://localhost:9001 |
 
-   PostgreSQL, MongoDB y Redis no se publican; se acceden solo desde la red interna.
+   PostgreSQL, MongoDB, Redis y las APIs internas de Identity, Order, Kitchen y Reporting no se publican; se acceden solo desde la red interna. Para inspeccionar una API interna:
+
+   ```bash
+   docker compose -f docker-compose.p2.yml exec api-gateway \
+     wget -qO- http://order-service:8000/openapi.json
+   ```
 
 5. Compilar y ejecutar el KDS/POS de escritorio:
 

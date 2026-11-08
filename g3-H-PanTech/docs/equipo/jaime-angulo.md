@@ -88,7 +88,8 @@ Que los cuatro componentes de cada persona se puedan levantar juntos, se comuniq
 | J0.3 | Publicar los esquemas de eventos | `order.paid`, `order.ready`, `reservation.created`, `reservation.cancelled` | Productores y consumidores usan el mismo nombre y payload |
 | J0.4 | Crear el esqueleto de `docker-compose.p2.yml` | 12 servicios declarados, aunque algunos aún no tengan código | `docker compose config` valida sin errores |
 | J0.5 | Crear `.env.p2.example` | Variables de todas las piezas | Nadie hardcodea contraseñas ni URLs |
-| J0.6 | Crear la estructura de `infrastructure/` | Carpetas `postgres/`, `mongodb/`, `redis/`, `minio/`, `rabbitmq/` | Cada dueño sabe dónde poner su init |
+| J0.6 | Crear la estructura de `infrastructure/` | `postgres/`, `mongodb/`, `redis/`, `minio/` y `rabbitmq/` con sus archivos de inicialización | Cada dueño sabe dónde poner su init |
+| J0.7 | Crear el workflow de validación | `.github/workflows/ci-p2.yml` | Valida el compose, el JSON de RabbitMQ y la sintaxis de los scripts en cada PR |
 
 ### Fase 1 — Plataforma base (semanas 2–3)
 
@@ -98,7 +99,7 @@ Que los cuatro componentes de cada persona se puedan levantar juntos, se comuniq
 | J1.2 | MongoDB: colecciones e índices | `menu`, `order_history`, `reservation_read`, `report_snapshots` | Índices por `customer_id`, `order_id` y fecha |
 | J1.3 | Redis: configuración de persistencia | AOF para la cola; prefijos de llaves | La cola sobrevive a un reinicio del contenedor |
 | J1.4 | MinIO: buckets | `receipts`, `products`, `reports` | Worker y Reporting pueden escribir; lectura pública solo de productos |
-| J1.5 | RabbitMQ: exchange, colas, bindings y DLQ | `panaderia.events` (topic), colas de Worker/Reporting y `panaderia.dlq` | Un evento publicado llega a la cola correcta |
+| J1.5 | RabbitMQ: exchange, colas, bindings y DLQ | `panaderia.events` (topic), colas del Worker y `panaderia.dlq` | Un evento publicado llega a la cola correcta |
 | J1.6 | Datos semilla | Roles, permisos, usuarios demo y productos | Se puede iniciar sesión con cada rol y hay menú para probar |
 | J1.7 | Healthchecks y dependencias | `depends_on` con `condition` | `docker compose up` espera a las bases antes de los servicios |
 
@@ -155,7 +156,7 @@ Que los cuatro componentes de cada persona se puedan levantar juntos, se comuniq
 | Evento | Productor | Consumidor | Payload mínimo |
 |---|---|---|---|
 | `order.paid` | Order Service | Worker | `event_id`, `order_id`, `customer_id`, `total`, `paid_at` |
-| `order.ready` | Kitchen Service | Worker, Reporting | `event_id`, `order_id`, `ready_at` |
+| `order.ready` | Kitchen Service | Worker | `event_id`, `order_id`, `customer_id`, `ready_at`, `prep_minutes` |
 | `reservation.created` | Order Service | Worker | `event_id`, `reservation_id`, `customer_id`, `date`, `time` |
 | `reservation.cancelled` | Order Service | Worker | `event_id`, `reservation_id`, `customer_id`, `reason` |
 
@@ -222,7 +223,7 @@ Todos los eventos llevan `event_id` para idempotencia y `occurred_at` para audit
 
 ## Primer PR
 
-**`g3-H/jaime-plataforma`:** contratos, `.env.p2.example`, esqueleto de `docker-compose.p2.yml` e `infrastructure/` con PostgreSQL, MongoDB, Redis, MinIO y RabbitMQ. Sin lógica de negocio.
+**`g3-H/jaime-plataforma`:** contratos, `.env.p2.example`, esqueleto de `docker-compose.p2.yml`, `infrastructure/` con PostgreSQL, MongoDB, Redis, MinIO y RabbitMQ, y el workflow `.github/workflows/ci-p2.yml`. Sin lógica de negocio.
 
 ## Lo que no hago
 

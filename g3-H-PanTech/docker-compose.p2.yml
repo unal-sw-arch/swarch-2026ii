@@ -103,8 +103,8 @@ services:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       JWT_ISSUER: ${JWT_ISSUER:-identity-service}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-panaderia-express}
-      ACCESS_TOKEN_TTL: ${JWT_ACCESS_TTL_SECONDS:-900}
-      REFRESH_TOKEN_TTL: ${JWT_REFRESH_TTL_SECONDS:-604800}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
+      JWT_REFRESH_TTL_SECONDS: ${JWT_REFRESH_TTL_SECONDS:-604800}
       JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH:-/run/secrets/jwt_private.pem}
       JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH:-/run/secrets/jwt_public.pem}
     volumes:
@@ -131,6 +131,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://panaderia:panaderia@postgres:5432/panaderia}
       MONGODB_URL: ${MONGODB_URL:-mongodb://panaderia:panaderia@mongodb:27017/panaderia?authSource=admin}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_CACHE_URL: ${REDIS_CACHE_URL:-redis://redis:6379/2}
       RABBITMQ_URL: ${RABBITMQ_URL:-amqp://panaderia:panaderia@rabbitmq:5672/}
       RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-panaderia.events}
       SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
@@ -158,7 +159,7 @@ services:
     environment:
       PORT: ${KITCHEN_PORT:-8001}
       DATABASE_URL: ${DATABASE_URL_GO:-postgres://panaderia:panaderia@postgres:5432/panaderia?sslmode=disable}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_QUEUE_URL: ${REDIS_QUEUE_URL:-redis://redis:6379/1}
       RABBITMQ_URL: ${RABBITMQ_URL:-amqp://panaderia:panaderia@rabbitmq:5672/}
       RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-panaderia.events}
       AGING_FACTOR: ${AGING_FACTOR:-0.5}

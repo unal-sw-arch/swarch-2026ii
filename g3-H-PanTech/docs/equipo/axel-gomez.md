@@ -164,7 +164,7 @@ Que todo el tráfico entre por un solo punto, que la cola de cocina priorice bie
 | A2.8 | Consultar cola | `GET /queue` | Orden estable y desempate FIFO |
 | A2.9 | Cambiar estado | `PATCH /queue/orders/{id}/status` | `pendiente → en_preparacion → listo`; transiciones inválidas devuelven 409 |
 | A2.10 | Confirmar entrega | `POST /queue/orders/{id}/deliver` | Exige `listo`; exige `despachador`, `supervisor` o `admin` |
-| A2.11 | Evento `order.ready` | Productor RabbitMQ | Payload con `event_id`, `order_id`, `ready_at`, `occurred_at` |
+| A2.11 | Evento `order.ready` | Productor RabbitMQ | Payload con `event_id`, `order_id`, `customer_id`, `prep_minutes`, `ready_at`, `occurred_at` (ver `docs/equipo/contratos.md`) |
 | A2.12 | Historial de estados | Registro en PostgreSQL | Un evento por transición con `changed_at` y `changed_by` |
 | A2.13 | Pruebas | SJF, aging, capacidad, transiciones y permisos | Casos felices y de denegación |
 
@@ -231,7 +231,8 @@ un pedido en preparación no compite por prioridad; ocupa capacidad
 | GET | `/queue/orders/{id}` | `kitchen:read` | Detalle y ETA |
 | PATCH | `/queue/orders/{id}/status` | `kitchen:update` | Transiciones válidas |
 | POST | `/queue/orders/{id}/deliver` | `kitchen:deliver` | Exige estado `listo` |
-| GET | `/queue/health` | Público interno | Estado del servicio |
+| GET | `/health` | Público interno | Liveness del servicio |
+| GET | `/ready` | Público interno | Readiness: PostgreSQL, Redis y RabbitMQ |
 
 ## Contratos que debo respetar
 
@@ -251,7 +252,7 @@ un pedido en preparación no compite por prioridad; ocupa capacidad
 | Evento | Rol | Payload mínimo |
 |---|---|---|
 | `order.paid` | Consumo indirecto (vía Worker) | `event_id`, `order_id`, `customer_id`, `total`, `paid_at` |
-| `order.ready` | Publico | `event_id`, `order_id`, `ready_at`, `occurred_at` |
+| `order.ready` | Publico | `event_id`, `order_id`, `customer_id`, `prep_minutes`, `ready_at`, `occurred_at` |
 
 ### Propiedad de datos
 

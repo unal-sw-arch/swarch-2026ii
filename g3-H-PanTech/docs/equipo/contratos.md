@@ -1,6 +1,6 @@
 # Contratos compartidos — Prototipo 2
 
-**Versión:** 1.0
+**Versión:** 1.1
 **Responsable:** Jaime Darley Angulo Tenorio
 **Última actualización:** 2026-11-08
 
@@ -33,17 +33,19 @@ Este documento es la fuente única de verdad para puertos, autenticación, event
 
 ### Variables de entorno por servicio
 
-Cada servicio lee su configuración de variables. Los nombres exactos están en `.env.p2.example`.
+Cada servicio lee su configuración de variables. Los nombres canónicos son los de `.env.p2.example`; el compose se los pasa a cada contenedor.
 
 | Servicio | Variables principales |
 |---|---|
-| `web-ssr` | `API_GATEWAY_URL`, `JWT_COOKIE_NAME`, `NEXT_PUBLIC_APP_NAME` |
-| `api-gateway` | `PORT`, `IDENTITY_URL`, `ORDER_URL`, `KITCHEN_URL`, `REPORTING_URL`, `REDIS_URL`, `JWKS_URL`, `SERVICE_TOKEN` |
-| `identity-service` | `PORT`, `DATABASE_URL`, `REDIS_URL`, `JWT_ISSUER`, `JWT_PRIVATE_KEY_PATH`, `JWT_PUBLIC_KEY_PATH`, `ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL` |
-| `order-service` | `PORT`, `DATABASE_URL`, `MONGODB_URL`, `REDIS_URL`, `RABBITMQ_URL`, `SERVICE_TOKEN` |
-| `kitchen-service` | `PORT`, `DATABASE_URL`, `REDIS_URL`, `RABBITMQ_URL`, `SERVICE_TOKEN`, `AGING_FACTOR`, `KITCHEN_CAPACITY` |
-| `reporting-service` | `PORT`, `DATABASE_URL`, `MONGODB_URL`, `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `SERVICE_TOKEN` |
-| `worker` | `RABBITMQ_URL`, `KITCHEN_URL`, `MONGODB_URL`, `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `SERVICE_TOKEN` |
+| `web-ssr` | `PORT`, `API_GATEWAY_URL`, `JWT_COOKIE_NAME`, `JWT_REFRESH_COOKIE_NAME`, `COOKIE_SECURE`, `NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_POLL_INTERVAL_MS` |
+| `api-gateway` | `PORT`, `IDENTITY_URL`, `ORDER_URL`, `KITCHEN_URL`, `REPORTING_URL`, `REDIS_URL`, `JWKS_URL`, `JWT_ISSUER`, `JWT_AUDIENCE`, `SERVICE_TOKEN`, `CORS_ORIGINS` |
+| `identity-service` | `PORT`, `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`, `REDIS_URL`, `JWT_ISSUER`, `JWT_AUDIENCE`, `JWT_ACCESS_TTL_SECONDS`, `JWT_REFRESH_TTL_SECONDS`, `JWT_PRIVATE_KEY_PATH`, `JWT_PUBLIC_KEY_PATH` |
+| `order-service` | `PORT`, `DATABASE_URL`, `MONGODB_URL`, `REDIS_URL`, `REDIS_CACHE_URL`, `RABBITMQ_URL`, `RABBITMQ_EXCHANGE`, `SERVICE_TOKEN` |
+| `kitchen-service` | `PORT`, `DATABASE_URL`, `REDIS_QUEUE_URL`, `RABBITMQ_URL`, `RABBITMQ_EXCHANGE`, `SERVICE_TOKEN`, `AGING_FACTOR`, `KITCHEN_CAPACITY`, `DEFAULT_PREP_MINUTES` |
+| `reporting-service` | `PORT`, `DATABASE_URL`, `MONGODB_URL`, `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET_REPORTS`, `SERVICE_TOKEN` |
+| `worker` | `RABBITMQ_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`, `KITCHEN_URL`, `MONGODB_URL`, `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET_RECEIPTS`, `WORKER_CONCURRENCY`, `WORKER_MAX_RETRIES`, `SERVICE_TOKEN` |
+
+> Los servicios que usan PostgreSQL reciben además su variante de URL: `DATABASE_URL` (SQLAlchemy), `DATABASE_URL_JDBC` (Kotlin/.NET) o `DATABASE_URL_GO` (pgx).
 
 ---
 
@@ -54,8 +56,8 @@ Cada servicio lee su configuración de variables. Los nombres exactos están en 
 - **Algoritmo:** RS256.
 - **Emisor (`iss`):** `identity-service`.
 - **Audiencia (`aud`):** `panaderia-express`.
-- **Access token:** 15 minutos (`ACCESS_TOKEN_TTL=900`).
-- **Refresh token:** 7 días (`REFRESH_TOKEN_TTL=604800`), opaco y almacenado en Redis.
+- **Access token:** 15 minutos (`JWT_ACCESS_TTL_SECONDS=900`).
+- **Refresh token:** 7 días (`JWT_REFRESH_TTL_SECONDS=604800`), opaco y almacenado en Redis.
 - **JWKS:** `GET http://identity-service:8002/.well-known/jwks.json`.
 
 ### Claims obligatorios
@@ -68,6 +70,7 @@ Cada servicio lee su configuración de variables. Los nombres exactos están en 
 | `permissions` | array de string | `["orders:create", "orders:charge"]` | Unión de permisos de los roles |
 | `level` | integer | `50` | Nivel efectivo, el mayor de los roles |
 | `iss` | string | `"identity-service"` | Emisor |
+| `aud` | string | `"panaderia-express"` | Audiencia |
 | `iat` | integer | `1762560000` | Emisión (epoch) |
 | `exp` | integer | `1762560900` | Expiración (epoch) |
 
@@ -168,7 +171,7 @@ Todos los eventos se publican en el exchange `panaderia.events` (tipo `topic`) y
 | Evento | Routing key | Productor | Consumidores | Cola |
 |---|---|---|---|---|
 | Pedido pagado | `order.paid` | Order Service | Worker | `worker.order_paid` |
-| Pedido listo | `order.ready` | Kitchen Service | Worker, Reporting | `worker.order_ready`, `reporting.order_ready` |
+| Pedido listo | `order.ready` | Kitchen Service | Worker | `worker.order_ready` |
 | Reserva creada | `reservation.created` | Order Service | Worker | `worker.reservation_created` |
 | Reserva cancelada | `reservation.cancelled` | Order Service | Worker | `worker.reservation_cancelled` |
 
@@ -315,6 +318,7 @@ Una transición inválida devuelve `409 INVALID_STATE`.
 
 - Cada servicio es dueño de su esquema. Nadie escribe en las tablas de otro.
 - Reporting solo lee.
+- El Worker actualiza `order_history` y `reservation_read` como proyección del dominio de Order; no crea colecciones nuevas ni escribe en PostgreSQL.
 - PostgreSQL es la fuente de verdad transaccional; MongoDB contiene read models reconstruibles.
 - La consistencia entre PostgreSQL y MongoDB es eventual.
 
@@ -343,3 +347,34 @@ Una transición inválida devuelve `409 INVALID_STATE`.
    - el diagrama C&C o de despliegue si cambia una relación,
    - la matriz NFR del README si cambia el alcance.
 4. Los contratos se versionan en la cabecera del documento.
+
+---
+
+## 10. Salud y readiness
+
+Todos los servicios de aplicación exponen dos rutas sin autenticación, accesibles solo desde la red interna:
+
+| Ruta | Respuesta | Uso |
+|---|---|---|
+| `GET /health` | `200 {"status":"ok"}` | Liveness: el proceso está vivo |
+| `GET /ready` | `200 {"status":"ready"}` o `503 {"status":"not_ready","dependencies":{...}}` | Readiness: las dependencias responden |
+
+**Reglas:**
+
+- `web-ssr` expone `/health` en `:3000`; el KDS/POS no las necesita.
+- `api-gateway` expone `/health` y `/ready` en `:8080`.
+- Cada servicio de lógica las expone en su puerto interno.
+- El `healthcheck` del compose debe usar la herramienta disponible en la imagen base (`curl`, `wget` o el runtime del lenguaje).
+- `/ready` verifica PostgreSQL, MongoDB, Redis, RabbitMQ o MinIO según lo que use el servicio.
+- Nunca exponen información sensible: ni versiones, ni credenciales, ni trazas.
+
+Ejemplo de `healthcheck` para un servicio Python:
+
+```yaml
+healthcheck:
+  test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status == 200 else 1)"]
+  interval: 10s
+  timeout: 5s
+  retries: 10
+  start_period: 20s
+```

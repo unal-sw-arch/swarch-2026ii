@@ -1,0 +1,3 @@
+# Los workflows se ejecutan en Linux y deben conservar LF.
+.github/workflows/*.yml text eol=lf
+.github/workflows/*.yaml text eol=lf

@@ -41,16 +41,6 @@
       }
     },
     {
-      "name": "reporting.order_ready",
-      "vhost": "/",
-      "durable": true,
-      "auto_delete": false,
-      "arguments": {
-        "x-dead-letter-exchange": "panaderia.dlx",
-        "x-dead-letter-routing-key": "panaderia.dlq"
-      }
-    },
-    {
       "name": "worker.reservation_created",
       "vhost": "/",
       "durable": true,
@@ -91,14 +81,6 @@
       "source": "panaderia.events",
       "vhost": "/",
       "destination": "worker.order_ready",
-      "destination_type": "queue",
-      "routing_key": "order.ready",
-      "arguments": {}
-    },
-    {
-      "source": "panaderia.events",
-      "vhost": "/",
-      "destination": "reporting.order_ready",
       "destination_type": "queue",
       "routing_key": "order.ready",
       "arguments": {}
