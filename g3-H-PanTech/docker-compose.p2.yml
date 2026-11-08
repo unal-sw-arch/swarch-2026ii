@@ -7,7 +7,7 @@
 #   docker compose -f docker-compose.p2.yml --env-file .env.p2 up --build
 #
 # Solo se publican web-ssr (:3000), api-gateway (:8080) y las consolas de
-# RabbitMQ (:15672) y MinIO (:9001). Los servicios de lógica y los almacenes
+# RabbitMQ (:15672) y RustFS (:9001). Los servicios de lógica y los almacenes
 # quedan en la red interna panaderia-net.
 #
 # El KDS/POS es una aplicación de escritorio Flutter y no se despliega aquí.
@@ -144,6 +144,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      rabbitmq-init:
+        condition: service_completed_successfully
     networks:
       - panaderia-net
 
@@ -173,6 +175,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      rabbitmq-init:
+        condition: service_completed_successfully
     networks:
       - panaderia-net
 
@@ -189,18 +193,20 @@ services:
       PORT: ${REPORTING_PORT:-8003}
       DATABASE_URL: ${DATABASE_URL_DOTNET:-Host=postgres;Port=5432;Database=panaderia;Username=panaderia;Password=panaderia}
       MONGODB_URL: ${MONGODB_URL:-mongodb://panaderia:panaderia@mongodb:27017/panaderia?authSource=admin}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-panaderia}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-panaderia123}
-      MINIO_BUCKET_REPORTS: ${MINIO_BUCKET_REPORTS:-reports}
-      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://rustfs:9000}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-panaderia}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-panaderia123}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET_REPORTS: ${S3_BUCKET_REPORTS:-reports}
+      S3_USE_SSL: ${S3_USE_SSL:-false}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
       SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
     depends_on:
       postgres:
         condition: service_healthy
       mongodb:
         condition: service_healthy
-      minio:
+      rustfs:
         condition: service_healthy
     networks:
       - panaderia-net
@@ -220,20 +226,24 @@ services:
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/3}
       KITCHEN_URL: ${KITCHEN_URL:-http://kitchen-service:8001}
       MONGODB_URL: ${MONGODB_URL:-mongodb://panaderia:panaderia@mongodb:27017/panaderia?authSource=admin}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-panaderia}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-panaderia123}
-      MINIO_BUCKET_RECEIPTS: ${MINIO_BUCKET_RECEIPTS:-receipts}
-      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://rustfs:9000}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-panaderia}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-panaderia123}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET_RECEIPTS: ${S3_BUCKET_RECEIPTS:-receipts}
+      S3_USE_SSL: ${S3_USE_SSL:-false}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
       WORKER_MAX_RETRIES: ${WORKER_MAX_RETRIES:-3}
       SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
     depends_on:
       rabbitmq:
         condition: service_healthy
+      rabbitmq-init:
+        condition: service_completed_successfully
       mongodb:
         condition: service_healthy
-      minio:
+      rustfs:
         condition: service_healthy
       kitchen-service:
         condition: service_started
@@ -263,6 +273,36 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Job de importación de definiciones de RabbitMQ.
+  # Espera a que el broker cree el vhost "/" y el usuario por defecto, y luego
+  # importa exchanges, colas y bindings. No forma parte de los 12 contenedores
+  # permanentes.
+  # ---------------------------------------------------------------------------
+  rabbitmq-init:
+    image: rabbitmq:3.13-management-alpine
+    container_name: panaderia-p2-rabbitmq-init
+    restart: "no"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-panaderia}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-panaderia}
+    volumes:
+      - ./infrastructure/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until rabbitmqadmin -H rabbitmq -u "$$RABBITMQ_DEFAULT_USER" -p "$$RABBITMQ_DEFAULT_PASS" list vhosts >/dev/null 2>&1; do
+          echo "[rabbitmq-init] Esperando a RabbitMQ...";
+          sleep 2;
+        done
+        rabbitmqadmin -H rabbitmq -u "$$RABBITMQ_DEFAULT_USER" -p "$$RABBITMQ_DEFAULT_PASS" import /etc/rabbitmq/definitions.json
+        echo "[rabbitmq-init] Definiciones importadas."
     networks:
       - panaderia-net
 
@@ -336,51 +376,77 @@ services:
       - panaderia-net
 
   # ---------------------------------------------------------------------------
-  # Datos: MinIO
+  # Datos: RustFS (almacenamiento de objetos compatible con S3)
+  #
+  # RustFS reemplaza a MinIO porque MinIO dejó de publicar imágenes oficiales
+  # en Docker Hub y Quay en 2026. La API es compatible con S3, así que los
+  # servicios usan el mismo SDK y las mismas operaciones.
   # ---------------------------------------------------------------------------
-  minio:
-    image: minio/minio:latest
-    container_name: panaderia-p2-minio
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-panaderia}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-panaderia123}
-    ports:
-      - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
+  rustfs-perms:
+    image: alpine:3.20
+    container_name: panaderia-p2-rustfs-perms
+    command: ["sh", "-c", "chown -R 10001:10001 /data /logs"]
     volumes:
-      - minio_data:/data
+      - rustfs_data:/data
+      - rustfs_logs:/logs
+    restart: "no"
+    networks:
+      - panaderia-net
+
+  rustfs:
+    image: rustfs/rustfs:1.0.4
+    container_name: panaderia-p2-rustfs
+    restart: unless-stopped
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:-panaderia}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:-panaderia123}
+      RUSTFS_OBS_LOGGER_LEVEL: info
+      RUSTFS_OBS_LOG_DIRECTORY: /logs
+    ports:
+      - "${RUSTFS_CONSOLE_HOST_PORT:-9001}:9001"
+    volumes:
+      - rustfs_data:/data
+      - rustfs_logs:/logs
+    depends_on:
+      rustfs-perms:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
       interval: 10s
       timeout: 5s
       retries: 12
-      start_period: 10s
+      start_period: 20s
     networks:
       - panaderia-net
 
   # ---------------------------------------------------------------------------
-  # Job de inicialización de MinIO (no se ejecuta en el arranque normal).
+  # Job de inicialización de RustFS (no se ejecuta en el arranque normal).
+  # Crea los buckets y aplica la política pública del catálogo.
   # Uso:
   #   docker compose -f docker-compose.p2.yml --env-file .env.p2 \
-  #     --profile init run --rm minio-init
+  #     --profile init run --rm rustfs-init
   # ---------------------------------------------------------------------------
-  minio-init:
-    image: minio/mc:latest
-    container_name: panaderia-p2-minio-init
+  rustfs-init:
+    image: amazon/aws-cli:2.39.6
+    container_name: panaderia-p2-rustfs-init
     profiles: ["init"]
     depends_on:
-      minio:
+      rustfs:
         condition: service_healthy
     environment:
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-panaderia}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-panaderia123}
-      MINIO_BUCKET_RECEIPTS: ${MINIO_BUCKET_RECEIPTS:-receipts}
-      MINIO_BUCKET_PRODUCTS: ${MINIO_BUCKET_PRODUCTS:-products}
-      MINIO_BUCKET_REPORTS: ${MINIO_BUCKET_REPORTS:-reports}
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-panaderia}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-panaderia123}
+      AWS_DEFAULT_REGION: ${S3_REGION:-us-east-1}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://rustfs:9000}
+      S3_BUCKET_RECEIPTS: ${S3_BUCKET_RECEIPTS:-receipts}
+      S3_BUCKET_PRODUCTS: ${S3_BUCKET_PRODUCTS:-products}
+      S3_BUCKET_REPORTS: ${S3_BUCKET_REPORTS:-reports}
     volumes:
-      - ./infrastructure/minio/init.sh:/init/init.sh:ro
+      - ./infrastructure/rustfs/init.sh:/init/init.sh:ro
     entrypoint: ["/bin/sh", "/init/init.sh"]
     networks:
       - panaderia-net
@@ -389,7 +455,8 @@ volumes:
   postgres_data:
   mongo_data:
   redis_data:
-  minio_data:
+  rustfs_data:
+  rustfs_logs:
   rabbitmq_data:
   identity_keys:
 

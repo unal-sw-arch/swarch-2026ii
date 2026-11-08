@@ -10,7 +10,7 @@
 | Rama de integración | `g3-H/Pantech-P2` |
 | Componentes propios | `order-service/`, `worker/`, `reporting-service/` |
 | Lenguajes | Python (Order y Worker), C# (Reporting) |
-| Depende de | Jaime (PostgreSQL, MongoDB, Redis, RabbitMQ, MinIO), Diego (JWT y permisos), Axel (Kitchen API) |
+| Depende de | Jaime (PostgreSQL, MongoDB, Redis, RabbitMQ, RustFS), Diego (JWT y permisos), Axel (Kitchen API) |
 | Bloquea a | Diego (menú, pedidos, reservas e historial), Axel (eventos para la cola), Jaime (smoke test) |
 
 ## Misión
@@ -71,7 +71,7 @@ Que un cliente pueda consultar el menú, crear un pedido, pagarlo y seguirlo; qu
 
 | Archivo | Contenido |
 |---|---|
-| `worker/requirements.txt` | Celery, pika, pymongo, minio y httpx |
+| `worker/requirements.txt` | Celery, pika, pymongo, boto3 y httpx |
 | `worker/Dockerfile` | Imagen Python para Celery |
 | `worker/.dockerignore` | Excluir `.venv/` y `__pycache__/` |
 | `worker/celery_app.py` | Configuración de Celery, colas y reintentos |
@@ -79,10 +79,10 @@ Que un cliente pueda consultar el menú, crear un pedido, pagarlo y seguirlo; qu
 | `worker/tasks/order_paid.py` | Encolar en Kitchen y actualizar read model |
 | `worker/tasks/order_ready.py` | Marcar listo y actualizar read model |
 | `worker/tasks/reservation_events.py` | `reservation.created` y `reservation.cancelled` |
-| `worker/tasks/receipts.py` | Generar comprobante en MinIO |
+| `worker/tasks/receipts.py` | Generar comprobante en RustFS |
 | `worker/clients/kitchen_client.py` | `POST /queue/orders` |
 | `worker/clients/mongo_client.py` | Read models |
-| `worker/clients/minio_client.py` | Buckets y objetos |
+| `worker/clients/s3_client.py` | Buckets y objetos |
 | `worker/tests/*` | Idempotencia, reintentos y DLQ |
 | `worker/README.md` | Eventos, colas y variables |
 
@@ -99,7 +99,7 @@ Que un cliente pueda consultar el menú, crear un pedido, pagarlo y seguirlo; qu
 | `reporting-service/Controllers/ReportsController.cs` | `GET /reports/sales`, `GET /reports/times`, `POST /reports/export` |
 | `reporting-service/Services/HistoryService.cs` | Consultas con alcance por rol |
 | `reporting-service/Services/ReportService.cs` | Métricas y filtros por fecha |
-| `reporting-service/Services/ExportService.cs` | CSV/PDF a MinIO |
+| `reporting-service/Services/ExportService.cs` | CSV/PDF a RustFS |
 | `reporting-service/Repositories/*.cs` | PostgreSQL y MongoDB de solo lectura |
 | `reporting-service/Tests/*` | Permisos, filtros y exportación |
 | `reporting-service/README.md` | Endpoints y variables |
@@ -112,7 +112,7 @@ Que un cliente pueda consultar el menú, crear un pedido, pagarlo y seguirlo; qu
 | `.env.p2.example` | Proponer `ORDER_*`, `WORKER_*` y `REPORTING_*` | Jaime (dueño), Diego y Axel | Jaime consolida |
 | `infrastructure/rabbitmq/definitions.json` | Proponer `order.paid`, `reservation.created` y `reservation.cancelled` | Jaime (dueño) y Axel (`order.ready`) | Jaime aplica exchange, colas, bindings y DLQ |
 | `infrastructure/mongodb/init.js` | No editar | Jaime | Mis colecciones e índices van en `order-service/migrations/mongo/` |
-| `infrastructure/minio/init.sh` | Proponer los buckets `receipts` y `reports` | Jaime | Jaime crea los buckets y las políticas |
+| `infrastructure/rustfs/init.sh` | Proponer los buckets `receipts` y `reports` | Jaime | Jaime crea los buckets y las políticas |
 | `docs/equipo/contratos.md` | Proponer los esquemas de eventos y los endpoints | Jaime, Diego y Axel | Jaime consolida |
 | `docs/secuencia_cliente_pedido.puml`, `docs/secuencia_cliente_reserva.puml` | Actualizar el `.puml` cuando cambie el flujo | Jaime (renderiza y sube el `.png`) | Avisar a Jaime para regenerar la imagen |
 | `README.md` | No editar | Jaime | Mi documentación va en los README de mis carpetas |
@@ -192,7 +192,7 @@ Que un cliente pueda consultar el menú, crear un pedido, pagarlo y seguirlo; qu
 | Y4.3 | Consumidor de eventos de reserva | Tarea Celery | Actualiza el read model de reservas |
 | Y4.4 | Reintentos y DLQ | Configuración de Celery | Un fallo se reintenta y termina en `panaderia.dlq` |
 | Y4.5 | Idempotencia del consumidor | Registro por `event_id` | Un evento repetido no duplica efectos |
-| Y4.6 | Comprobantes | PDF en MinIO (`receipts`) | Se genera una vez por pedido pagado |
+| Y4.6 | Comprobantes | PDF en RustFS (`receipts`) | Se genera una vez por pedido pagado |
 | Y4.7 | Notificaciones simuladas | Log o correo de prueba | Queda registro de la notificación |
 | Y4.8 | Read models | MongoDB: `order_history`, `reservation_read` | Consultas rápidas por `customer_id` y fecha |
 
@@ -203,7 +203,7 @@ Que un cliente pueda consultar el menú, crear un pedido, pagarlo y seguirlo; qu
 | Y5.1 | Historial con alcance | `GET /history` | `history:read_all` ve todo; `history:read_own` solo lo propio |
 | Y5.2 | Detalle de pedido | `GET /history/orders/{id}` | Dueño o `history:read_all`; valida propiedad |
 | Y5.3 | Reportes | `GET /reports/sales`, `GET /reports/times` | Filtros por rango de fechas |
-| Y5.4 | Exportaciones | `POST /reports/export` | Genera CSV o PDF en MinIO y devuelve la URL |
+| Y5.4 | Exportaciones | `POST /reports/export` | Genera CSV o PDF en RustFS y devuelve la URL |
 | Y5.5 | Lectura de datos | PostgreSQL y MongoDB | No escribe en las tablas de Order |
 | Y5.6 | Pruebas | Permisos, filtros y exportación | Cliente no accede a `/history` |
 
@@ -244,7 +244,7 @@ Que un cliente pueda consultar el menú, crear un pedido, pagarlo y seguirlo; qu
 | GET | `/history/orders/{id}` | Dueño o `history:read_all` | Detalle con validación de propiedad |
 | GET | `/reports/sales` | `reports:read` | Rango de fechas |
 | GET | `/reports/times` | `reports:read` | Tiempos de preparación y entrega |
-| POST | `/reports/export` | `reports:read` | CSV/PDF en MinIO |
+| POST | `/reports/export` | `reports:read` | CSV/PDF en RustFS |
 
 ## Contratos que debo respetar
 
@@ -270,14 +270,14 @@ Que un cliente pueda consultar el menú, crear un pedido, pagarlo y seguirlo; qu
 | PostgreSQL | `orders`, `order_items`, `payments`, `reservations`, `outbox` |
 | MongoDB | `menu`, `order_history`, `reservation_read` |
 | Redis | Idempotencia de pagos y caché |
-| MinIO | Comprobantes (`receipts`) |
+| RustFS | Comprobantes (`receipts`) |
 | RabbitMQ | Publico y consumo eventos de dominio |
 
 ## Dependencias
 
 | Dependo de | Para |
 |---|---|
-| Jaime | PostgreSQL, MongoDB, Redis, RabbitMQ, MinIO, variables y compose |
+| Jaime | PostgreSQL, MongoDB, Redis, RabbitMQ, RustFS, variables y compose |
 | Diego | JWT con `sub`, `roles`, `permissions` y `level` |
 | Axel | `POST /queue/orders` para encolar y `order.ready` para cerrar el ciclo |
 
@@ -294,7 +294,7 @@ Que un cliente pueda consultar el menú, crear un pedido, pagarlo y seguirlo; qu
 - El cliente solo ve sus pedidos y reservas.
 - El personal autorizado ve el historial general.
 - El Worker procesa eventos, actualiza read models y genera comprobantes.
-- Reporting responde con permisos correctos y exporta a MinIO.
+- Reporting responde con permisos correctos y exporta a RustFS.
 - El PR tiene pruebas, README y OpenAPI actualizados.
 
 ## Riesgos y mitigación

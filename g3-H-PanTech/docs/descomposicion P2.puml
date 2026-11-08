@@ -50,7 +50,7 @@ title Vista de descomposición - Panadería Express (Prototipo 2)
 ***[#FFE0B2] PostgreSQL (relacional)
 ***[#FFCDD2] MongoDB (documental)
 ***[#F8BBD0] Redis (clave-valor)
-***[#D7CCC8] MinIO (objetos)
+***[#D7CCC8] RustFS (objetos)
 **[#FFF9C4] Mensajería
 ***[#FFF9C4] RabbitMQ (AMQP)
 

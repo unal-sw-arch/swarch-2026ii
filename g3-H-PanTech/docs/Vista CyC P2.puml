@@ -78,7 +78,7 @@ queue "RabbitMQ" as MQ <<Broker>>
 database "PostgreSQL\nrelacional" as PG <<BD relacional>>
 database "MongoDB\ndocumental" as Mongo <<BD documental>>
 database "Redis\nclave-valor" as Redis <<BD clave-valor>>
-database "MinIO\nobjetos" as Minio <<Objetos>>
+database "RustFS\nobjetos" as RustFS <<Objetos>>
 
 ' Interfaces provistas (lollipop)
 IGW -down- GW
@@ -144,7 +144,7 @@ Kitchen .[#6A1B9A]right.> MQ : <<AMQP>>\norder.ready
 MQ .[#00695C]down.> Worker : <<AMQP>>\nConsumo de eventos
 Worker .[#1565C0]right.> IKitchen : <<HTTP / REST>>\nEncolar pedido pagado
 Worker .[#C62828]down.> Mongo : <<MongoDB / TCP>>\nActualizar read model
-Worker .[#4E342E]down.> Minio : <<S3 / HTTP>>\nComprobantes y reportes
+Worker .[#4E342E]down.> RustFS : <<S3 / HTTP>>\nComprobantes y reportes
 
 note left of Cliente
   El cliente solo ve sus pedidos y reservas.

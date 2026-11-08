@@ -36,7 +36,7 @@ queue "RabbitMQ" as MQ
 participant "Worker\nCelery" as Worker
 participant "Kitchen Service\nGo" as Kitchen
 database "Redis" as Redis
-database "MinIO" as Minio
+database "RustFS" as RustFS
 
 == Registro o inicio de sesión ==
 Cliente -> Web : Registrarse o iniciar sesión
@@ -80,7 +80,7 @@ Worker -> Kitchen : POST /queue/orders
 Kitchen -> Redis : Encolar pedido priorizado
 Kitchen --> Worker : Pedido encolado
 Worker -> Mongo : Actualizar read model del pedido
-Worker -> Minio : Generar comprobante
+Worker -> RustFS : Generar comprobante
 Worker --> MQ : Ack del evento
 
 == Seguimiento del pedido ==

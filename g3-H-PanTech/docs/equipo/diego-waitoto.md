@@ -101,7 +101,7 @@ Que cada persona pueda iniciar sesión con su cuenta, ver solo lo que le corresp
 | `README.md` | No editar | Jaime | Mi documentación va en `identity-service/README.md` y `web-ssr/README.md` |
 | `docs/Vista CyC P2.puml`, `docs/tiers_despliegue P2.puml`, `docs/capas P2.puml`, `docs/descomposicion P2.puml` | No editar | Jaime | Propongo cambios por comentario en el PR |
 | `infrastructure/postgres/init.sql` | No editar | Jaime | Mi esquema va en las migraciones Flyway |
-| `infrastructure/minio/init.sh` | No editar | Jaime | No uso MinIO directamente |
+| `infrastructure/rustfs/init.sh` | No editar | Jaime | No uso RustFS directamente |
 | `scripts/smoke_test.py` | No editar | Jaime | Agrego mis pruebas en `identity-service/` y `web-ssr/tests/` |
 
 ### Archivos que no debo tocar

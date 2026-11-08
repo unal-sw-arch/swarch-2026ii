@@ -21,7 +21,7 @@ Que los cuatro componentes de cada persona se puedan levantar juntos, se comuniq
 
 1. **Contratos compartidos:** OpenAPI, claims del JWT, esquemas de eventos, puertos y variables de entorno.
 2. **Infraestructura:** `docker-compose.p2.yml` con los 12 contenedores, red, volúmenes, healthchecks y dependencias.
-3. **Datos e integraciones:** inicialización de PostgreSQL, MongoDB, Redis, MinIO y RabbitMQ; buckets, colecciones, colas y datos semilla.
+3. **Datos e integraciones:** inicialización de PostgreSQL, MongoDB, Redis, RustFS y RabbitMQ; buckets, colecciones, colas y datos semilla.
 4. **Integración:** script de smoke test end-to-end, pruebas de denegación y guion de demostración.
 5. **Documentación:** README, vistas C&C y despliegue, enlaces a los planes de equipo y matriz NFR.
 6. **Entrega:** revisión de PRs, resolución de conflictos, rama de integración y PR final.
@@ -37,7 +37,7 @@ Que los cuatro componentes de cada persona se puedan levantar juntos, se comuniq
 | `infrastructure/postgres/init.sql` | Base `panaderia`, esquemas `auth`, `orders`, `kitchen`, `reporting` y extensiones |
 | `infrastructure/mongodb/init.js` | Colecciones e índices base |
 | `infrastructure/redis/redis.conf` | Persistencia AOF, límites y políticas |
-| `infrastructure/minio/init.sh` | Buckets `receipts`, `products` y `reports` con sus políticas |
+| `infrastructure/rustfs/init.sh` | Buckets `receipts`, `products` y `reports` con sus políticas |
 | `infrastructure/rabbitmq/definitions.json` | Exchange `panaderia.events`, colas, bindings y DLQ |
 | `scripts/smoke_test.py` | Flujo end-to-end registro → pago → cocina → entrega → historial |
 | `scripts/seed_demo.py` | Usuarios por rol, usuario multi-rol y productos de demostración |
@@ -88,7 +88,7 @@ Que los cuatro componentes de cada persona se puedan levantar juntos, se comuniq
 | J0.3 | Publicar los esquemas de eventos | `order.paid`, `order.ready`, `reservation.created`, `reservation.cancelled` | Productores y consumidores usan el mismo nombre y payload |
 | J0.4 | Crear el esqueleto de `docker-compose.p2.yml` | 12 servicios declarados, aunque algunos aún no tengan código | `docker compose config` valida sin errores |
 | J0.5 | Crear `.env.p2.example` | Variables de todas las piezas | Nadie hardcodea contraseñas ni URLs |
-| J0.6 | Crear la estructura de `infrastructure/` | `postgres/`, `mongodb/`, `redis/`, `minio/` y `rabbitmq/` con sus archivos de inicialización | Cada dueño sabe dónde poner su init |
+| J0.6 | Crear la estructura de `infrastructure/` | `postgres/`, `mongodb/`, `redis/`, `rustfs/` y `rabbitmq/` con sus archivos de inicialización | Cada dueño sabe dónde poner su init |
 | J0.7 | Crear el workflow de validación | `.github/workflows/ci-p2.yml` | Valida el compose, el JSON de RabbitMQ y la sintaxis de los scripts en cada PR |
 
 ### Fase 1 — Plataforma base (semanas 2–3)
@@ -98,7 +98,7 @@ Que los cuatro componentes de cada persona se puedan levantar juntos, se comuniq
 | J1.1 | PostgreSQL: esquemas `auth`, `orders`, `kitchen`, `reporting` | `infrastructure/postgres/init.sql` | Los servicios conectan y crean sus tablas por migración |
 | J1.2 | MongoDB: colecciones e índices | `menu`, `order_history`, `reservation_read`, `report_snapshots` | Índices por `customer_id`, `order_id` y fecha |
 | J1.3 | Redis: configuración de persistencia | AOF para la cola; prefijos de llaves | La cola sobrevive a un reinicio del contenedor |
-| J1.4 | MinIO: buckets | `receipts`, `products`, `reports` | Worker y Reporting pueden escribir; lectura pública solo de productos |
+| J1.4 | RustFS: buckets | `receipts`, `products`, `reports` | Worker y Reporting pueden escribir; lectura pública solo de productos |
 | J1.5 | RabbitMQ: exchange, colas, bindings y DLQ | `panaderia.events` (topic), colas del Worker y `panaderia.dlq` | Un evento publicado llega a la cola correcta |
 | J1.6 | Datos semilla | Roles, permisos, usuarios demo y productos | Se puede iniciar sesión con cada rol y hay menú para probar |
 | J1.7 | Healthchecks y dependencias | `depends_on` con `condition` | `docker compose up` espera a las bases antes de los servicios |
@@ -140,7 +140,7 @@ Que los cuatro componentes de cada persona se puedan levantar juntos, se comuniq
 | `postgres` | 5432 | `postgresql://postgres:5432` |
 | `mongodb` | 27017 | `mongodb://mongodb:27017` |
 | `redis` | 6379 | `redis://redis:6379` |
-| `minio` | 9000 / 9001 | `http://minio:9000` |
+| `rustfs` | 9000 / 9001 | `http://rustfs:9000` |
 
 ### JWT
 
@@ -223,7 +223,7 @@ Todos los eventos llevan `event_id` para idempotencia y `occurred_at` para audit
 
 ## Primer PR
 
-**`g3-H/jaime-plataforma`:** contratos, `.env.p2.example`, esqueleto de `docker-compose.p2.yml`, `infrastructure/` con PostgreSQL, MongoDB, Redis, MinIO y RabbitMQ, y el workflow `.github/workflows/ci-p2.yml`. Sin lógica de negocio.
+**`g3-H/jaime-plataforma`:** contratos, `.env.p2.example`, esqueleto de `docker-compose.p2.yml`, `infrastructure/` con PostgreSQL, MongoDB, Redis, RustFS y RabbitMQ, y el workflow `.github/workflows/ci-p2.yml`. Sin lógica de negocio.
 
 ## Lo que no hago
 

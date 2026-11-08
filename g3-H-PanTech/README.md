@@ -47,7 +47,7 @@ Panadería Express resuelve el problema de la atención en una panadería con do
 
 Además de las vistas por rol, la Web App incluye una vista **Historial** para consultar los tiempos de las comandas (Requerimiento 9).
 
-> **Prototipo 2 (diseño objetivo):** se rediseña la arquitectura para cumplir los diez requisitos no funcionales del documento del proyecto. El sistema pasa de una SPA con dos servicios a **dos componentes de presentación** (Web SSR y KDS/POS), **cuatro servicios de lógica** (Identity, Order, Kitchen y Reporting), un **API Gateway**, un **broker de eventos**, un **worker asíncrono** y **cuatro almacenes de datos** (PostgreSQL, MongoDB, Redis y MinIO). Se agrega el rol `cliente`, los empleados pasan a tener cuentas personales multi-rol y la jerarquía es `admin` > `supervisor` > operativos. El cliente se registra, consulta el menú, **reserva una mesa**, crea pedidos **para llevar**, paga de forma simulada y sigue el estado de sus pedidos. También consulta y cancela sus propias reservas. El personal conserva las vistas de cocina, despacho, catálogo e historial; el cliente no accede a ellas.
+> **Prototipo 2 (diseño objetivo):** se rediseña la arquitectura para cumplir los diez requisitos no funcionales del documento del proyecto. El sistema pasa de una SPA con dos servicios a **dos componentes de presentación** (Web SSR y KDS/POS), **cuatro servicios de lógica** (Identity, Order, Kitchen y Reporting), un **API Gateway**, un **broker de eventos**, un **worker asíncrono** y **cuatro almacenes de datos** (PostgreSQL, MongoDB, Redis y RustFS). Se agrega el rol `cliente`, los empleados pasan a tener cuentas personales multi-rol y la jerarquía es `admin` > `supervisor` > operativos. El cliente se registra, consulta el menú, **reserva una mesa**, crea pedidos **para llevar**, paga de forma simulada y sigue el estado de sus pedidos. También consulta y cancela sus propias reservas. El personal conserva las vistas de cocina, despacho, catálogo e historial; el cliente no accede a ellas.
 
 #### Alcance del Prototipo 1
 
@@ -119,13 +119,13 @@ Estos son los diez requisitos del documento del proyecto y la forma en que Panad
 | 3 | El front-end web debe usar SSR | **Web SSR** se ejecuta con Node.js y renderiza en el servidor con Next.js; no es una SPA estática. |
 | 4 | Al menos cuatro componentes de lógica | **Identity Service**, **Order Service**, **Kitchen Service** y **Reporting Service** (más el **Worker** asíncrono). |
 | 5 | Al menos un componente de comunicación/orquestación | **API Gateway** (Go) para el tráfico HTTP y **RabbitMQ** para los eventos de dominio. |
-| 6 | Al menos cuatro componentes de datos, con relacional y NoSQL | **PostgreSQL** (relacional), **MongoDB** (documental), **Redis** (clave-valor) y **MinIO** (objetos). |
+| 6 | Al menos cuatro componentes de datos, con relacional y NoSQL | **PostgreSQL** (relacional), **MongoDB** (documental), **Redis** (clave-valor) y **RustFS** (objetos). |
 | 7 | Al menos un componente de procesos asíncronos | **Worker** (Python + Celery) que consume eventos de RabbitMQ y ejecuta tareas diferidas. |
 | 8 | Conectores basados en HTTP | HTTPS/REST en el borde y HTTP/REST entre servicios; el cliente consulta por polling. |
 | 9 | Al menos cuatro lenguajes de propósito general | **TypeScript** (Web SSR), **Dart** (KDS/POS), **Go** (Gateway y Kitchen), **Kotlin** (Identity), **Python** (Order y Worker) y **C#** (Reporting). |
 | 10 | Despliegue orientado a contenedores | Docker Compose, volúmenes persistentes, healthchecks y red interna. |
 
-> Nota sobre el requisito 6: PostgreSQL cubre la base relacional; MongoDB y Redis cubren NoSQL (documental y clave-valor). MinIO es el cuarto componente de datos, de tipo almacenamiento de objetos. Si el profesor exige que los cuatro sean bases de datos, se puede sustituir MinIO por un motor de búsqueda o analítico (por ejemplo OpenSearch o ClickHouse) sin cambiar el resto de la arquitectura.
+> Nota sobre el requisito 6: PostgreSQL cubre la base relacional; MongoDB y Redis cubren NoSQL (documental y clave-valor). RustFS es el cuarto componente de datos, de tipo almacenamiento de objetos. Si el profesor exige que los cuatro sean bases de datos, se puede sustituir RustFS por un motor de búsqueda o analítico (por ejemplo OpenSearch o ClickHouse) sin cambiar el resto de la arquitectura.
 
 **Correspondencia entre el Prototipo 1 y el Prototipo 2**
 
@@ -136,7 +136,7 @@ Estos son los diez requisitos del documento del proyecto y la forma en que Panad
 | Queue Scheduler (FastAPI) | Kitchen Service (Go) | Separar la cola y la priorización en un servicio propio y sumar un lenguaje más. |
 | Auth Service (planeado) | Identity Service (Kotlin) | Convertirlo en el servicio de identidad, roles, permisos y auditoría. |
 | Vista Historial | Reporting Service (C#) | Separar el historial y los reportes en un servicio de lectura. |
-| PostgreSQL + Redis | PostgreSQL + MongoDB + Redis + MinIO | Cumplir los cuatro componentes de datos. |
+| PostgreSQL + Redis | PostgreSQL + MongoDB + Redis + RustFS | Cumplir los cuatro componentes de datos. |
 | Encolado directo Order Manager → Queue Scheduler | Order Service → RabbitMQ → Worker → Kitchen Service | Introducir el procesamiento asíncrono y desacoplar el pago del encolado. |
 
 ##### Roles, jerarquía y permisos
@@ -216,7 +216,7 @@ auth.audit_log             (id, user_id, action, entity, entity_id, created_at)
 4. **Pedidos:** implementar `order-service` con pedidos, reservas, pagos simulados, catálogo y publicación de eventos.
 5. **Cocina:** implementar `kitchen-service` con SJF, aging, capacidad, ETA y estados de comanda.
 6. **Asíncrono:** implementar `worker` con Celery y RabbitMQ para encolar pedidos pagados, actualizar read models y generar comprobantes.
-7. **Reportes:** implementar `reporting-service` con historial, reportes y exportaciones a MinIO.
+7. **Reportes:** implementar `reporting-service` con historial, reportes y exportaciones a RustFS.
 8. **Presentación:** implementar `web-ssr` con Next.js y `kds-pos` con Flutter; reemplazar el selector libre de roles por login y rutas protegidas.
 9. **Integración:** probar los flujos de pago, reserva, cola y reportes, y los casos de denegación: cocinero no cobra, mesero no cambia estados de cocina, cliente no ve pedidos ajenos y supervisor no gestiona roles.
 10. **Entrega:** actualizar el README, las cuatro vistas arquitectónicas y las instrucciones de despliegue local.
@@ -269,7 +269,7 @@ auth.audit_log             (id, user_id, action, entity, entity_id, created_at)
 
 La vista C&C del Prototipo 2 muestra dos actores externos, dos componentes de presentación, un API Gateway, cuatro servicios de lógica, un worker asíncrono, un broker de eventos y cuatro almacenes de datos. La comunicación del cliente y del personal pasa siempre por el **API Gateway**; el cliente nunca habla directamente con Kitchen Service ni con los almacenes.
 
-**Elementos:** `Cliente`, `Empleado`, `Web SSR`, `KDS/POS`, `API Gateway`, `Identity Service`, `Order Service`, `Kitchen Service`, `Reporting Service`, `Worker`, `RabbitMQ`, `PostgreSQL`, `MongoDB`, `Redis` y `MinIO`.
+**Elementos:** `Cliente`, `Empleado`, `Web SSR`, `KDS/POS`, `API Gateway`, `Identity Service`, `Order Service`, `Kitchen Service`, `Reporting Service`, `Worker`, `RabbitMQ`, `PostgreSQL`, `MongoDB`, `Redis` y `RustFS`.
 
 **Relaciones:** los actores usan las presentaciones; las presentaciones llaman al Gateway por HTTPS/REST; el Gateway enruta a los servicios por HTTP/REST; los servicios persisten en sus almacenes por SQL, MongoDB, Redis o S3; Order y Kitchen publican eventos en RabbitMQ; el Worker consume esos eventos y actualiza read models, encola pedidos y genera comprobantes. El detalle completo está en las secciones **Elementos arquitectónicos** y **Conectores**. Los estilos y patrones se describen en **Estilos arquitectónicos y patrones**.
 
@@ -281,11 +281,11 @@ La vista C&C del Prototipo 2 muestra dos actores externos, dos componentes de pr
 
 ![Vista de despliegue - Prototipo 2](docs/tiers_despliegue%20P2.png)
 
-El despliegue objetivo usa **12 contenedores** sobre Docker Compose y un **cliente de escritorio KDS/POS** que no se containeriza. Los contenedores comparten la red interna `panaderia-net`; solo `web-ssr` (:3000) y `api-gateway` (:8080) se publican al exterior. PostgreSQL, MongoDB, Redis, MinIO y RabbitMQ quedan en la red interna.
+El despliegue objetivo usa **12 contenedores** sobre Docker Compose y un **cliente de escritorio KDS/POS** que no se containeriza. Los contenedores comparten la red interna `panaderia-net`; solo `web-ssr` (:3000) y `api-gateway` (:8080) se publican al exterior. PostgreSQL, MongoDB, Redis, RustFS y RabbitMQ quedan en la red interna.
 
-**Elementos:** un host Docker, la red `panaderia-net`, 12 contenedores, cinco volúmenes persistentes y dos clientes externos (navegador y KDS/POS de escritorio).
+**Elementos:** un host Docker, la red `panaderia-net`, 12 contenedores, siete volúmenes persistentes y dos clientes externos (navegador y KDS/POS de escritorio).
 
-**Relaciones:** el navegador accede a `web-ssr` y al Gateway; el KDS/POS accede al Gateway; `web-ssr` accede al Gateway por la red interna; el Gateway enruta a los servicios de lógica; los servicios acceden a los almacenes y a RabbitMQ; los volúmenes se montan en PostgreSQL, MongoDB, Redis, MinIO y RabbitMQ.
+**Relaciones:** el navegador accede a `web-ssr` y al Gateway; el KDS/POS accede al Gateway; `web-ssr` accede al Gateway por la red interna; el Gateway enruta a los servicios de lógica; los servicios acceden a los almacenes y a RabbitMQ; los volúmenes se montan en PostgreSQL, MongoDB, Redis, RustFS y RabbitMQ.
 
 | Contenedor | Puerto | Función |
 |---|---:|---|
@@ -300,9 +300,9 @@ El despliegue objetivo usa **12 contenedores** sobre Docker Compose y un **clien
 | `postgres` | 5432 | Datos relacionales. |
 | `mongodb` | 27017 | Datos documentales y read models. |
 | `redis` | 6379 | Caché, sesión y cola priorizada. |
-| `minio` | 9000 / 9001 | Objetos: comprobantes, imágenes y exportaciones. |
+| `rustfs` | 9000 / 9001 | Objetos: comprobantes, imágenes y exportaciones. |
 
-**Patrones de despliegue:** instancia de servicio por contenedor, configuración externalizada por variables de entorno, healthchecks, volúmenes persistentes (`postgres_data`, `mongo_data`, `redis_data`, `minio_data`, `rabbitmq_data`), red interna y exposición únicamente del borde. El KDS/POS se distribuye como aplicación de escritorio y se conecta al Gateway por HTTPS.
+**Patrones de despliegue:** instancia de servicio por contenedor, configuración externalizada por variables de entorno, healthchecks, volúmenes persistentes (`postgres_data`, `mongo_data`, `redis_data`, `rustfs_data`, `rabbitmq_data`), red interna y exposición únicamente del borde. El KDS/POS se distribuye como aplicación de escritorio y se conecta al Gateway por HTTPS.
 
 #### Vista de capas — Prototipo 2
 
@@ -313,9 +313,9 @@ La vista de capas organiza el sistema en cuatro niveles:
 1. **Presentación:** Web SSR y KDS/POS. Solo conocen el API Gateway.
 2. **Borde:** API Gateway. Valida el JWT, aplica rate limiting y enruta.
 3. **Lógica de negocio:** Identity, Order, Kitchen, Reporting y Worker.
-4. **Infraestructura:** PostgreSQL, MongoDB, Redis, MinIO y RabbitMQ.
+4. **Infraestructura:** PostgreSQL, MongoDB, Redis, RustFS y RabbitMQ.
 
-**Elementos:** las cuatro capas y los componentes de cada una: presentación (`Web SSR`, `KDS/POS`), borde (`API Gateway`), lógica (`Identity`, `Order`, `Kitchen`, `Reporting`, `Worker`) e infraestructura (`PostgreSQL`, `MongoDB`, `Redis`, `MinIO`, `RabbitMQ`).
+**Elementos:** las cuatro capas y los componentes de cada una: presentación (`Web SSR`, `KDS/POS`), borde (`API Gateway`), lógica (`Identity`, `Order`, `Kitchen`, `Reporting`, `Worker`) e infraestructura (`PostgreSQL`, `MongoDB`, `Redis`, `RustFS`, `RabbitMQ`).
 
 **Relaciones:** presentación → borde → lógica → infraestructura. Las flechas solo apuntan hacia abajo; no se permiten dependencias ascendentes ni saltos de capa.
 
@@ -343,10 +343,10 @@ La descomposición muestra los módulos funcionales de cada componente.
 | Kitchen Service | Cola priorizada (SJF + aging); capacidad y ETA; estados de comanda. |
 | Reporting Service | Historial de pedidos; reportes y métricas. |
 | Worker | Consumidor de eventos; notificaciones simuladas; actualización de read models. |
-| Datos | PostgreSQL, MongoDB, Redis y MinIO. |
+| Datos | PostgreSQL, MongoDB, Redis y RustFS. |
 | Mensajería | RabbitMQ. |
 
-**Patrones:** descomposición modular por contextos delimitados (identidad, pedidos, cocina, reportes), responsabilidad única por servicio y propiedad lógica de los datos. PostgreSQL es la fuente de verdad transaccional; MongoDB contiene read models denormalizados; Redis guarda estado efímero; MinIO almacena objetos.
+**Patrones:** descomposición modular por contextos delimitados (identidad, pedidos, cocina, reportes), responsabilidad única por servicio y propiedad lógica de los datos. PostgreSQL es la fuente de verdad transaccional; MongoDB contiene read models denormalizados; Redis guarda estado efímero; RustFS almacena objetos.
 
 #### Diagramas de secuencia — Prototipo 2
 
@@ -410,13 +410,13 @@ El cliente crea, consulta y cancela sus propias reservas. La reserva queda asoci
 | Identity Service | Lógica | Kotlin + Spring Boot | 8002 | Registro, login, usuarios, roles, permisos, jerarquía y auditoría. | PostgreSQL (`auth`), Redis (refresh tokens) |
 | Order Service | Lógica | Python + FastAPI | 8000 | Pedidos, reservas, pagos simulados, menú y catálogo; publica eventos. | PostgreSQL, MongoDB (read models), Redis (idempotencia) |
 | Kitchen Service | Lógica | Go | 8001 | Cola priorizada, SJF, aging, capacidad, ETA y estados de comanda. | PostgreSQL, Redis, RabbitMQ |
-| Reporting Service | Lógica | C# + .NET | 8003 | Historial, reportes, métricas y exportaciones. | PostgreSQL, MongoDB, MinIO |
-| Worker | Asíncrono | Python + Celery | — | Consume eventos, encola pedidos pagados, actualiza read models, genera comprobantes y notificaciones. | MongoDB, MinIO, RabbitMQ |
+| Reporting Service | Lógica | C# + .NET | 8003 | Historial, reportes, métricas y exportaciones. | PostgreSQL, MongoDB, RustFS |
+| Worker | Asíncrono | Python + Celery | — | Consume eventos, encola pedidos pagados, actualiza read models, genera comprobantes y notificaciones. | MongoDB, RustFS, RabbitMQ |
 | RabbitMQ | Mensajería | RabbitMQ | 5672 / 15672 | Broker de eventos de dominio. | — |
 | PostgreSQL | Datos relacionales | PostgreSQL | 5432 | Fuente de verdad: auth, productos, pedidos, pagos, reservas e historial de estados. | — |
 | MongoDB | Datos documentales | MongoDB | 27017 | Menú denormalizado, historial de pedidos del cliente y read models de reportes. | — |
 | Redis | Datos clave-valor | Redis | 6379 | Caché, sesión/refresh tokens, cola priorizada e idempotencia. | — |
-| MinIO | Almacenamiento de objetos | MinIO | 9000 / 9001 | Imágenes de productos, comprobantes PDF y exportaciones de reportes. | — |
+| RustFS | Almacenamiento de objetos | RustFS 1.0.4 (S3) | 9000 / 9001 | Imágenes de productos, comprobantes PDF y exportaciones de reportes. | — |
 
 **Actor externo**
 
@@ -450,10 +450,10 @@ El cliente crea, consulta y cancela sus propias reservas. La reserva queda asoci
 | 19 | RabbitMQ | Worker | AMQP | Entrega de eventos al consumidor. |
 | 20 | Worker | Kitchen Service | HTTP / REST | Encola el pedido pagado. |
 | 21 | Worker | MongoDB | MongoDB / TCP | Actualiza read models. |
-| 22 | Worker | MinIO | S3 / HTTP | Genera comprobantes y reportes. |
+| 22 | Worker | RustFS | S3 / HTTP | Genera comprobantes y reportes. |
 | 23 | Reporting Service | PostgreSQL | SQL / TCP | Consultas de historial. |
 | 24 | Reporting Service | MongoDB | MongoDB / TCP | Reportes precalculados. |
-| 25 | Reporting Service | MinIO | S3 / HTTP | Exportaciones. |
+| 25 | Reporting Service | RustFS | S3 / HTTP | Exportaciones. |
 | 26 | API Gateway | Redis | Redis / TCP | Rate limiting y caché de sesión. |
 
 ### Cumplimiento de los requisitos no funcionales
@@ -479,7 +479,7 @@ El cliente crea, consulta y cancela sus propias reservas. La reserva queda asoci
 | 3 | Front-end web con SSR | `web-ssr` ejecuta Next.js en Node.js y renderiza en el servidor. |
 | 4 | Al menos cuatro componentes de lógica | `identity-service`, `order-service`, `kitchen-service` y `reporting-service`; además, `worker`. |
 | 5 | Al menos un componente de comunicación/orquestación | `api-gateway` (HTTP) y `rabbitmq` (eventos). |
-| 6 | Al menos cuatro componentes de datos, con relacional y NoSQL | PostgreSQL (relacional), MongoDB (documental), Redis (clave-valor) y MinIO (objetos). |
+| 6 | Al menos cuatro componentes de datos, con relacional y NoSQL | PostgreSQL (relacional), MongoDB (documental), Redis (clave-valor) y RustFS (objetos). |
 | 7 | Al menos un componente de procesos asíncronos | `worker` con Celery consumiendo RabbitMQ. |
 | 8 | Conectores basados en HTTP | HTTPS/REST en el borde y HTTP/REST entre servicios. |
 | 9 | Al menos cuatro lenguajes de propósito general | TypeScript, Dart, Go, Kotlin, Python y C#. |
@@ -532,7 +532,7 @@ g3-H-PanTech/
 ├── kitchen-service/           # Go
 ├── reporting-service/         # C# + .NET
 ├── worker/                    # Python + Celery
-└── infrastructure/            # postgres/, mongodb/, redis/, minio/, rabbitmq/
+└── infrastructure/            # postgres/, mongodb/, redis/, rustfs/, rabbitmq/
 ```
 
 > El código del Prototipo 1 se conserva como referencia histórica. La implementación del Prototipo 2 se hará en una rama de trabajo y no reemplaza todavía los contenedores actuales.
@@ -614,14 +614,25 @@ g3-H-PanTech/
    docker compose -f docker-compose.p2.yml --env-file .env.p2 up --build
    ```
 
-4. Abrir las interfaces:
+   El compose ejecuta además dos jobs efímeros: `rabbitmq-init` importa las colas y bindings después de crear el vhost, y `rustfs-perms` prepara el volumen de objetos. Ambos terminan solos.
+
+4. Crear los buckets de RustFS (una sola vez, o cuando se borre el volumen):
+
+   ```bash
+   docker compose -f docker-compose.p2.yml --env-file .env.p2 \
+     --profile init run --rm rustfs-init
+   ```
+
+   El job es idempotente: si los buckets ya existen, solo verifica y termina.
+
+5. Abrir las interfaces:
 
    | Servicio | URL |
    |---|---|
    | Web SSR | http://localhost:3000 |
    | API Gateway | http://localhost:8080 |
    | RabbitMQ (consola) | http://localhost:15672 |
-   | MinIO (consola) | http://localhost:9001 |
+   | RustFS (consola) | http://localhost:9001 |
 
    PostgreSQL, MongoDB, Redis y las APIs internas de Identity, Order, Kitchen y Reporting no se publican; se acceden solo desde la red interna. Para inspeccionar una API interna:
 
@@ -653,8 +664,9 @@ g3-H-PanTech/
 ### Limitaciones conocidas
 
 - **El Prototipo 2 es un diseño objetivo, no una implementación.** El código actual sigue siendo el del Prototipo 1: una SPA con React/Vite, dos servicios FastAPI, PostgreSQL y Redis, y cinco contenedores.
-- **El diseño de 6 contenedores quedó superado.** El documento del Prototipo 2 exige dos presentaciones, SSR, cuatro servicios de lógica, cuatro almacenes de datos, un componente de orquestación, uno asíncrono y al menos cuatro lenguajes. Por eso el objetivo es de 13 componentes (12 contenedores + KDS/POS de escritorio).
+- **El diseño de 6 contenedores quedó superado.** El documento del Prototipo 2 exige dos presentaciones, SSR, cuatro servicios de lógica, cuatro almacenes de datos, un componente de orquestación, uno asíncrono y al menos cuatro lenguajes. Por eso el objetivo es de 13 componentes (12 contenedores permanentes + KDS/POS de escritorio). El compose agrega dos jobs efímeros que no cuentan como componentes: `rabbitmq-init` importa las definiciones después de crear el vhost y `rustfs-perms` prepara el volumen de objetos. Los buckets se crean aparte con `rustfs-init`.
 - **El KDS/POS no es un contenedor.** Es una aplicación de escritorio Flutter que se conecta al API Gateway. El despliegue containerizado cubre los servicios y los almacenes del sistema; el cliente se distribuye como artefacto de escritorio.
+- **MinIO se reemplazó por RustFS.** MinIO dejó de publicar imágenes oficiales en Docker Hub y Quay en 2026, por lo que el compose no puede arrancar con `minio/minio`. RustFS es compatible con la API de S3 y mantiene las mismas operaciones; solo cambian el nombre del servicio y las variables (`S3_*`). El compose además usa un job efímero `rustfs-perms` para ajustar los permisos del volumen antes de arrancar RustFS.
 - **El detalle de la comanda no se persiste en PostgreSQL en el Prototipo 1.** El Queue Scheduler mantiene el detalle y el estado actual en Redis; las comandas entregadas salen de las pantallas y se conservan en Redis con un TTL (1 hora por defecto, configurable con `DELIVERED_TTL_SECONDS`). El historial de estados sí se persiste en `order_status_events`. En el Prototipo 2, PostgreSQL será la fuente de verdad y MongoDB los read models.
 - **La cola priorizada del Prototipo 1 vive en un `ZSET` de Redis** con `score` = tiempo estimado; el desempate por hora de llegada se resuelve al construir la vista de cocina. El Prototipo 2 agrega aging, capacidad y ETA en Kitchen Service.
 - **El pago es simulado.** No se integra una pasarela real; el total se calcula en el servidor y el pedido se encola solo después de confirmar el pago.

@@ -11,31 +11,53 @@ Esta carpeta contiene la inicialización de los almacenes y del broker. No conti
 | `postgres/init.sql` | Crea la base, los esquemas `auth`, `orders`, `kitchen`, `reporting` y las extensiones `pgcrypto` y `citext`. | Solo al crear el volumen `postgres_data`. |
 | `mongodb/init.js` | Crea las colecciones `menu`, `order_history`, `reservation_read`, `report_snapshots` y sus índices. | Solo al crear el volumen `mongo_data`. |
 | `redis/redis.conf` | Activa AOF, fija `maxmemory-policy noeviction` y configura persistencia. | En cada arranque del contenedor. |
-| `minio/init.sh` | Crea los buckets `receipts`, `products` y `reports` y sus políticas. | Manual, con el perfil `init`. |
-| `rabbitmq/rabbitmq.conf` | Carga las definiciones al arrancar. | En cada arranque. |
-| `rabbitmq/definitions.json` | Declara el exchange `panaderia.events`, la DLX, las colas y los bindings. | Al arrancar RabbitMQ. |
+| `rustfs/init.sh` | Crea los buckets `receipts`, `products` y `reports` y la política pública del catálogo. | Manual, con el perfil `init`. |
+| `rabbitmq/rabbitmq.conf` | Configura la consola, los límites de memoria y los logs. No importa definiciones al arrancar. | En cada arranque. |
+| `rabbitmq/definitions.json` | Declara el exchange `panaderia.events`, la DLX, las colas y los bindings. | Con el job `rabbitmq-init`, después de que exista el vhost `/`. |
 
 ## Orden de inicialización
 
 1. `postgres` y `mongodb` ejecutan sus scripts cuando Docker crea el volumen por primera vez.
 2. `redis` y `rabbitmq` leen su configuración en cada arranque.
-3. `minio` arranca vacío; los buckets se crean con el job `minio-init`.
+3. `rabbitmq-init` espera a que RabbitMQ cree el vhost `/` y el usuario, e importa `definitions.json`.
+4. `rustfs-perms` ajusta los permisos de los volúmenes y termina; después arranca `rustfs`.
+5. `rustfs` arranca vacío; los buckets se crean con el job `rustfs-init`.
 
-## Crear los buckets de MinIO
+## Importar las definiciones de RabbitMQ
 
-El job no se ejecuta con `docker compose up`; hay que invocarlo una vez:
+El compose ejecuta este job automáticamente cuando se levanta `rabbitmq`. Para hacerlo manualmente:
 
 ```bash
 docker compose -f docker-compose.p2.yml --env-file .env.p2 \
-  --profile init run --rm minio-init
+  run --rm rabbitmq-init
 ```
 
 Verificación:
 
 ```bash
 docker compose -f docker-compose.p2.yml --env-file .env.p2 \
-  exec minio ls /data
+  exec rabbitmq rabbitmqctl list_queues name messages consumers
 ```
+
+Deben aparecer `worker.order_paid`, `worker.order_ready`, `worker.reservation_created`, `worker.reservation_cancelled` y `panaderia.dlq`.
+
+## Crear los buckets de RustFS
+
+El job no se ejecuta con `docker compose up`; hay que invocarlo una vez:
+
+```bash
+docker compose -f docker-compose.p2.yml --env-file .env.p2 \
+  --profile init run --rm rustfs-init
+```
+
+Verificación:
+
+```bash
+docker compose -f docker-compose.p2.yml --env-file .env.p2 \
+  --profile init run --rm rustfs-init
+```
+
+La segunda ejecución debe mostrar los tres buckets y no volver a crearlos.
 
 ## Reiniciar desde cero
 

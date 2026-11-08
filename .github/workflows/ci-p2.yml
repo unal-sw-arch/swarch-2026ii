@@ -62,7 +62,7 @@ jobs:
         run: node --check infrastructure/mongodb/init.js
 
       - name: Validar sintaxis de init.sh
-        run: bash -n infrastructure/minio/init.sh
+        run: bash -n infrastructure/rustfs/init.sh
 
       - name: Validar variables de entorno sin duplicados
         run: |
@@ -88,7 +88,7 @@ jobs:
           from pathlib import Path
 
           files = [
-              "infrastructure/minio/init.sh",
+              "infrastructure/rustfs/init.sh",
               "infrastructure/postgres/init.sql",
               "infrastructure/mongodb/init.js",
               "infrastructure/redis/redis.conf",

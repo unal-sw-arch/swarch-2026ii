@@ -22,7 +22,7 @@ Este documento es la fuente única de verdad para puertos, autenticación, event
 | `postgres` | 5432 | `postgresql://postgres:5432` | No |
 | `mongodb` | 27017 | `mongodb://mongodb:27017` | No |
 | `redis` | 6379 | `redis://redis:6379` | No |
-| `minio` | 9000 / 9001 | `http://minio:9000` | Solo `:9001` (consola) |
+| `rustfs` | 9000 / 9001 | `http://rustfs:9000` | Solo `:9001` (consola) |
 
 **Reglas:**
 
@@ -42,8 +42,8 @@ Cada servicio lee su configuración de variables. Los nombres canónicos son los
 | `identity-service` | `PORT`, `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`, `REDIS_URL`, `JWT_ISSUER`, `JWT_AUDIENCE`, `JWT_ACCESS_TTL_SECONDS`, `JWT_REFRESH_TTL_SECONDS`, `JWT_PRIVATE_KEY_PATH`, `JWT_PUBLIC_KEY_PATH` |
 | `order-service` | `PORT`, `DATABASE_URL`, `MONGODB_URL`, `REDIS_URL`, `REDIS_CACHE_URL`, `RABBITMQ_URL`, `RABBITMQ_EXCHANGE`, `SERVICE_TOKEN` |
 | `kitchen-service` | `PORT`, `DATABASE_URL`, `REDIS_QUEUE_URL`, `RABBITMQ_URL`, `RABBITMQ_EXCHANGE`, `SERVICE_TOKEN`, `AGING_FACTOR`, `KITCHEN_CAPACITY`, `DEFAULT_PREP_MINUTES` |
-| `reporting-service` | `PORT`, `DATABASE_URL`, `MONGODB_URL`, `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET_REPORTS`, `SERVICE_TOKEN` |
-| `worker` | `RABBITMQ_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`, `KITCHEN_URL`, `MONGODB_URL`, `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET_RECEIPTS`, `WORKER_CONCURRENCY`, `WORKER_MAX_RETRIES`, `SERVICE_TOKEN` |
+| `reporting-service` | `PORT`, `DATABASE_URL`, `MONGODB_URL`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET_REPORTS`, `S3_USE_SSL`, `S3_FORCE_PATH_STYLE`, `SERVICE_TOKEN` |
+| `worker` | `RABBITMQ_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`, `KITCHEN_URL`, `MONGODB_URL`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET_RECEIPTS`, `S3_USE_SSL`, `S3_FORCE_PATH_STYLE`, `WORKER_CONCURRENCY`, `WORKER_MAX_RETRIES`, `SERVICE_TOKEN` |
 
 > Los servicios que usan PostgreSQL reciben además su variante de URL: `DATABASE_URL` (SQLAlchemy), `DATABASE_URL_JDBC` (Kotlin/.NET) o `DATABASE_URL_GO` (pgx).
 
@@ -305,7 +305,7 @@ Una transición inválida devuelve `409 INVALID_STATE`.
 
 ## 7. Propiedad de datos
 
-| Servicio | PostgreSQL | MongoDB | Redis | MinIO |
+| Servicio | PostgreSQL | MongoDB | Redis | RustFS |
 |---|---|---|---|---|
 | Identity | `auth.*` | — | refresh tokens | — |
 | Order | `orders.*`, `payments.*`, `reservations.*`, `outbox` | `menu`, `order_history`, `reservation_read` | idempotencia de pagos | — |
@@ -365,7 +365,7 @@ Todos los servicios de aplicación exponen dos rutas sin autenticación, accesib
 - `api-gateway` expone `/health` y `/ready` en `:8080`.
 - Cada servicio de lógica las expone en su puerto interno.
 - El `healthcheck` del compose debe usar la herramienta disponible en la imagen base (`curl`, `wget` o el runtime del lenguaje).
-- `/ready` verifica PostgreSQL, MongoDB, Redis, RabbitMQ o MinIO según lo que use el servicio.
+- `/ready` verifica PostgreSQL, MongoDB, Redis, RabbitMQ o RustFS según lo que use el servicio.
 - Nunca exponen información sensible: ni versiones, ni credenciales, ni trazas.
 
 Ejemplo de `healthcheck` para un servicio Python:

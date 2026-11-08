@@ -61,7 +61,7 @@ package "Capa 4 - Infraestructura" as I #FFF3E0;line:E65100;text:E65100 {
   database "PostgreSQL" as PG
   database "MongoDB" as Mongo
   database "Redis" as Redis
-  database "MinIO" as Minio
+  database "RustFS" as RustFS
 }
 
 ' Dependencias permitidas entre capas
@@ -81,7 +81,7 @@ note right of I
   PostgreSQL: identidad, pedidos, pagos y reservas.
   MongoDB: menú, historial y read models.
   Redis: caché, sesión y cola priorizada.
-  MinIO: comprobantes, imágenes y exportaciones.
+  RustFS: comprobantes, imágenes y exportaciones.
   RabbitMQ: eventos order.paid, order.ready y reservation.*.
 end note
 
