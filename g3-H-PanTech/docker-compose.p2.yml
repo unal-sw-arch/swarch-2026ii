@@ -1,0 +1,398 @@
+# =============================================================================
+# Panadería Express — Prototipo 2
+# Orquestación de los 12 contenedores del sistema.
+#
+# Uso:
+#   cp .env.p2.example .env.p2
+#   docker compose -f docker-compose.p2.yml --env-file .env.p2 up --build
+#
+# Solo se publican web-ssr (:3000), api-gateway (:8080) y las consolas de
+# RabbitMQ (:15672) y MinIO (:9001). Los servicios de lógica y los almacenes
+# quedan en la red interna panaderia-net.
+#
+# El KDS/POS es una aplicación de escritorio Flutter y no se despliega aquí.
+#
+# Nota sobre healthchecks: los almacenes ya tienen el suyo. Cada servicio de
+# aplicación debe agregar el propio en su PR, usando la herramienta disponible
+# en su imagen base (curl, wget o el runtime del lenguaje).
+# =============================================================================
+
+name: ${COMPOSE_PROJECT_NAME:-panaderia-p2}
+
+services:
+  # ---------------------------------------------------------------------------
+  # Presentación web (SSR)
+  # ---------------------------------------------------------------------------
+  web-ssr:
+    build:
+      context: ./web-ssr
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Panadería Express}
+        NEXT_PUBLIC_POLL_INTERVAL_MS: ${NEXT_PUBLIC_POLL_INTERVAL_MS:-4000}
+    container_name: panaderia-p2-web-ssr
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: ${WEB_SSR_PORT:-3000}
+      API_GATEWAY_URL: ${API_GATEWAY_URL:-http://api-gateway:8080}
+      JWT_COOKIE_NAME: ${JWT_COOKIE_NAME:-panaderia_access}
+      JWT_REFRESH_COOKIE_NAME: ${JWT_REFRESH_COOKIE_NAME:-panaderia_refresh}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Panadería Express}
+      NEXT_PUBLIC_POLL_INTERVAL_MS: ${NEXT_PUBLIC_POLL_INTERVAL_MS:-4000}
+    ports:
+      - "${WEB_SSR_HOST_PORT:-3000}:${WEB_SSR_PORT:-3000}"
+    depends_on:
+      api-gateway:
+        condition: service_started
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Borde: API Gateway
+  # ---------------------------------------------------------------------------
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: panaderia-p2-api-gateway
+    restart: unless-stopped
+    environment:
+      PORT: ${GATEWAY_PORT:-8080}
+      IDENTITY_URL: ${IDENTITY_URL:-http://identity-service:8002}
+      ORDER_URL: ${ORDER_URL:-http://order-service:8000}
+      KITCHEN_URL: ${KITCHEN_URL:-http://kitchen-service:8001}
+      REPORTING_URL: ${REPORTING_URL:-http://reporting-service:8003}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      JWKS_URL: ${JWKS_URL:-http://identity-service:8002/.well-known/jwks.json}
+      JWT_ISSUER: ${JWT_ISSUER:-identity-service}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-panaderia-express}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+    ports:
+      - "${API_GATEWAY_HOST_PORT:-8080}:${GATEWAY_PORT:-8080}"
+    depends_on:
+      identity-service:
+        condition: service_started
+      order-service:
+        condition: service_started
+      kitchen-service:
+        condition: service_started
+      reporting-service:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Lógica: identidad
+  # ---------------------------------------------------------------------------
+  identity-service:
+    build:
+      context: ./identity-service
+      dockerfile: Dockerfile
+    container_name: panaderia-p2-identity-service
+    restart: unless-stopped
+    environment:
+      PORT: ${IDENTITY_PORT:-8002}
+      DATABASE_URL: ${DATABASE_URL_JDBC:-jdbc:postgresql://postgres:5432/panaderia}
+      DATABASE_USER: ${POSTGRES_USER:-panaderia}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-panaderia}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      JWT_ISSUER: ${JWT_ISSUER:-identity-service}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-panaderia-express}
+      ACCESS_TOKEN_TTL: ${JWT_ACCESS_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL: ${JWT_REFRESH_TTL_SECONDS:-604800}
+      JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH:-/run/secrets/jwt_private.pem}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH:-/run/secrets/jwt_public.pem}
+    volumes:
+      - identity_keys:/run/secrets
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Lógica: pedidos, pagos, reservas y catálogo
+  # ---------------------------------------------------------------------------
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    container_name: panaderia-p2-order-service
+    restart: unless-stopped
+    environment:
+      PORT: ${ORDER_PORT:-8000}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://panaderia:panaderia@postgres:5432/panaderia}
+      MONGODB_URL: ${MONGODB_URL:-mongodb://panaderia:panaderia@mongodb:27017/panaderia?authSource=admin}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://panaderia:panaderia@rabbitmq:5672/}
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-panaderia.events}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Lógica: cola de cocina
+  # ---------------------------------------------------------------------------
+  kitchen-service:
+    build:
+      context: ./kitchen-service
+      dockerfile: Dockerfile
+    container_name: panaderia-p2-kitchen-service
+    restart: unless-stopped
+    environment:
+      PORT: ${KITCHEN_PORT:-8001}
+      DATABASE_URL: ${DATABASE_URL_GO:-postgres://panaderia:panaderia@postgres:5432/panaderia?sslmode=disable}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://panaderia:panaderia@rabbitmq:5672/}
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-panaderia.events}
+      AGING_FACTOR: ${AGING_FACTOR:-0.5}
+      KITCHEN_CAPACITY: ${KITCHEN_CAPACITY:-4}
+      DEFAULT_PREP_MINUTES: ${DEFAULT_PREP_MINUTES:-5}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Lógica: reportes e historial
+  # ---------------------------------------------------------------------------
+  reporting-service:
+    build:
+      context: ./reporting-service
+      dockerfile: Dockerfile
+    container_name: panaderia-p2-reporting-service
+    restart: unless-stopped
+    environment:
+      PORT: ${REPORTING_PORT:-8003}
+      DATABASE_URL: ${DATABASE_URL_DOTNET:-Host=postgres;Port=5432;Database=panaderia;Username=panaderia;Password=panaderia}
+      MONGODB_URL: ${MONGODB_URL:-mongodb://panaderia:panaderia@mongodb:27017/panaderia?authSource=admin}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-panaderia}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-panaderia123}
+      MINIO_BUCKET_REPORTS: ${MINIO_BUCKET_REPORTS:-reports}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Asíncrono: Worker
+  # ---------------------------------------------------------------------------
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    container_name: panaderia-p2-worker
+    restart: unless-stopped
+    environment:
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://panaderia:panaderia@rabbitmq:5672/}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-amqp://panaderia:panaderia@rabbitmq:5672/}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/3}
+      KITCHEN_URL: ${KITCHEN_URL:-http://kitchen-service:8001}
+      MONGODB_URL: ${MONGODB_URL:-mongodb://panaderia:panaderia@mongodb:27017/panaderia?authSource=admin}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-panaderia}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-panaderia123}
+      MINIO_BUCKET_RECEIPTS: ${MINIO_BUCKET_RECEIPTS:-receipts}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      WORKER_MAX_RETRIES: ${WORKER_MAX_RETRIES:-3}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      kitchen-service:
+        condition: service_started
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Mensajería
+  # ---------------------------------------------------------------------------
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: panaderia-p2-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-panaderia}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-panaderia}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST:-/}
+    ports:
+      - "${RABBITMQ_MANAGEMENT_HOST_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./infrastructure/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./infrastructure/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Datos: PostgreSQL
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: panaderia-p2-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-panaderia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-panaderia}
+      POSTGRES_DB: ${POSTGRES_DB:-panaderia}
+      TZ: America/Bogota
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-panaderia} -d ${POSTGRES_DB:-panaderia}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Datos: MongoDB
+  # ---------------------------------------------------------------------------
+  mongodb:
+    image: mongo:7
+    container_name: panaderia-p2-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-panaderia}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-panaderia}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-panaderia}
+    volumes:
+      - mongo_data:/data/db
+      - ./infrastructure/mongodb/init.js:/docker-entrypoint-initdb.d/01-init.js:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --eval 'db.adminCommand({ping:1}).ok' | grep 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Datos: Redis
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: panaderia-p2-redis
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      - redis_data:/data
+      - ./infrastructure/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Datos: MinIO
+  # ---------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: panaderia-p2-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-panaderia}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-panaderia123}
+    ports:
+      - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Job de inicialización de MinIO (no se ejecuta en el arranque normal).
+  # Uso:
+  #   docker compose -f docker-compose.p2.yml --env-file .env.p2 \
+  #     --profile init run --rm minio-init
+  # ---------------------------------------------------------------------------
+  minio-init:
+    image: minio/mc:latest
+    container_name: panaderia-p2-minio-init
+    profiles: ["init"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-panaderia}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-panaderia123}
+      MINIO_BUCKET_RECEIPTS: ${MINIO_BUCKET_RECEIPTS:-receipts}
+      MINIO_BUCKET_PRODUCTS: ${MINIO_BUCKET_PRODUCTS:-products}
+      MINIO_BUCKET_REPORTS: ${MINIO_BUCKET_REPORTS:-reports}
+    volumes:
+      - ./infrastructure/minio/init.sh:/init/init.sh:ro
+    entrypoint: ["/bin/sh", "/init/init.sh"]
+    networks:
+      - panaderia-net
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:
+  minio_data:
+  rabbitmq_data:
+  identity_keys:
+
+networks:
+  panaderia-net:
+    name: ${NETWORK_NAME:-panaderia-net}
+    driver: bridge

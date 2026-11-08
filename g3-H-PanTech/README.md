@@ -22,6 +22,8 @@
 
 Cada persona trabaja en su rama personal y abre un PR hacia `g3-H/Pantech-P2`. Jaime revisa, integra y abre el PR final hacia `main`. Los planes incluyen fases, tareas, entregables, contratos y criterios de aceptación. Cada plan lista además **los archivos que esa persona crea y modifica**, y **quién más puede tocar cada archivo compartido** (`docker-compose.p2.yml`, `.env.p2.example`, `infrastructure/`, `docs/` y `README.md`).
 
+Los contratos técnicos que todos deben respetar —puertos, JWT, eventos, encabezados, errores y estados— están en [`docs/equipo/contratos.md`](docs/equipo/contratos.md).
+
 ## 2. Sistema de software
 
 ### Nombre
@@ -508,13 +510,20 @@ g3-H-PanTech/
 ├── README.md
 ├── docker-compose.p2.yml      # 12 contenedores + red + volúmenes
 ├── .env.p2.example
+├── .gitattributes
 ├── docs/
 │   ├── Vista CyC P2.puml
 │   ├── tiers_despliegue P2.puml
 │   ├── capas P2.puml
 │   ├── descomposicion P2.puml
 │   ├── secuencia_cliente_pedido.puml
-│   └── secuencia_cliente_reserva.puml
+│   ├── secuencia_cliente_reserva.puml
+│   └── equipo/
+│       ├── contratos.md       # puertos, JWT, eventos y encabezados
+│       ├── jaime-angulo.md
+│       ├── diego-waitoto.md
+│       ├── yeison-aparicio.md
+│       └── axel-gomez.md
 ├── web-ssr/                   # Next.js + TypeScript
 ├── kds-pos/                   # Flutter + Dart (escritorio)
 ├── api-gateway/               # Go
@@ -523,10 +532,12 @@ g3-H-PanTech/
 ├── kitchen-service/           # Go
 ├── reporting-service/         # C# + .NET
 ├── worker/                    # Python + Celery
-└── infrastructure/            # init.sql, migraciones, seeds, configuración
+└── infrastructure/            # postgres/, mongodb/, redis/, minio/, rabbitmq/
 ```
 
 > El código del Prototipo 1 se conserva como referencia histórica. La implementación del Prototipo 2 se hará en una rama de trabajo y no reemplaza todavía los contenedores actuales.
+
+> **Estado de la Fase 0:** ya existen `docker-compose.p2.yml`, `.env.p2.example`, `infrastructure/` y `docs/equipo/contratos.md`. Los servicios todavía no tienen código; el compose valida con `docker compose config` y se irá completando con los PRs de cada dueño.
 
 ### Instrucciones para desplegar el sistema localmente
 

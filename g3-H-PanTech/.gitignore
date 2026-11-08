@@ -11,3 +11,11 @@ dist/
 
 # Entorno
 .env
+.env.p2
+
+# Prototipo 2
+.next/
+.dart_tool/
+bin/
+obj/
+*.pem

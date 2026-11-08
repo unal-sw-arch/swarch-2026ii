@@ -1,0 +1,131 @@
+{
+  "exchanges": [
+    {
+      "name": "panaderia.events",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "panaderia.dlx",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "worker.order_paid",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "panaderia.dlx",
+        "x-dead-letter-routing-key": "panaderia.dlq"
+      }
+    },
+    {
+      "name": "worker.order_ready",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "panaderia.dlx",
+        "x-dead-letter-routing-key": "panaderia.dlq"
+      }
+    },
+    {
+      "name": "reporting.order_ready",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "panaderia.dlx",
+        "x-dead-letter-routing-key": "panaderia.dlq"
+      }
+    },
+    {
+      "name": "worker.reservation_created",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "panaderia.dlx",
+        "x-dead-letter-routing-key": "panaderia.dlq"
+      }
+    },
+    {
+      "name": "worker.reservation_cancelled",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "panaderia.dlx",
+        "x-dead-letter-routing-key": "panaderia.dlq"
+      }
+    },
+    {
+      "name": "panaderia.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "panaderia.events",
+      "vhost": "/",
+      "destination": "worker.order_paid",
+      "destination_type": "queue",
+      "routing_key": "order.paid",
+      "arguments": {}
+    },
+    {
+      "source": "panaderia.events",
+      "vhost": "/",
+      "destination": "worker.order_ready",
+      "destination_type": "queue",
+      "routing_key": "order.ready",
+      "arguments": {}
+    },
+    {
+      "source": "panaderia.events",
+      "vhost": "/",
+      "destination": "reporting.order_ready",
+      "destination_type": "queue",
+      "routing_key": "order.ready",
+      "arguments": {}
+    },
+    {
+      "source": "panaderia.events",
+      "vhost": "/",
+      "destination": "worker.reservation_created",
+      "destination_type": "queue",
+      "routing_key": "reservation.created",
+      "arguments": {}
+    },
+    {
+      "source": "panaderia.events",
+      "vhost": "/",
+      "destination": "worker.reservation_cancelled",
+      "destination_type": "queue",
+      "routing_key": "reservation.cancelled",
+      "arguments": {}
+    },
+    {
+      "source": "panaderia.dlx",
+      "vhost": "/",
+      "destination": "panaderia.dlq",
+      "destination_type": "queue",
+      "routing_key": "#",
+      "arguments": {}
+    }
+  ]
+}
