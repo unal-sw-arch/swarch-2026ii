@@ -5,9 +5,12 @@ Maneja estudiantes, profesores, asignaturas, grupos con su horario e inscripcion
 Guarda todo en PostgreSQL.
 """
 import os
+import json
+import logging
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import pika
 
 from app.db import get_connection
 
@@ -16,10 +19,34 @@ CURRENT_PERIOD = os.getenv("CURRENT_PERIOD", "2025-2")
 DAY_NAMES = {1: "Lunes", 2: "Martes", 3: "Miércoles", 4: "Jueves", 5: "Viernes", 6: "Sábado"}
 
 app = FastAPI(title="Pilosia - courses-service", version="1.0")
+logger = logging.getLogger(__name__)
 
 
 class EnrollmentRequest(BaseModel):
     group_id: int
+
+
+def publish_event(event_type, payload):
+    """Publica un evento sin hacer depender la inscripción del broker."""
+    url = os.getenv("RABBITMQ_URL", "")
+    if not url:
+        logger.warning("RABBITMQ_URL no está configurada; evento omitido")
+        return False
+    try:
+        connection = pika.BlockingConnection(pika.URLParameters(url))
+        channel = connection.channel()
+        channel.queue_declare(queue="pilosia.notifications", durable=True)
+        channel.basic_publish(
+            exchange="",
+            routing_key="pilosia.notifications",
+            body=json.dumps({"type": event_type, **payload}),
+            properties=pika.BasicProperties(delivery_mode=2),
+        )
+        connection.close()
+        return True
+    except pika.exceptions.PikaBaseException:
+        logger.exception("No se pudo publicar el evento %s", event_type)
+        return False
 
 
 # ---------------------------------------------------------------
@@ -232,9 +259,23 @@ def create_enrollment(code: str, body: EnrollmentRequest):
             (code, group["id"]),
         ).fetchone()["id"]
 
+    event_published = publish_event(
+        "EnrollmentCreated",
+        {
+            "enrollmentId": new_id,
+            "studentCode": code,
+            "studentName": student["name"],
+            "groupId": group["id"],
+            "courseCode": group["course_code"],
+            "courseName": group["course_name"],
+            "groupNumber": group["group_number"],
+            "professorId": group["professor_id"],
+        },
+    )
     return {
         "id": new_id,
         "message": f"Inscribiste {group['course_name']} (grupo {group['group_number']})",
+        "notification_event_published": event_published,
     }
 
 
