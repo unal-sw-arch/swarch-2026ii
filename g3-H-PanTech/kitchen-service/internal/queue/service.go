@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"log/slog"
 	"math"
 	"time"
 )
@@ -19,13 +20,28 @@ type EnqueueInput struct {
 	Items []OrderItem
 }
 
+// History registra una fila por transición (kitchen.order_status_events). changedBy nil = el sistema.
+type History interface {
+	Record(ctx context.Context, orderID, status string, changedBy *string, at time.Time) error
+}
+
+// EventSink recibe los eventos de dominio que genera la cola.
+type EventSink interface {
+	OrderReady(ctx context.Context, orderID, customerID string, readyAt time.Time, prepMinutes int) error
+}
+
+// Service reúne la lógica de la cola. Prep, CapacityFrom, History y Events son opcionales.
 type Service struct {
-	Store       *Store
-	Prep        PrepLookup
-	Aging       float64
-	Capacity    int
-	DefaultPrep int
-	Now         func() time.Time
+	Store        *Store
+	Prep         PrepLookup
+	CapacityFrom CapacityProvider
+	History      History
+	Events       EventSink
+	Log          *slog.Logger
+	Aging        float64
+	Capacity     int
+	DefaultPrep  int
+	Now          func() time.Time
 }
 
 func (s *Service) now() time.Time {
@@ -95,6 +111,9 @@ func (s *Service) Enqueue(ctx context.Context, in EnqueueInput) (View, bool, err
 	if err != nil {
 		return View{}, false, err
 	}
+	if created {
+		s.record(ctx, order.OrderID, StatusPendiente, nil, now)
+	}
 
 	view, found, err := s.Get(ctx, in.OrderID)
 	if err != nil {
@@ -114,7 +133,8 @@ func (s *Service) Snapshot(ctx context.Context) ([]View, Capacity, error) {
 	}
 	now := s.now()
 	ranked := Rank(orders, now, s.Aging)
-	etas := ETAs(ranked, s.Capacity, now)
+	capacity := s.capacity(ctx)
+	etas := ETAs(ranked, capacity, now)
 
 	views := make([]View, len(ranked))
 	scores := make(map[string]float64, len(ranked))
@@ -129,7 +149,7 @@ func (s *Service) Snapshot(ctx context.Context) ([]View, Capacity, error) {
 	if err := s.Store.UpdateScores(ctx, scores); err != nil {
 		return nil, Capacity{}, err
 	}
-	return views, Capacity{Max: s.Capacity, InPreparation: inPrep}, nil
+	return views, Capacity{Max: capacity, InPreparation: inPrep}, nil
 }
 
 // Get devuelve sin posición ni ETA si la comanda ya fue entregada.
@@ -174,3 +194,84 @@ func orderToView(r Ranked, position, eta int) View {
 }
 
 func round2(v float64) float64 { return math.Round(v*100) / 100 }
+
+func (s *Service) log() *slog.Logger {
+	if s.Log != nil {
+		return s.Log
+	}
+	return slog.Default()
+}
+
+// capacity lee la capacidad vigente; si la tabla no responde usa la configurada.
+func (s *Service) capacity(ctx context.Context) int {
+	if s.CapacityFrom != nil {
+		if max, err := s.CapacityFrom.Capacity(ctx); err == nil && max > 0 {
+			return max
+		} else if err != nil {
+			s.log().Warn("capacidad: se usa KITCHEN_CAPACITY", "error", err.Error())
+		}
+	}
+	return s.Capacity
+}
+
+// record guarda el historial sin revertir el cambio de estado si PostgreSQL falla.
+func (s *Service) record(ctx context.Context, orderID, status string, actor *string, at time.Time) {
+	if s.History == nil {
+		return
+	}
+	if err := s.History.Record(ctx, orderID, status, actor, at); err != nil {
+		s.log().Error("historial: no se pudo registrar la transición", "order_id", orderID, "status", status, "error", err.Error())
+	}
+}
+
+// ChangeStatus aplica una transición pedida por la cocina (PATCH .../status).
+func (s *Service) ChangeStatus(ctx context.Context, id, to string, actor *string) (View, error) {
+	switch to {
+	case StatusEnPreparacion:
+		return s.transition(ctx, id, StatusPendiente, to, actor, true)
+	case StatusListo:
+		return s.transition(ctx, id, StatusEnPreparacion, to, actor, false)
+	}
+	order, err := s.Store.Get(ctx, id)
+	if err != nil {
+		return View{}, err
+	}
+	if order == nil {
+		return View{}, ErrNotFound
+	}
+	return View{}, &InvalidStateError{Current: order.Status, Requested: to}
+}
+
+// Deliver confirma la entrega de una comanda lista.
+func (s *Service) Deliver(ctx context.Context, id string, actor *string) (View, error) {
+	return s.transition(ctx, id, StatusListo, StatusEntregado, actor, false)
+}
+
+func (s *Service) transition(ctx context.Context, id, from, to string, actor *string, limited bool) (View, error) {
+	capacity := -1
+	if limited {
+		capacity = s.capacity(ctx)
+	}
+	at := s.now().UTC()
+	if err := s.Store.Transition(ctx, id, from, to, capacity, at, DeliveredTTL); err != nil {
+		return View{}, err
+	}
+	s.record(ctx, id, to, actor, at)
+
+	if to == StatusListo && s.Events != nil {
+		if order, err := s.Store.Get(ctx, id); err == nil && order != nil {
+			if err := s.Events.OrderReady(ctx, order.OrderID, order.CustomerID, at, order.PrepMinutes); err != nil {
+				s.log().Error("order.ready: no se pudo encolar el evento", "order_id", id, "error", err.Error())
+			}
+		}
+	}
+
+	view, found, err := s.Get(ctx, id)
+	if err != nil {
+		return View{}, err
+	}
+	if !found {
+		return View{}, ErrNotFound
+	}
+	return view, nil
+}

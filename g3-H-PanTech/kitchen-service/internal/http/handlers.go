@@ -196,3 +196,121 @@ func (h *Handler) internal(w http.ResponseWriter, r *http.Request, err error) {
 	h.Log.Error("error interno", "request_id", RequestID(r.Context()), "error", err.Error())
 	writeError(w, r, http.StatusInternalServerError, CodeInternal, "Error interno del servidor", nil)
 }
+
+func orderIDFrom(r *http.Request) (string, bool) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		return "", false
+	}
+	return id.String(), true
+}
+
+func actorID(p Principal) *string {
+	id, err := uuid.Parse(p.UserID)
+	if err != nil {
+		return nil
+	}
+	s := id.String()
+	return &s
+}
+
+func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
+	writeError(w, r, http.StatusNotFound, CodeNotFound, "La comanda no existe", nil)
+}
+
+// GetOrder implementa GET /queue/orders/{id} (detalle y ETA). Con solo kitchen:deliver
+// únicamente se ven comandas listo; las demás responden 404.
+func (h *Handler) GetOrder(w http.ResponseWriter, r *http.Request) {
+	p, ok := authorize(w, r, PermKitchenRead, PermKitchenDeliver)
+	if !ok {
+		return
+	}
+	id, ok := orderIDFrom(r)
+	if !ok {
+		h.notFound(w, r)
+		return
+	}
+	view, found, err := h.Svc.Get(r.Context(), id)
+	if err != nil {
+		h.internal(w, r, err)
+		return
+	}
+	if !found || (!p.Has(PermKitchenRead) && view.Status != queue.StatusListo) {
+		h.notFound(w, r)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
+}
+
+type statusRequest struct {
+	Status string `json:"status"`
+}
+
+// UpdateStatus implementa PATCH /queue/orders/{id}/status (kitchen:update).
+func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
+	p, ok := authorize(w, r, PermKitchenUpdate)
+	if !ok {
+		return
+	}
+	id, ok := orderIDFrom(r)
+	if !ok {
+		h.notFound(w, r)
+		return
+	}
+	var req statusRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
+		writeError(w, r, http.StatusBadRequest, CodeValidation, "Cuerpo JSON inválido", nil)
+		return
+	}
+	switch req.Status {
+	case queue.StatusPendiente, queue.StatusEnPreparacion, queue.StatusListo, queue.StatusEntregado:
+	default:
+		writeError(w, r, http.StatusBadRequest, CodeValidation, "status no válido",
+			map[string]any{"status": "use en_preparacion o listo"})
+		return
+	}
+
+	view, err := h.Svc.ChangeStatus(r.Context(), id, req.Status, actorID(p))
+	if err != nil {
+		h.transitionError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
+}
+
+// DeliverOrder implementa POST /queue/orders/{id}/deliver (kitchen:deliver, estado listo).
+func (h *Handler) DeliverOrder(w http.ResponseWriter, r *http.Request) {
+	p, ok := authorize(w, r, PermKitchenDeliver)
+	if !ok {
+		return
+	}
+	id, ok := orderIDFrom(r)
+	if !ok {
+		h.notFound(w, r)
+		return
+	}
+	view, err := h.Svc.Deliver(r.Context(), id, actorID(p))
+	if err != nil {
+		h.transitionError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
+}
+
+func (h *Handler) transitionError(w http.ResponseWriter, r *http.Request, err error) {
+	var invalid *queue.InvalidStateError
+	var full *queue.CapacityError
+	switch {
+	case errors.Is(err, queue.ErrNotFound):
+		h.notFound(w, r)
+	case errors.As(err, &full):
+		writeError(w, r, http.StatusConflict, CodeAtCapacity, "La cocina está al máximo de capacidad; el pedido sigue pendiente",
+			map[string]any{"max": full.Max, "in_preparation": full.InPreparation})
+	case errors.As(err, &invalid):
+		writeError(w, r, http.StatusConflict, CodeInvalidState,
+			"Transición inválida: "+invalid.Current+" -> "+invalid.Requested,
+			map[string]any{"current_status": invalid.Current, "requested_status": invalid.Requested})
+	default:
+		h.internal(w, r, err)
+	}
+}

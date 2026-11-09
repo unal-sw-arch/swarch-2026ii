@@ -13,8 +13,11 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"kitchen-service/internal/config"
+	"kitchen-service/internal/events"
 	httpapi "kitchen-service/internal/http"
 	"kitchen-service/internal/queue"
+	"kitchen-service/internal/repository"
+	"kitchen-service/migrations"
 )
 
 func main() {
@@ -26,6 +29,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	db, err := repository.Connect(ctx, cfg.DatabaseURL, 30, 2*time.Second)
+	if err != nil {
+		log.Error("postgres", "error", err.Error())
+		os.Exit(1)
+	}
+	defer db.Close()
+	if err := db.Migrate(ctx, migrations.FS); err != nil {
+		log.Error("migraciones", "error", err.Error())
+		os.Exit(1)
+	}
+	if err := db.SeedCapacity(ctx, cfg.KitchenCapacity); err != nil {
+		log.Error("capacidad", "error", err.Error())
+		os.Exit(1)
+	}
+
 	redisOpts, err := redis.ParseURL(cfg.RedisQueueURL)
 	if err != nil {
 		log.Error("REDIS_QUEUE_URL inválida", "error", err.Error())
@@ -34,12 +55,22 @@ func main() {
 	rdb := redis.NewClient(redisOpts)
 	defer rdb.Close()
 
+	rabbit := events.NewRabbit(cfg.RabbitMQURL, cfg.RabbitMQExchange)
+	defer rabbit.Close()
+	outbox := events.NewOutbox(rdb, rabbit, log)
+	go outbox.Run(ctx)
+
 	store := queue.NewStore(rdb)
 	svc := &queue.Service{
-		Store:       store,
-		Aging:       cfg.AgingFactor,
-		Capacity:    cfg.KitchenCapacity,
-		DefaultPrep: cfg.DefaultPrepMinutes,
+		Store:        store,
+		Prep:         db,
+		CapacityFrom: db,
+		History:      db,
+		Events:       outbox,
+		Log:          log,
+		Aging:        cfg.AgingFactor,
+		Capacity:     cfg.KitchenCapacity,
+		DefaultPrep:  cfg.DefaultPrepMinutes,
 	}
 
 	handler := &httpapi.Handler{
@@ -47,7 +78,9 @@ func main() {
 		ServiceToken: cfg.ServiceToken,
 		Log:          log,
 		Ready: map[string]func(context.Context) error{
-			"redis": store.Ping,
+			"postgres": db.Ping,
+			"redis":    store.Ping,
+			"rabbitmq": rabbit.Ping,
 		},
 	}
 
@@ -59,9 +92,6 @@ func main() {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	go func() {
 		log.Info("kitchen-service escuchando", "addr", srv.Addr)

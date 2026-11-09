@@ -40,6 +40,12 @@ func Load(getenv func(string) string) (Config, error) {
 	if cfg.ServiceToken == "" {
 		problems = append(problems, "SERVICE_TOKEN es obligatoria")
 	}
+	if cfg.DatabaseURL == "" {
+		problems = append(problems, "DATABASE_URL (o DATABASE_URL_GO) es obligatoria")
+	}
+	if cfg.RabbitMQURL == "" {
+		problems = append(problems, "RABBITMQ_URL es obligatoria")
+	}
 
 	if raw := getenv("AGING_FACTOR"); raw != "" {
 		v, err := strconv.ParseFloat(raw, 64)

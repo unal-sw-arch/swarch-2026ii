@@ -27,20 +27,29 @@ const (
 )
 
 type env struct {
-	srv *httptest.Server
-	mr  *miniredis.Miniredis
-	now time.Time
+	srv  *httptest.Server
+	mr   *miniredis.Miniredis
+	now  time.Time
+	hist *fakeHistory
+	sink *fakeSink
+	svc  *queue.Service
 }
 
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T) *env { return newEnvCap(t, 4) }
+
+func newEnvCap(t *testing.T, capacity int) *env {
 	t.Helper()
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { rdb.Close() })
 
-	e := &env{mr: mr, now: t0}
+	e := &env{mr: mr, now: t0, hist: &fakeHistory{}, sink: &fakeSink{}}
 	store := queue.NewStore(rdb)
-	svc := &queue.Service{Store: store, Aging: 0.5, Capacity: 4, DefaultPrep: 5, Now: func() time.Time { return e.now }}
+	svc := &queue.Service{
+		Store: store, Aging: 0.5, Capacity: capacity, DefaultPrep: 5, Now: func() time.Time { return e.now },
+		History: e.hist, Events: e.sink,
+	}
+	e.svc = svc
 	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	h := &httpapi.Handler{
 		Svc: svc, ServiceToken: serviceToken, Log: log,

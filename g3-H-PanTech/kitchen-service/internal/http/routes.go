@@ -13,6 +13,9 @@ func NewRouter(h *Handler, log *slog.Logger) http.Handler {
 
 	mux.HandleFunc("POST /queue/orders", h.EnqueueOrder)
 	mux.HandleFunc("GET /queue", h.GetQueue)
+	mux.HandleFunc("GET /queue/orders/{id}", h.GetOrder)
+	mux.HandleFunc("PATCH /queue/orders/{id}/status", h.UpdateStatus)
+	mux.HandleFunc("POST /queue/orders/{id}/deliver", h.DeliverOrder)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, http.StatusNotFound, CodeNotFound, "Ruta no encontrada", nil)
