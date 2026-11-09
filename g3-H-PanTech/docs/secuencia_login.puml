@@ -1,0 +1,59 @@
+@startuml secuencia_login
+title Panadería Express · Login y emisión de JWT
+
+actor "Cliente / Empleado" as User
+participant "Web SSR\n(Next.js :3000)" as Web
+participant "API Gateway\n(:8080)" as Gateway
+participant "Identity Service\n(:8002)" as Identity
+database "PostgreSQL\nauth.*" as DB
+participant "Redis" as Redis
+
+User -> Web : POST /api/auth/login\n{email, password}
+Web -> Gateway : POST /auth/login
+Gateway -> Identity : POST /auth/login
+Identity -> DB : Buscar usuario por email
+DB --> Identity : Usuario + password_hash
+Identity -> Identity : Verificar BCrypt y estado activo
+alt Credenciales inválidas o cuenta desactivada
+  Identity --> Gateway : 401 {code, message}
+  Gateway --> Web : 401
+  Web --> User : Formulario con error\n(sin cookies)
+else Credenciales válidas
+  Identity -> DB : Registrar LOGIN en audit_log
+  Identity -> Identity : Construir claims\nsub, email, roles, permissions, level
+  Identity -> Identity : Firmar access token RS256 (15 min)
+  Identity -> DB : Guardar refresh token (hash SHA-256, 7 días)
+  Identity -> Redis : Cachear hash → user_id (opcional)
+  Identity --> Gateway : 200 {access_token, refresh_token, user}
+  Gateway --> Web : 200
+  Web -> Web : Set-Cookie httpOnly\npanaderia_access + panaderia_refresh
+  Web --> User : 200 {user}\nRedirección según rol
+end
+
+== Petición autenticada posterior ==
+
+User -> Web : GET /staff
+Web -> Web : Leer cookie httpOnly y decodificar JWT
+alt Access token vencido y refresh válido
+  Web -> Gateway : POST /auth/refresh {refresh_token}
+  Gateway -> Identity : POST /auth/refresh
+  Identity -> DB : Validar hash, expiración y usuario activo
+  Identity -> DB : Revocar token usado (rotación)
+  Identity -> DB : Guardar nuevo refresh token
+  Identity --> Gateway : 200 {nuevos tokens}
+  Gateway --> Web : 200
+  Web -> Web : Renovar cookies
+end
+Web -> Web : Verificar rol y permiso para /staff
+alt Sin permiso
+  Web --> User : 403 /forbidden
+else Autorizado
+  Web -> Gateway : GET /auth/me\nAuthorization: Bearer <access_token>
+  Gateway -> Gateway : Validar firma con JWKS
+  Gateway -> Identity : GET /auth/me\nX-User-Id, X-Roles, X-Permissions, X-Level
+  Identity --> Gateway : Usuario y permisos efectivos
+  Gateway --> Web : 200
+  Web --> User : HTML renderizado en servidor
+end
+
+@enduml
