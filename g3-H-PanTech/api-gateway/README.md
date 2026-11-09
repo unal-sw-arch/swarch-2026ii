@@ -2,7 +2,7 @@
 
 Entrada única del sistema (Go, puerto `8080`). Enruta por prefijo hacia Identity, Order, Kitchen y Reporting, y es el único servicio de lógica publicado al host. Los contratos están en [`docs/equipo/contratos.md`](../docs/equipo/contratos.md).
 
-> **Estado:** etapa 1 (ruteo, salud, bloqueo de `POST /queue/orders`, eliminación de encabezados de identidad y errores uniformes). La validación de JWT, los permisos, CORS y el rate limiting llegan en la etapa 2: hasta entonces el Gateway **no autentica** y no debe exponerse fuera de pruebas.
+> **Estado:** completo (etapa 2): ruteo, JWT RS256 con JWKS, permisos por prefijo, CORS, rate limiting, encabezados de identidad y errores uniformes.
 
 ## Tabla de rutas
 
@@ -30,9 +30,29 @@ Reglas especiales:
 - El JWKS de Identity (`/.well-known/jwks.json`) no se expone; cualquier prefijo desconocido responde `404 NOT_FOUND`.
 - `/permissions` y `/audit` y la regla por método de `/products` son decisiones propias, anotadas en [`axel-notas-integracion.md`](../docs/equipo/axel-notas-integracion.md).
 
+## Autenticación y permisos
+
+Orden de los middlewares: request id → logging → CORS → rate limit (IP) → auth → rate limit (usuario) → permisos → proxy.
+
+- **JWT:** RS256 contra el JWKS de `JWKS_URL`, con `iss`, `aud` y `exp` obligatorios (5 s de tolerancia). Se rechazan otros algoritmos (`none`, HS256), `sub` que no sea UUID y claims con comas o caracteres de control. Sin token, inválido o vencido: `401 UNAUTHENTICATED`.
+- **JWKS:** se cachea 10 min, se renueva ante un `kid` desconocido (máximo una consulta cada 10 s) y, si Identity no responde, se sigue usando la clave en caché. Sin caché ni Identity: `503 SERVICE_UNAVAILABLE`.
+- **Permisos:** el Gateway aplica la tabla de arriba (basta uno); permiso ausente: `403 FORBIDDEN`. Cada servicio revalida permiso y alcance.
+- **CORS:** solo los orígenes de `CORS_ORIGINS`. El KDS de escritorio y el Web SSR (llamadas desde el servidor) no envían `Origin` y no lo necesitan. Para el KDS en Chrome agregue su origen, por ejemplo `http://localhost:5000` con `flutter run -d chrome --web-port=5000`.
+- **Rate limiting:** ventana fija de 1 min en Redis, por IP (antes de auth) y por usuario (después). Al superarlo: `429 RATE_LIMITED` con `Retry-After`. Si Redis no responde el límite deja de aplicarse (la petición pasa; cada intento espera como máximo 300 ms). `/health` y `/ready` no tienen límite. La IP es la del peer directo; no se confía en `X-Forwarded-For`, así que el Web SSR (una sola IP) comparte el límite por IP: el límite por usuario es el que protege a cada persona.
+
 ## Encabezados
 
-El Gateway elimina de toda petición entrante `X-User-Id`, `X-User-Email`, `X-Roles`, `X-Permissions`, `X-Level` y `X-Service-Token`, y reemplaza `X-Request-Id` por uno propio (UUID). En la etapa 2 escribirá los `X-*` de identidad a partir del JWT validado y nunca reescribirá `customer_id`. `Authorization` se conserva porque Identity lo necesita en `/auth/me` y `/auth/logout`.
+El Gateway elimina de toda petición entrante `X-User-Id`, `X-User-Email`, `X-Roles`, `X-Permissions`, `X-Level` y `X-Service-Token`, y reemplaza `X-Request-Id` por uno propio (UUID). Con un JWT válido escribe:
+
+| Encabezado | Origen |
+|---|---|
+| `X-User-Id` | `sub` |
+| `X-User-Email` | `email` |
+| `X-Roles` | `roles` (CSV) |
+| `X-Permissions` | `permissions` (CSV) |
+| `X-Level` | `level` |
+
+Nunca reescribe el cuerpo ni `customer_id`. `Authorization` se conserva porque Identity lo necesita en `/auth/me` y `/auth/logout`.
 
 ## Errores
 
@@ -40,12 +60,12 @@ Todos los errores, incluidos los del proxy, usan `{"code","message","request_id"
 
 | HTTP | `code` | Cuándo |
 |---|---|---|
-| 401 | `UNAUTHENTICATED` | Sin token o vencido (etapa 2) |
+| 401 | `UNAUTHENTICATED` | Sin token, inválido o vencido |
 | 403 | `FORBIDDEN` | Permiso insuficiente o ruta bloqueada |
 | 404 | `NOT_FOUND` | Prefijo desconocido |
-| 429 | `RATE_LIMITED` | Límite superado (etapa 2) |
+| 429 | `RATE_LIMITED` | Límite superado |
 | 502 | `BAD_GATEWAY` | El servicio respondió mal o tardó demasiado |
-| 503 | `SERVICE_UNAVAILABLE` | No se pudo conectar con el servicio |
+| 503 | `SERVICE_UNAVAILABLE` | No se pudo conectar con el servicio o verificar el JWKS |
 
 ## Salud
 
@@ -91,8 +111,10 @@ curl http://localhost:8080/health
 cmd/gateway/main.go           arranque
 internal/config               variables de entorno
 internal/router               tabla de rutas (routes.go) y handler (router.go)
+internal/jwks                 caché de claves públicas
 internal/proxy                reverse proxy y limpieza de encabezados
-internal/middleware           request id, logging y recover
+internal/middleware           request id, logging, CORS, rate limit, auth y permisos
 internal/http                 formato uniforme de errores
-tests/                        pruebas con httptest y miniredis
+tests/                        pruebas con httptest, miniredis y un JWKS falso
+tests/jwtkit                 helper de pruebas: sirve un JWKS falso y firma tokens (no va en la imagen)
 ```

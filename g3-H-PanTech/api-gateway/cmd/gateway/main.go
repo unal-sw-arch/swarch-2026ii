@@ -30,6 +30,8 @@ func main() {
 		log.Error("REDIS_URL inválida", "error", err.Error())
 		os.Exit(1)
 	}
+	redisOpts.DialTimeout = time.Second
+	redisOpts.MaxRetries = 1
 	rdb := redis.NewClient(redisOpts)
 	defer rdb.Close()
 

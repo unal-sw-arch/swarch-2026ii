@@ -95,8 +95,9 @@ func Match(path string) (Route, bool) {
 }
 
 // Decide deniega por defecto si ninguna regla coincide.
-func (r Route) Decide(method, path string) Rule {
-	for _, rule := range r.Rules {
+func (r Route) Decide(method, path string) *Rule {
+	for i := range r.Rules {
+		rule := &r.Rules[i]
 		if rule.Path != "" && strings.TrimSuffix(path, "/") != rule.Path {
 			continue
 		}
@@ -105,8 +106,10 @@ func (r Route) Decide(method, path string) Rule {
 		}
 		return rule
 	}
-	return Rule{Access: Blocked}
+	return &denyAll
 }
+
+var denyAll = Rule{Access: Blocked}
 
 func contains(list []string, v string) bool {
 	for _, item := range list {
