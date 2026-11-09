@@ -1,6 +1,6 @@
 # Team 3-D-Prometeo
 
-![Components and conectors view](Prometeo_banner.png)
+![Components and conectors view](diagrams/Prometeo_banner.png)
 
 ## Members
 
@@ -16,7 +16,7 @@ Sistema de operación y administración de restaurante. La aplicación usa una A
 ## Component-and-connector (C&C Architechture)
 
 ### C&C View
-![Components and conectors view](Components-and-connectors-view.jpeg)
+![Components and conectors view](diagrams/Components-and-connectors-view.jpeg)
 
 ### Description of architectural styles used.
 - **Cliente-servidor:** dos clientes Flutter (operativo y administrativo) consumen un único backend, `apps/cloud_api`. Los clientes no se comunican entre sí ni guardan datos compartidos; toda regla de negocio se valida en el servidor.
