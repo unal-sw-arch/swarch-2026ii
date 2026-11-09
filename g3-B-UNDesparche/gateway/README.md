@@ -277,6 +277,34 @@ Cancela la suscripción. **Autenticación opcional.**
 }
 ```
 
+#### `POST /events/unsubscribe/`
+Desuscripción pública mediante token. Permite cancelar una suscripción usando el token firmado que se incluye en el enlace de baja de los correos de notificación, sin necesidad de estar autenticado ni conocer el ID del evento.
+
+**Autenticación:** No requerida (público).
+
+**Body (JSON):**
+```json
+{
+  "token": "abc123def456..."
+}
+```
+
+**Respuesta (200):**
+```json
+{
+  "detail": "Te desuscribiste correctamente de este evento.",
+  "event_name": "Charla de Ingeniería",
+  "already": false
+}
+```
+
+**Respuesta si el token es inválido (400):**
+```json
+{
+  "detail": "El enlace de desuscripción no es válido o está incompleto."
+}
+```
+
 ---
 
 ### D. Inventory Service (proxy)
@@ -472,6 +500,7 @@ Requisitos previos:
 | Publicar evento | `/events/{id}/publish/` | POST | Sí | No |
 | Suscribirse a evento | `/events/{id}/subscribe/` | POST | Opcional | JSON (`{"email": "..."}`) |
 | Desuscribirse | `/events/{id}/unsubscribe/` | POST | Opcional | JSON (`{"email": "..."}`) |
+| Desuscribirse por token | `/events/unsubscribe/` | POST | No | JSON (`{"token": "..."}`) |
 | Listar implementos | `/inventory/implements/` | GET | Opcional | No |
 | Ver un implemento | `/inventory/implements/{id}/` | GET | Opcional | No |
 | Crear implemento | `/inventory/implements/` | POST | Sí | JSON o multipart |

@@ -1,15 +1,19 @@
 from datetime import timedelta
 from django.db import IntegrityError, transaction
 from django.utils import timezone
+
 from rest_framework import filters, mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+
 from django_filters.rest_framework import DjangoFilterBackend
 
 from core.firebase import init_firebase
 from core.firebase_storage import delete_image, upload_image
+
+from . import notifications
 from .models import Borrowing, Implement, Reserve
 from .permissions import IsSystemAdminOrImplementAdmin
 from .serializers import (
@@ -139,12 +143,14 @@ class ReserveViewSet(
         return ReserveSerializer
 
     def create(self, request, *args, **kwargs):
-            # RF-11: solo reservan los usuarios activos que aceptan el aviso de descargo de responsabilidad
-            # Estado "Activo" de un usuario en el servicio Users
-            if request.user.status != "ACT":
-                raise PermissionDenied("Tu cuenta está sancionada: no puedes reservar implementos.")
+        # RF-11: solo reservan los usuarios activos que aceptan el aviso de descargo de responsabilidad
+        # Estado "Activo" de un usuario en el servicio Users
+        if request.user.status != "ACT":
+            raise PermissionDenied(
+                "Tu cuenta está sancionada: no puedes reservar implementos."
+            )
 
-            return super().create(request, *args, **kwargs)
+        return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         implement_id = self.request.data.get("implement")
@@ -185,6 +191,7 @@ class ReserveViewSet(
                 )
                 implement.state = Implement.State.RESERVED
                 implement.save(update_fields=["state"])
+                transaction.on_commit(lambda: notifications.notify_reserved(reserve))
                 return reserve
         except Implement.DoesNotExist:
             raise ValidationError({"implement": "Implemento no encontrado."})
@@ -195,12 +202,23 @@ class ReserveViewSet(
 
     @action(detail=True, methods=["post"], url_path="confirm")
     def confirm(self, request, pk=None):
+        # get_object aplica el alcance por rol y los permisos sobre el objeto
         reserve = self.get_object()
-        if not reserve.active:
-            raise ValidationError({"detail": "Esta reserva ya no está activa."})
 
         try:
             with transaction.atomic():
+                # Se bloquea y se vuelve a leer la reserva: el hilo de expiración
+                # pudo liberarla entre get_object() y este punto
+                reserve = (
+                    Reserve.objects.select_for_update()
+                    .select_related("implement")
+                    .get(pk=reserve.pk)
+                )
+                if not reserve.active:
+                    raise ValidationError(
+                        {"detail": "Esta reserva ya no está activa."}
+                    )
+
                 reserve.active = False
                 reserve.save(update_fields=["active"])
                 borrowing = Borrowing.objects.create(
@@ -212,6 +230,7 @@ class ReserveViewSet(
                 )
                 reserve.implement.state = Implement.State.BORROWED
                 reserve.implement.save(update_fields=["state"])
+                transaction.on_commit(lambda: notifications.notify_borrowed(borrowing))
         except IntegrityError:
             raise ValidationError({"detail": "El usuario ya tiene un préstamo activo."})
 
@@ -220,10 +239,17 @@ class ReserveViewSet(
     @action(detail=True, methods=["post"], url_path="cancel")
     def cancel(self, request, pk=None):
         reserve = self.get_object()
-        if not reserve.active:
-            raise ValidationError({"detail": "Esta reserva ya no está activa."})
 
         with transaction.atomic():
+            # Mismo motivo que en confirm: se bloquea y se relee la reserva
+            reserve = (
+                Reserve.objects.select_for_update()
+                .select_related("implement")
+                .get(pk=reserve.pk)
+            )
+            if not reserve.active:
+                raise ValidationError({"detail": "Esta reserva ya no está activa."})
+
             reserve.active = False
             reserve.save(update_fields=["active"])
             reserve.implement.state = Implement.State.AVAILABLE
@@ -272,5 +298,6 @@ class BorrowingViewSet(
             borrowing.save(update_fields=["active", "datetime_return"])
             borrowing.implement.state = Implement.State.AVAILABLE
             borrowing.implement.save(update_fields=["state"])
+            transaction.on_commit(lambda: notifications.notify_returned(borrowing))
 
         return Response({"detail": "Devolución registrada correctamente."})

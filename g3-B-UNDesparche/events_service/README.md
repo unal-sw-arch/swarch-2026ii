@@ -32,6 +32,7 @@ El servicio escucha en el puerto 8002, pero su CORS solo acepta peticiones origi
 | `POST` | `/events/{pk}/publish/` | `http://localhost:8002/events/{pk}/publish/` | Publicar evento | `X-From-Gateway` + `X-User-*` |
 | `POST` | `/events/{pk}/subscribe/` | `http://localhost:8002/events/{pk}/subscribe/` | Suscribirse a un evento | Público o autenticado |
 | `POST` | `/events/{pk}/unsubscribe/` | `http://localhost:8002/events/{pk}/unsubscribe/` | Desuscribirse de un evento | Público o autenticado |
+| `POST` | `/events/unsubscribe/` | `http://localhost:8002/events/unsubscribe/` | Desuscripción pública mediante token (enlace de baja de correo) | Público (sin token) |
 
 ---
 
@@ -117,6 +118,48 @@ Soporta `application/json` o `multipart/form-data` (para subir imagen).
 ```
 
 Si el usuario está autenticado, se usa su `firebase_uid` y correo del token.
+
+---
+
+## Desuscripción pública mediante token (`POST /events/unsubscribe/`)
+
+Endpoint **público** (sin autenticación) que permite cancelar una suscripción a un evento usando el token firmado que se incluye en el enlace de baja de los correos de notificación.
+
+**Autenticación:** No requerida (público).
+
+**Body (JSON):**
+```json
+{
+  "token": "abc123def456..."
+}
+```
+
+El token se genera con `django.core.signing` usando `UNSUBSCRIBE_TOKEN_SALT` y contiene el `sid` (ID de la suscripción). El servicio valida la firma con `read_unsubscribe_token(token)`; si es inválida o expirada, responde **400 Bad Request**.
+
+**Respuesta (200):**
+```json
+{
+  "detail": "Te desuscribiste correctamente de este evento.",
+  "event_name": "Charla de Ingeniería",
+  "already": false
+}
+```
+
+**Respuesta si la suscripción ya fue cancelada (200):**
+```json
+{
+  "detail": "Esta suscripción ya había sido cancelada.",
+  "event_name": null,
+  "already": true
+}
+```
+
+**Respuesta si el token es inválido (400):**
+```json
+{
+  "detail": "El enlace de desuscripción no es válido o está incompleto."
+}
+```
 
 ---
 

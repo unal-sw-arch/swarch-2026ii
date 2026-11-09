@@ -1,12 +1,14 @@
 from django.db import IntegrityError, transaction
 from django.db.models import Q
+from django.core import signing
+
 from django_filters.rest_framework import DjangoFilterBackend
 
 from rest_framework import filters, status, viewsets
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 
 from .models import Event, Subscription
 from .serializers import EmailSubscriptionSerializer, EventSerializer
@@ -17,8 +19,10 @@ from .permissions import (
     IsSystemAdminOrEventAdmin,
 )
 
+from . import notifications
 from core.firebase import init_firebase
 from core.firebase_storage import delete_image, upload_image
+from .tokens import read_unsubscribe_token
 
 
 def _upload_event_image(image_file):
@@ -31,6 +35,44 @@ def _delete_event_image(image_url):
     """Elimina la imagen de un evento de Firebase Storage."""
     init_firebase()
     delete_image(image_url)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def unsubscribe_via_token(request):
+    token = request.data.get("token", "")
+
+    try:
+        data = read_unsubscribe_token(token)
+    except signing.BadSignature:
+        return Response(
+            {"detail": "El enlace de desuscripción no es válido o está incompleto."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    subscription = (
+        Subscription.objects.select_related("event").filter(id=data.get("sid")).first()
+    )
+
+    if subscription is None:
+        return Response(
+            {
+                "detail": "Esta suscripción ya había sido cancelada.",
+                "event_name": None,
+                "already": True,
+            }
+        )
+
+    event_name = subscription.event.name
+    subscription.delete()
+
+    return Response(
+        {
+            "detail": "Te desuscribiste correctamente de este evento.",
+            "event_name": event_name,
+            "already": False,
+        }
+    )
 
 
 class EventViewSet(viewsets.ModelViewSet):
@@ -90,8 +132,7 @@ class EventViewSet(viewsets.ModelViewSet):
                 "No es posible modificar un evento publicado que este cancelado o finalizado."
             )
 
-        previous_state = event.status
-        previous_datetime_start = event.datetime_start
+        previous = notifications.snapshot_event(event)
 
         image_file = self.request.FILES.get("image_file")
         if image_file:
@@ -101,6 +142,9 @@ class EventViewSet(viewsets.ModelViewSet):
             updated_event = serializer.save(image=image_url)
         else:
             updated_event = serializer.save()
+        transaction.on_commit(
+            lambda: notifications.notify_event_update(previous, updated_event)
+        )
 
     def perform_destroy(self, instance):
         is_system_admin = self.request.user.role == SYS_ADMIN
@@ -179,6 +223,8 @@ class EventViewSet(viewsets.ModelViewSet):
             subscription = Subscription.objects.create(
                 event=event, notification_email=email
             )
+
+        transaction.on_commit(lambda: notifications.notify_subscribed(subscription))
 
         return Response(
             {"detail": "Suscripción realizada correctamente."},

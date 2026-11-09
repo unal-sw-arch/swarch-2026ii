@@ -126,3 +126,12 @@ async def unsubscribe_event(
         "POST", f"/events/{event_id}/unsubscribe/", user=current_user, json=body
     )
     return relay(upstream)
+
+
+@router.post("/unsubscribe/")
+async def unsubscribe_via_token(body: dict | None = None):
+    """Proxy a Events Service: desuscripción pública mediante token."""
+    upstream = await events_service.request(
+        "POST", "/events/unsubscribe/", json=body
+    )
+    return relay(upstream)

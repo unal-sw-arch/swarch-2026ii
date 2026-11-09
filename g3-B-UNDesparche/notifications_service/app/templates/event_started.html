@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<p>¡<strong>{{ event_name }}</strong> acaba de comenzar!</p>
+<p><strong>Lugar:</strong> {{ place }}<br>
+<strong>Termina:</strong> {{ datetime_end | datetime_es }}</p>
+{% endblock %}

@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<p>El evento <strong>{{ event_name }}</strong> tuvo cambios. Estos son los datos actualizados:</p>
+<p><strong>Inicio:</strong> {{ datetime_start | datetime_es }}{% if previous_datetime_start is defined and previous_datetime_start %} <span style="color:#999;">(antes: {{ previous_datetime_start | datetime_es }})</span>{% endif %}<br>
+<strong>Fin:</strong> {{ datetime_end | datetime_es }}<br>
+<strong>Lugar:</strong> {{ place }}{% if previous_place is defined and previous_place %} <span style="color:#999;">(antes: {{ previous_place }})</span>{% endif %}</p>
+{% endblock %}

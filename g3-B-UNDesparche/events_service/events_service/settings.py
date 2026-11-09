@@ -20,7 +20,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / "events_service" / ".env")
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-events-service-fallback-key-12345")
+SECRET_KEY = os.getenv(
+    "SECRET_KEY", "django-insecure-events-service-fallback-key-12345"
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1")
@@ -142,7 +144,11 @@ MAILERS = {
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS").split(",") if o.strip()]
+CORS_ALLOWED_ORIGINS = [
+    o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS").split(",") if o.strip()
+]
+
+UNSUBSCRIBE_TOKEN_SALT = os.getenv("UNSUBSCRIBE_TOKEN_SALT", "event-unsubscribe")
 
 REST_FRAMEWORK = {
     "DEFAULT_FILTER_BACKENDS": [
