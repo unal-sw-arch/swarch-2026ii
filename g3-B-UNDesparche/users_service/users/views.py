@@ -1,4 +1,6 @@
-from rest_framework import filters, mixins, viewsets
+from django.db import IntegrityError, transaction
+from rest_framework import filters, viewsets
+from rest_framework import status as http_status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
@@ -7,61 +9,61 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import User
-from .serializers import UserSerializer
-from .permissions import IsSystemAdmin, IsSystemAdminOrImplementAdmin
-from .services import sync_claims
+from .serializers import UserCreateSerializer, UserSerializer
+from .permissions import (
+    IsGatewayServiceCall,
+    IsGatewayUserLookup,
+    IsSystemAdmin,
+    IsSystemAdminOrImplementAdmin,
+)
 
 
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def login(request):
-    # La autenticación ya verificó el token y creó o vinculó al usuario en la BD
-    claims_changed = sync_claims(request.user, current_claims=request.auth)
-    return Response(
-        {
-            "id": request.user.id,
-            "role": request.user.role,
-            "claims_changed": claims_changed,
-        }
-    )
-
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def me(request):
-    groups = list(request.user.groups.values_list("name", flat=True))
-    return Response(
-        {
-            "id": request.user.id,
-            "email": request.user.email,
-            "name": request.user.name,
-            "faculty": request.user.faculty,
-            "status": request.user.status,
-            "roles": request.user.role,
-        }
-    )
-
-
-class UserViewSet(
-    mixins.ListModelMixin,
-    mixins.RetrieveModelMixin,
-    mixins.UpdateModelMixin,
-    mixins.DestroyModelMixin,
-    viewsets.GenericViewSet,
-):
+class UserViewSet(viewsets.ModelViewSet):
 
     queryset = User.objects.all().order_by("date_joined")
     serializer_class = UserSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = {"faculty": ["exact"], "role": ["exact"], "status": ["exact"]}
+    filterset_fields = {
+        "faculty": ["exact"],
+        "role": ["exact"],
+        "status": ["exact"],
+        "firebase_uid": ["exact"],
+    }
     search_fields = ["email", "name"]
 
+    def get_serializer_class(self):
+        if self.action == "create":
+            return UserCreateSerializer
+        return UserSerializer
+
     def get_permissions(self):
-        if self.action in ["list", "retrieve"]:
-            # Ambos roles pueden listar y ver detalle
+        if self.action == "create":
+            # Primer login: lo crea el gateway (todavía no hay usuario) o un admin del sistema
+            return [(IsGatewayServiceCall | IsSystemAdmin)()]
+        if self.action == "list":
+            # El gateway busca a un usuario por firebase_uid; los administradores listan
+            return [(IsGatewayUserLookup | IsSystemAdminOrImplementAdmin)()]
+        if self.action in ["retrieve", "partial_update"]:
+            # Ambos roles pueden ver detalle
             return [IsAuthenticated(), IsSystemAdminOrImplementAdmin()]
         # Solo el admin del sistema puede modificar roles, estado y eliminar
         return [IsAuthenticated(), IsSystemAdmin()]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            with transaction.atomic():
+                user = serializer.save()
+        except IntegrityError:
+            # Dos peticiones simultáneas pasaron la validación a la vez y la BD
+            # (firebase_uid y email únicos) rechazó la segunda. El gateway lo maneja.
+            return Response(
+                {"detail": "El usuario ya existe."},
+                status=http_status.HTTP_409_CONFLICT,
+            )
+        # Se responde con el serializer completo: el gateway necesita rol y estado
+        return Response(UserSerializer(user).data, status=http_status.HTTP_201_CREATED)
 
     def partial_update(self, request, *args, **kwargs):
         target = self.get_object()

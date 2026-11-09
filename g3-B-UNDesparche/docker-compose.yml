@@ -1,52 +1,113 @@
 services:
-  events_service:
-    build: ./events_service
-    container_name: events_service
-    ports:
-      - "8000:8000"
-    env_file:
-      - ./events_service/events_service/.env
-    volumes:
-      - ./firebase_credentials.json:/app/firebase_credentials.json:ro
-      - events_data:/data
+  db:
+    image: postgres:15-alpine
+    container_name: undesparche_db
     restart: unless-stopped
-
-  users_service:
-    build: ./users_service
-    container_name: users_service
+    environment:
+      POSTGRES_USER: undesparche
+      POSTGRES_PASSWORD: undesparche_pass
+      POSTGRES_DB: undesparche_users
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-sql:/docker-entrypoint-initdb.d:ro
     ports:
-      - "5000:5000"
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U undesparche -d undesparche_users"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  users:
+    build: ./users_service
+    container_name: undesparche_users_service
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     env_file:
       - ./users_service/users_service/.env
-    volumes:
-      - ./firebase_credentials.json:/app/firebase_credentials.json:ro
-      - users_data:/data
-    restart: unless-stopped
-
-  inventory_service:
-    build: ./inventory_service
-    container_name: inventory_service
     ports:
-      - "8080:8080"
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 8001), 3); s.close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    command: ["sh", "-c", "python manage.py migrate --noinput && exec python manage.py runserver 0.0.0.0:8001"]
+
+  events:
+    build: ./events_service
+    container_name: undesparche_events_service
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./events_service/events_service/.env
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./events_service/firebase_credentials.json:/app/firebase_credentials.json:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 8002), 3); s.close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    command: ["sh", "-c", "python manage.py migrate --noinput && exec python manage.py runserver 0.0.0.0:8002"]
+
+  inventory:
+    build: ./inventory_service
+    container_name: undesparche_inventory_service
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     env_file:
       - ./inventory_service/inventory_service/.env
-    volumes:
-      - ./firebase_credentials.json:/app/firebase_credentials.json:ro
-      - inventory_data:/data
-    restart: unless-stopped
-
-  frontend:
-    build: ./frontend_web
-    container_name: frontend_web
     ports:
-      - "5172:5172"
-    depends_on:
-      - events_service
-      - users_service
-      - inventory_service
+      - "8003:8003"
+    volumes:
+      - ./inventory_service/firebase_credentials.json:/app/firebase_credentials.json:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 8003), 3); s.close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    command: ["sh", "-c", "python manage.py migrate --noinput && exec python manage.py runserver 0.0.0.0:8003"]
+
+  gateway:
+    build: ./gateway
+    container_name: undesparche_gateway
     restart: unless-stopped
+    depends_on:
+      users:
+        condition: service_healthy
+      events:
+        condition: service_healthy
+      inventory:
+        condition: service_healthy
+    env_file:
+      - ./gateway/.env
+    environment:
+      USERS_SERVICE_URL: http://users:8001
+      EVENTS_SERVICE_URL: http://events:8002
+      INVENTORY_SERVICE_URL: http://inventory:8003
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./gateway/firebase_credentials.json:/app/firebase_credentials.json:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 volumes:
-  events_data:
-  users_data:
-  inventory_data:
+  postgres_data:

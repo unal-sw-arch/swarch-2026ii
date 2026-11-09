@@ -1,15 +1,11 @@
 from rest_framework import serializers
-from .models import Borrowing, Implement, Reserve, User
-
-
-class UserSummarySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ["id", "name", "email"]
+from .models import Borrowing, Implement, Reserve
 
 
 class ImplementSerializer(serializers.ModelSerializer):
-    image_file = serializers.ImageField(write_only=True, required=False, allow_null=True)
+    image_file = serializers.ImageField(
+        write_only=True, required=False, allow_null=True
+    )
 
     class Meta:
         model = Implement
@@ -26,7 +22,7 @@ class ImplementSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "image"]
 
     def validate_state(self, value):
-        if value in ("RES", "PRE"):
+        if value in (Implement.State.RESERVED, Implement.State.BORROWED):
             raise serializers.ValidationError(
                 "El estado Reservado y Prestado solo puede ser asignado por el sistema."
             )
@@ -45,7 +41,7 @@ class ReserveSerializer(serializers.ModelSerializer):
     implement = serializers.PrimaryKeyRelatedField(queryset=Implement.objects.all())
     implement_name = serializers.CharField(source="implement.name", read_only=True)
     implement_state = serializers.CharField(source="implement.state", read_only=True)
-    user = UserSummarySerializer(read_only=True)
+    user = serializers.SerializerMethodField()
 
     class Meta:
         model = Reserve
@@ -69,8 +65,11 @@ class ReserveSerializer(serializers.ModelSerializer):
             "active",
         ]
 
+    def get_user(self, obj):
+        return {"id": obj.user_id, "email": obj.user_email}
+
     def validate_implement(self, implement):
-        if implement.state != "DIS":
+        if implement.state != Implement.State.AVAILABLE:
             raise serializers.ValidationError(
                 "Este implemento no está disponible para reservar."
             )
@@ -81,12 +80,12 @@ class ReserveSerializer(serializers.ModelSerializer):
         user = request.user if request else None
 
         if user and user.is_authenticated:
-            if Reserve.objects.filter(user=user, active=True).exists():
+            if Reserve.objects.filter(user_id=user.uid, active=True).exists():
                 raise serializers.ValidationError(
                     "Ya tienes una reserva activa. Solo se permite una reserva a la vez."
                 )
 
-            if Borrowing.objects.filter(user=user, active=True).exists():
+            if Borrowing.objects.filter(user_id=user.uid, active=True).exists():
                 raise serializers.ValidationError(
                     "Tienes un préstamo activo. No puedes realizar una reserva."
                 )
@@ -96,24 +95,20 @@ class ReserveSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data["implement"] = ImplementSerializer(instance.implement).data
-        data["user"] = UserSummarySerializer(instance.user).data
         return data
 
 
 class ReserveAdminSerializer(ReserveSerializer):
-    user_email = serializers.CharField(source="user.email", read_only=True)
-    user_name = serializers.CharField(source="user.name", read_only=True)
 
     class Meta(ReserveSerializer.Meta):
-        fields = ReserveSerializer.Meta.fields + ["user_email", "user_name"]
+        fields = ReserveSerializer.Meta.fields + ["user_email"]
+        read_only_fields = ReserveSerializer.Meta.read_only_fields + ["user_email"]
 
 
 class BorrowingSerializer(serializers.ModelSerializer):
     implement = serializers.PrimaryKeyRelatedField(queryset=Implement.objects.all())
     implement_name = serializers.CharField(source="implement.name", read_only=True)
-    user = UserSummarySerializer(read_only=True)
-    user_email = serializers.CharField(source="user.email", read_only=True)
-    user_name = serializers.CharField(source="user.name", read_only=True)
+    user = serializers.SerializerMethodField()
 
     class Meta:
         model = Borrowing
@@ -123,7 +118,6 @@ class BorrowingSerializer(serializers.ModelSerializer):
             "implement_name",
             "user",
             "user_email",
-            "user_name",
             "datetime_borrowed",
             "datetime_return",
             "active",
@@ -133,12 +127,13 @@ class BorrowingSerializer(serializers.ModelSerializer):
             "implement_name",
             "user",
             "user_email",
-            "user_name",
             "datetime_borrowed",
         ]
+
+    def get_user(self, obj):
+        return {"id": obj.user_id, "email": obj.user_email}
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data["implement"] = ImplementSerializer(instance.implement).data
-        data["user"] = UserSummarySerializer(instance.user).data
         return data

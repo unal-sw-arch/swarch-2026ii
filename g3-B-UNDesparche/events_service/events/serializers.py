@@ -43,15 +43,14 @@ class EventSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "is_subscribed", "published", "image"]
 
     def get_organizer(self, obj):
-        return {"id": obj.organizer_id, "name": obj.organizer_name}
+        return {"id": obj.organizer_id, "email": obj.organizer_email}
 
     def get_is_subscribed(self, obj):
         request = self.context.get("request")
-        if not request or request.user.is_anonymous:
+        if not request or not request.user.is_authenticated:
             return False
 
-        user_uid = getattr(request.user, "uid", None) or getattr(request.user, "firebase_uid", None) or str(getattr(request.user, "id", ""))
-        return obj.subscriptions.filter(user_id=user_uid).exists()
+        return obj.subscriptions.filter(user_id=request.user.uid).exists()
 
     def validate(self, data):
         datetime_start = data.get(
