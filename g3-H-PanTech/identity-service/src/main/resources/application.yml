@@ -1,5 +1,6 @@
 server:
   port: ${PORT:8002}
+  shutdown: graceful
 
 spring:
   application:
@@ -8,6 +9,9 @@ spring:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/panaderia}
     username: ${DATABASE_USER:panaderia}
     password: ${DATABASE_PASSWORD:panaderia}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 5000
   jpa:
     open-in-view: false
     hibernate:
@@ -15,13 +19,23 @@ spring:
     properties:
       hibernate:
         default_schema: auth
+        jdbc:
+          time_zone: UTC
   flyway:
+    enabled: true
+    locations: classpath:db/migration
     schemas: auth
     default-schema: auth
     create-schemas: true
+    baseline-on-migrate: true
   data:
     redis:
       url: ${REDIS_URL:redis://localhost:6379/0}
+      timeout: 2s
+      connect-timeout: 2s
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: UTC
 
 identity:
   jwt:
@@ -31,3 +45,8 @@ identity:
     refresh-ttl-seconds: ${JWT_REFRESH_TTL_SECONDS:604800}
     private-key-path: ${JWT_PRIVATE_KEY_PATH:/run/secrets/jwt_private.pem}
     public-key-path: ${JWT_PUBLIC_KEY_PATH:/run/secrets/jwt_public.pem}
+
+logging:
+  level:
+    com.panaderia.identity: INFO
+    org.hibernate.SQL: WARN

@@ -1,0 +1,30 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:identity;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS auth
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        default_schema: auth
+        hbm2ddl:
+          create_namespaces: true
+  flyway:
+    enabled: false
+  data:
+    redis:
+      url: redis://localhost:6399/15
+      timeout: 50ms
+      connect-timeout: 50ms
+
+identity:
+  jwt:
+    issuer: identity-service
+    audience: panaderia-express
+    access-ttl-seconds: 900
+    refresh-ttl-seconds: 604800
+    private-key-path: build/test-secrets/jwt_private.pem
+    public-key-path: build/test-secrets/jwt_public.pem
