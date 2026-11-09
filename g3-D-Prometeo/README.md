@@ -1,6 +1,6 @@
 # Team 3-D-Prometeo
 
-![Components and conectors view](Prometeo_banner.png)
+![Components and conectors view](diagrams/Prometeo_banner.png)
 
 ## Members
 
