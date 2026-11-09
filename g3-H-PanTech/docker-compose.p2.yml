@@ -76,15 +76,23 @@ services:
       JWT_AUDIENCE: ${JWT_AUDIENCE:-panaderia-express}
       SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      RATE_LIMIT_USER_PER_MINUTE: ${RATE_LIMIT_USER_PER_MINUTE:-120}
+      RATE_LIMIT_IP_PER_MINUTE: ${RATE_LIMIT_IP_PER_MINUTE:-300}
     ports:
       - "${API_GATEWAY_HOST_PORT:-8080}:${GATEWAY_PORT:-8080}"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:${GATEWAY_PORT:-8080}/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     depends_on:
       identity-service:
         condition: service_started
       order-service:
         condition: service_started
       kitchen-service:
-        condition: service_started
+        condition: service_healthy
       reporting-service:
         condition: service_started
       redis:
@@ -180,6 +188,12 @@ services:
       KITCHEN_CAPACITY: ${KITCHEN_CAPACITY:-4}
       DEFAULT_PREP_MINUTES: ${DEFAULT_PREP_MINUTES:-5}
       SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:${KITCHEN_PORT:-8001}/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     depends_on:
       postgres:
         condition: service_healthy

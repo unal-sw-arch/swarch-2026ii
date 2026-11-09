@@ -1,0 +1,11 @@
+# Binarios, pruebas y archivos que no van a la imagen.
+bin/
+*.exe
+*.test
+*.out
+tests/
+.env
+.env.*
+README.md
+openapi.yaml
+.git
