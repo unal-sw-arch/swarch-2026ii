@@ -1,0 +1,17 @@
+<%- include("partials/header") %>
+
+<a href="/pedidos" class="back">← Mis pedidos</a>
+
+<% if (isNew) { %>
+  <div class="panel success">
+    <h1>¡Pedido recibido!</h1>
+    <p>Tu número de pedido es <strong>#<%= shortId(order.id) %></strong>.
+       Te enviamos el recibo a <strong><%= order.email %></strong>.</p>
+    <p>Pagas al recibir. Puedes seguir el estado del pedido en "Mis pedidos".</p>
+  </div>
+<% } %>
+
+<%- include("partials/order", { order }) %>
+<% if (order.estimated) { %><%- include("partials/weight-notice") %><% } %>
+
+<%- include("partials/footer") %>

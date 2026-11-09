@@ -1,0 +1,174 @@
+name: kanasta
+
+# Two networks: the front-ends can only reach the API Gateway;
+# the services, the broker and the databases live behind it.
+networks:
+  frontend:
+  backend:
+
+volumes:
+  catalog-data:
+  accounts-data:
+  orders-data:
+  notifications-data:
+  images-data:
+
+services:
+  # ---------- presentation ----------
+  web:
+    build: ./web
+    environment:
+      GATEWAY_URL: http://api-gateway:8000
+      TZ: America/Bogota
+    ports:
+      - "8080:8080"
+    networks: [frontend]
+    depends_on: [api-gateway]
+
+  admin-desktop:
+    build: ./admin-desktop
+    environment:
+      KANASTA_API: http://api-gateway:8000
+      TZ: America/Bogota
+    ports:
+      - "6080:6080"
+    networks: [frontend]
+    depends_on: [api-gateway]
+
+  # ---------- communication ----------
+  api-gateway:
+    build: ./api-gateway
+    environment:
+      CATALOG_URL: http://catalog-service:8001
+      ORDERS_URL: http://orders-service:8002
+      IMAGES_URL: http://image-provider:8003
+      ACCOUNTS_URL: http://accounts-service:8004
+      NOTIFICATIONS_URL: http://notifications-service:8005
+    ports:
+      - "8000:8000"
+    networks: [frontend, backend]
+    depends_on: [catalog-service, orders-service, image-provider, accounts-service, notifications-service]
+
+  message-broker:
+    image: rabbitmq:3-management
+    ports:
+      - "15672:15672"
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      retries: 12
+
+  # ---------- logic ----------
+  catalog-service:
+    build: ./catalog-service
+    environment:
+      DATABASE_URL: postgresql://kanasta:kanasta@catalog-db:5432/catalog
+    networks: [backend]
+    depends_on:
+      catalog-db:
+        condition: service_healthy
+
+  orders-service:
+    build: ./orders-service
+    environment:
+      MONGO_URL: mongodb://orders-db:27017
+      MONGO_DB: orders
+      CATALOG_URL: http://catalog-service:8001/api/catalog
+      RABBITMQ_URL: amqp://guest:guest@message-broker:5672
+    networks: [backend]
+    depends_on:
+      orders-db:
+        condition: service_healthy
+      message-broker:
+        condition: service_healthy
+      catalog-service:
+        condition: service_started
+
+  accounts-service:
+    build: ./accounts-service
+    environment:
+      DATABASE_URL: jdbc:postgresql://accounts-db:5432/accounts
+      DATABASE_USER: kanasta
+      DATABASE_PASSWORD: kanasta
+      RABBITMQ_HOST: message-broker
+    networks: [backend]
+    depends_on:
+      accounts-db:
+        condition: service_healthy
+      message-broker:
+        condition: service_healthy
+
+  notifications-service:
+    build: ./notifications-service
+    environment:
+      MONGO_URL: mongodb://notifications-db:27017
+      MONGO_DB: notifications
+      RABBITMQ_URL: amqp://guest:guest@message-broker:5672/
+      CATALOG_URL: http://catalog-service:8001
+    networks: [backend]
+    depends_on:
+      notifications-db:
+        condition: service_healthy
+      message-broker:
+        condition: service_healthy
+
+  image-provider:
+    build: ./image-provider
+    environment:
+      IMAGES_DIR: /app/images
+    volumes:
+      - images-data:/app/images
+    networks: [backend]
+
+  # ---------- data ----------
+  catalog-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kanasta
+      POSTGRES_PASSWORD: kanasta
+      POSTGRES_DB: catalog
+    volumes:
+      - ./catalog-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - catalog-data:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kanasta -d catalog"]
+      interval: 5s
+      retries: 10
+
+  accounts-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kanasta
+      POSTGRES_PASSWORD: kanasta
+      POSTGRES_DB: accounts
+    volumes:
+      - ./accounts-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - accounts-data:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kanasta -d accounts"]
+      interval: 5s
+      retries: 10
+
+  orders-db:
+    image: mongo:7
+    volumes:
+      - ./orders-service/db/seed.js:/docker-entrypoint-initdb.d/seed.js:ro
+      - orders-data:/data/db
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      retries: 10
+
+  notifications-db:
+    image: mongo:7
+    volumes:
+      - notifications-data:/data/db
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      retries: 10

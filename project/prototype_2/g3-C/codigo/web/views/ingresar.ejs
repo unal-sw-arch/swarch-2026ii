@@ -1,0 +1,18 @@
+<%- include("partials/header") %>
+
+<div class="narrow">
+  <form method="post" action="/ingresar" class="panel form">
+    <h1>Ingresar</h1>
+    <input type="hidden" name="volver" value="<%= volver %>">
+    <label>Correo
+      <input type="email" name="email" value="<%= email %>" required autofocus>
+    </label>
+    <label>Contraseña
+      <input type="password" name="password" required>
+    </label>
+    <button type="submit">Ingresar</button>
+    <p class="small">¿No tienes cuenta? <a href="/registro">Crea una aquí</a>.</p>
+  </form>
+</div>
+
+<%- include("partials/footer") %>

@@ -1,0 +1,38 @@
+<%- include("partials/header") %>
+
+<h1>Mi cuenta</h1>
+
+<div class="two-columns">
+  <form method="post" action="/cuenta" class="panel form">
+    <h2>Mis datos</h2>
+    <label>Correo
+      <input value="<%= user.email %>" disabled>
+    </label>
+    <label>Nombre completo
+      <input name="name" value="<%= user.name %>" required>
+    </label>
+    <label>Teléfono
+      <input name="phone" value="<%= user.phone %>">
+    </label>
+    <label>Dirección de entrega
+      <input name="address" value="<%= user.address %>">
+    </label>
+    <button type="submit">Guardar cambios</button>
+  </form>
+
+  <form method="post" action="/cuenta/clave" class="panel form">
+    <h2>Cambiar contraseña</h2>
+    <label>Contraseña actual
+      <input type="password" name="currentPassword" required>
+    </label>
+    <label>Contraseña nueva (mínimo 6 caracteres)
+      <input type="password" name="newPassword" minlength="6" required>
+    </label>
+    <label>Repite la contraseña nueva
+      <input type="password" name="newPassword2" minlength="6" required>
+    </label>
+    <button type="submit">Cambiar contraseña</button>
+  </form>
+</div>
+
+<%- include("partials/footer") %>

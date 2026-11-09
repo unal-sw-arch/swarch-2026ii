@@ -1,0 +1,53 @@
+<%- include("partials/header") %>
+
+<section class="hero">
+  <h1>¿Qué necesitas hoy?</h1>
+  <p>Frutas, verduras, carnes, mercado y mucho más, con entrega a domicilio en tu barrio.</p>
+  <form method="get" action="/" class="search">
+    <input type="search" name="buscar" value="<%= search %>" placeholder="Buscar, por ejemplo: tomate">
+    <% if (category) { %><input type="hidden" name="categoria" value="<%= category %>"><% } %>
+    <button type="submit">Buscar</button>
+  </form>
+</section>
+
+<nav class="chips">
+  <a class="chip <%= category === '' ? 'active' : '' %>" href="/?buscar=<%= encodeURIComponent(search) %>">Todas</a>
+  <% categories.forEach((c) => { %>
+    <a class="chip <%= category === c.slug ? 'active' : '' %>"
+       href="/?categoria=<%= c.slug %>&buscar=<%= encodeURIComponent(search) %>"><%= c.name %></a>
+  <% }) %>
+</nav>
+
+<p class="muted">
+  <% if (products.length === 0) { %>
+    No encontramos productos<%= search ? ` para "${search}"` : "" %>. Prueba con otra palabra o categoría.
+  <% } else { %>
+    <%= products.length %> productos<%= search ? ` para "${search}"` : "" %>
+  <% } %>
+</p>
+
+<section class="grid">
+  <% products.forEach((p) => { const soldOut = p.stock <= 0; %>
+    <article class="card">
+      <a href="/producto/<%= p.id %>"><img src="/images/<%= p.image %>" alt="<%= p.name %>" loading="lazy"></a>
+      <div class="card-body">
+        <span class="tag"><%= p.category_name %></span>
+        <h3><a href="/producto/<%= p.id %>"><%= p.name %></a></h3>
+        <% if (p.reviews > 0) { %><p class="stars small"><%= stars(p.rating) %> <span class="muted">(<%= p.reviews %>)</span></p><% } %>
+        <p class="price"><%= priceWithUnit(p) %></p>
+        <% if (p.unit !== "unidad") { %><p class="small muted">El valor final puede variar un poco</p><% } %>
+        <% if (soldOut) { %>
+          <button disabled>Agotado</button>
+        <% } else { %>
+          <form method="post" action="/carrito/agregar" class="buy">
+            <input type="hidden" name="productId" value="<%= p.id %>">
+            <input type="number" name="quantity" value="1" min="<%= quantityStep(p.unit) %>" step="<%= quantityStep(p.unit) %>" max="<%= p.stock %>" aria-label="Cantidad">
+            <button type="submit">Agregar</button>
+          </form>
+        <% } %>
+      </div>
+    </article>
+  <% }) %>
+</section>
+
+<%- include("partials/footer") %>

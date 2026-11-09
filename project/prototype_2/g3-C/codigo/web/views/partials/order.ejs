@@ -1,0 +1,20 @@
+<article class="panel order">
+  <div class="order-head">
+    <div>
+      <strong>Pedido #<%= shortId(order.id) %></strong>
+      <span class="muted small">· <%= formatDate(order.createdAt) %></span>
+    </div>
+    <span class="status <%= order.status %>"><%= STATUS_LABELS[order.status] %></span>
+  </div>
+  <table class="table compact">
+    <% order.items.forEach((item) => { %>
+      <tr>
+        <td><%= item.name %></td>
+        <td><%= formatQuantity(item.quantity, item.unit) %></td>
+        <td class="right"><%= formatPrice(item.subtotal) %></td>
+      </tr>
+    <% }) %>
+  </table>
+  <p class="total">Total<%= order.estimated ? " aproximado" : "" %>: <strong><%= formatPrice(order.total) %></strong></p>
+  <p class="small muted">Entrega en <%= order.address %> · Tel. <%= order.phone %><%= order.notes ? ` · ${order.notes}` : "" %></p>
+</article>
