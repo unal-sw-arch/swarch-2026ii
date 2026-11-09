@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "reservation.created / reservation.confirmed",
+  "description": "Productor: Order Service. Consumidor: Worker.",
+  "type": "object",
+  "required": ["event_id", "occurred_at", "reservation_id", "customer_id", "date", "time", "people"],
+  "properties": {
+    "event_id": { "type": "string" },
+    "occurred_at": { "type": "string" },
+    "reservation_id": { "type": "string" },
+    "customer_id": { "type": "string" },
+    "date": { "type": "string", "description": "YYYY-MM-DD" },
+    "time": { "type": "string", "description": "HH:MM" },
+    "people": { "type": "integer" }
+  }
+}

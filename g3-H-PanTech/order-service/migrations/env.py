@@ -1,11 +1,16 @@
+import os
+import sys
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool, text
 
-import app.models  # noqa: F401  (registra las tablas en Base.metadata)
-from app.config import settings
-from app.database import SCHEMA, Base
+# Garantiza que `app` sea importable aunque Alembic se ejecute desde otra carpeta.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import app.models  # noqa: E402,F401  (registra las tablas en Base.metadata)
+from app.config import settings  # noqa: E402
+from app.database import SCHEMA, Base  # noqa: E402
 
 config = context.config
 if config.config_file_name is not None:

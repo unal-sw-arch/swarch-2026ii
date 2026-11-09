@@ -1,0 +1,15 @@
+{
+  "_comentario": "PARCHE OPCIONAL para infrastructure/rabbitmq/definitions.json (lo aplica Jaime). Agrega la cola del evento reservation.confirmed. Después: en el Order Service PUBLISH_RESERVATION_CONFIRMED=true y en el Worker EVENTS_QUEUES con worker.reservation_confirmed añadida.",
+  "queues": [
+    {
+      "name": "worker.reservation_confirmed",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "panaderia.dlx", "x-dead-letter-routing-key": "panaderia.dlq" }
+    }
+  ],
+  "bindings": [
+    { "source": "panaderia.events", "vhost": "/", "destination": "worker.reservation_confirmed", "destination_type": "queue", "routing_key": "reservation.confirmed", "arguments": {} }
+  ]
+}

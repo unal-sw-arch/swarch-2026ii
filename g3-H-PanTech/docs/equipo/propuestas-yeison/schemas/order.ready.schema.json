@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "order.ready",
+  "description": "Productor: Kitchen Service. Consumidor: Worker.",
+  "type": "object",
+  "required": ["event_id", "occurred_at", "order_id", "ready_at"],
+  "properties": {
+    "event_id": { "type": "string" },
+    "occurred_at": { "type": "string" },
+    "order_id": { "type": "string" },
+    "ready_at": { "type": "string" },
+    "customer_id": { "type": ["string", "null"] }
+  }
+}

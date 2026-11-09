@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "reservation.cancelled",
+  "description": "Productor: Order Service. Consumidor: Worker. Además del mínimo del contrato lleva date, time y people.",
+  "type": "object",
+  "required": ["event_id", "occurred_at", "reservation_id", "customer_id", "reason", "date", "time", "people"],
+  "properties": {
+    "event_id": { "type": "string" },
+    "occurred_at": { "type": "string" },
+    "reservation_id": { "type": "string" },
+    "customer_id": { "type": "string" },
+    "reason": { "type": "string" },
+    "date": { "type": "string" },
+    "time": { "type": "string" },
+    "people": { "type": "integer" }
+  }
+}
