@@ -151,13 +151,43 @@ go vet ./...
 go test ./...
 ```
 
-Las pruebas de integración levantan PostgreSQL y Redis con Docker y **se saltan solas** si Docker no está disponible (o con `go test -short ./...`). Las demás usan miniredis y no necesitan Docker.
+Las pruebas de integración levantan PostgreSQL y Redis con Docker y **se saltan solas** si Docker no está disponible (o con `go test -short ./...`). Las demás usan miniredis y no necesitan Docker. `tests/openapi_test.go` valida `openapi.yaml` y comprueba que las respuestas reales cumplen el contrato.
 
 Con Docker Compose:
 
 ```powershell
 docker compose -f docker-compose.p2.yml --env-file .env.p2.example up -d --build postgres redis rabbitmq rabbitmq-init kitchen-service
 ```
+
+## Pruebas de humo, seguridad y carga
+
+Corren contra el stack real (Docker). Desde `g3-H-PanTech`:
+
+```powershell
+.\kitchen-service\tests\smoke\run-smoke.ps1                  # humo + seguridad (96 verificaciones)
+.\kitchen-service\tests\smoke\run-smoke.ps1 -Suite security  # solo seguridad
+.\kitchen-service\tests\load\run-load.ps1                    # 50 pedidos, 500 consultas a GET /queue
+```
+
+Los scripts levantan postgres, redis, rabbitmq, kitchen-service y api-gateway (con `--no-deps`: Identity, Order y Reporting aún no existen) en el proyecto `panaderia-smoke`, con `tests/smoke/docker-compose.smoke.yml`, y lo bajan con `down -v` al terminar (`-KeepUp` lo deja arriba). Los contenedores tienen nombre fijo: baje el stack de desarrollo antes. El override:
+
+- sirve el JWKS desde el proceso de prueba (`go run ./tests/smoke`), que firma los tokens; **el helper nunca va en la imagen** (`.dockerignore` excluye `tests/`);
+- publica Kitchen en `127.0.0.1:8001` solo para probar llamadas directas;
+- usa un Redis con contraseña porque `infrastructure/redis/redis.conf` tiene `protected-mode yes` sin contraseña y ningún servicio puede conectarse (ver `docs/equipo/axel-notas-integracion.md`, X11).
+
+**Humo:** salud, 401 sin token, ruteo, encolar con `X-Service-Token` (201, 200 idempotente, 400), SJF, ETA, estados y `409`, capacidad (`KITCHEN_AT_CAPACITY`), entrega, `order.ready` en `worker.order_ready` (sobre y payload) e historial en PostgreSQL.
+
+**Seguridad:** tokens ajenos o inválidos (clave ajena, `iss`, `aud`, vencido, sin `exp`, `sub` no UUID, HS256, `alg none`, inyección CSV en permisos), rol insuficiente (cliente, mesero, cocinero, despachador, supervisor), recurso ajeno (`404`), Kitchen directo sin `X-Service-Token`, falsificación de `X-*` a través del Gateway, rate limiting (`429`) y CORS.
+
+**Carga:** `go run ./tests/load` encola 50 pedidos (idempotente) y consulta `GET /queue` con 10 clientes; verifica posiciones consecutivas, orden por `priority_score` con desempate FIFO y p95 bajo 500 ms. Resultado de referencia en esta máquina: 500 consultas, p95 ≈ 8 ms, 0 respuestas malas. Con `-gateway URL -token JWT` consulta por el Gateway.
+
+### Límite de confianza
+
+Kitchen **confía en `X-User-Id` y `X-Permissions`**: la frontera es la red interna (no se publica en el compose) y el Gateway, que borra los `X-*` del cliente y los reescribe desde el JWT. Quien llegue a Kitchen directo desde la red puede falsificarlos; solo `POST /queue/orders` exige un secreto (`X-Service-Token`). Para un entorno real haría falta mTLS o validar el JWT también en Kitchen.
+
+## OpenAPI
+
+[`openapi.yaml`](openapi.yaml) (OpenAPI 3.0.3) documenta los siete endpoints, esquemas, ejemplos y errores. Se puede abrir en cualquier visor (por ejemplo Swagger Editor).
 
 ## Estructura
 
@@ -169,5 +199,8 @@ internal/queue                prioridad, capacidad, ETA, transiciones (Redis) y 
 internal/repository           PostgreSQL: migraciones, tiempos, historial y capacidad
 internal/events               publicador RabbitMQ y outbox
 migrations/                   SQL del esquema kitchen
-tests/                        prioridad, ETA, handlers, transiciones, eventos e integración
+openapi.yaml                  contrato de la API
+tests/                        prioridad, ETA, handlers, transiciones, eventos, integración y contrato OpenAPI
+tests/smoke/                  humo y seguridad contra el stack (go run ./tests/smoke) y run-smoke.ps1
+tests/load/                   carga ligera de GET /queue y run-load.ps1
 ```

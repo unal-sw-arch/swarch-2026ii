@@ -100,10 +100,24 @@ go build ./...
 Con Docker (solo Gateway y sus dependencias; Identity, Order y Reporting aún no existen):
 
 ```powershell
-docker compose -f docker-compose.p2.yml --env-file .env.p2.example up -d --build redis kitchen-service
+docker compose -f docker-compose.p2.yml --env-file .env.p2.example up -d --build postgres redis rabbitmq rabbitmq-init kitchen-service
 docker compose -f docker-compose.p2.yml --env-file .env.p2.example up -d --no-deps --build api-gateway
 curl http://localhost:8080/health
 ```
+
+> Con el `redis.conf` actual (`protected-mode yes` sin contraseña) ningún contenedor puede conectarse a Redis y `/ready` responde 503 (ver `docs/equipo/axel-notas-integracion.md`, X11). Las pruebas del repositorio usan un Redis con contraseña mediante `kitchen-service/tests/smoke/docker-compose.smoke.yml`.
+
+### Pruebas de extremo a extremo
+
+El humo y las pruebas de seguridad del Gateway (tokens inválidos, roles, spoofing de encabezados, rate limiting, CORS) viven en `kitchen-service/tests/smoke` porque recorren Gateway y Kitchen juntos. Se corren con `.\kitchen-service\tests\smoke\run-smoke.ps1` desde `g3-H-PanTech` (ver el README de Kitchen). Para generar un token a mano:
+
+```powershell
+cd api-gateway
+go run ./tests/jwtkit serve -addr :9999 -key $env:TEMP\k.pem                         # JWKS falso, en una terminal
+go run ./tests/jwtkit token -key $env:TEMP\k.pem -perms kitchen:read,kitchen:update  # imprime un JWT
+```
+
+El Gateway debe arrancar con `JWKS_URL=http://host.docker.internal:9999/.well-known/jwks.json`.
 
 ## Estructura
 
@@ -116,5 +130,5 @@ internal/proxy                reverse proxy y limpieza de encabezados
 internal/middleware           request id, logging, CORS, rate limit, auth y permisos
 internal/http                 formato uniforme de errores
 tests/                        pruebas con httptest, miniredis y un JWKS falso
-tests/jwtkit                 helper de pruebas: sirve un JWKS falso y firma tokens (no va en la imagen)
+tests/jwtkit                  helper de pruebas: sirve un JWKS falso y firma tokens (no va en la imagen)
 ```
