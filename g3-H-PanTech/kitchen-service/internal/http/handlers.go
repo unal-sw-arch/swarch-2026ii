@@ -112,7 +112,6 @@ func (req enqueueRequest) validate() (queue.EnqueueInput, map[string]any) {
 	return in, problems
 }
 
-// EnqueueOrder responde 201 al crear y 200 si el order_id ya existía.
 func (h *Handler) EnqueueOrder(w http.ResponseWriter, r *http.Request) {
 	if !validServiceToken(r, h.ServiceToken) {
 		writeError(w, r, http.StatusUnauthorized, CodeUnauthenticated, "X-Service-Token ausente o inválido", nil)
@@ -157,7 +156,7 @@ var listableStatuses = map[string]bool{
 	queue.StatusPendiente: true, queue.StatusEnPreparacion: true, queue.StatusListo: true,
 }
 
-// GetQueue: con solo kitchen:deliver devuelve únicamente pedidos listo.
+// Con solo kitchen:deliver se devuelven únicamente pedidos listo.
 func (h *Handler) GetQueue(w http.ResponseWriter, r *http.Request) {
 	p, ok := authorize(w, r, PermKitchenRead, PermKitchenDeliver)
 	if !ok {
@@ -183,7 +182,7 @@ func (h *Handler) GetQueue(w http.ResponseWriter, r *http.Request) {
 		if onlyReady && v.Status != queue.StatusListo {
 			continue
 		}
-		// entregado ya no está en la cola activa.
+		// Los entregados ya no están en la cola activa.
 		if statusFilter != "" && v.Status != statusFilter {
 			continue
 		}
@@ -218,8 +217,6 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 	writeError(w, r, http.StatusNotFound, CodeNotFound, "La comanda no existe", nil)
 }
 
-// GetOrder implementa GET /queue/orders/{id} (detalle y ETA). Con solo kitchen:deliver
-// únicamente se ven comandas listo; las demás responden 404.
 func (h *Handler) GetOrder(w http.ResponseWriter, r *http.Request) {
 	p, ok := authorize(w, r, PermKitchenRead, PermKitchenDeliver)
 	if !ok {
@@ -246,7 +243,6 @@ type statusRequest struct {
 	Status string `json:"status"`
 }
 
-// UpdateStatus implementa PATCH /queue/orders/{id}/status (kitchen:update).
 func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	p, ok := authorize(w, r, PermKitchenUpdate)
 	if !ok {
@@ -278,7 +274,6 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, view)
 }
 
-// DeliverOrder implementa POST /queue/orders/{id}/deliver (kitchen:deliver, estado listo).
 func (h *Handler) DeliverOrder(w http.ResponseWriter, r *http.Request) {
 	p, ok := authorize(w, r, PermKitchenDeliver)
 	if !ok {

@@ -38,7 +38,6 @@ var allPerms = []string{
 	"users:manage", "users:manage_operational", "roles:manage",
 }
 
-// seen es lo que un servicio falso recibió del Gateway.
 type seen struct {
 	service string
 	method  string
@@ -179,7 +178,7 @@ func newHarness(t *testing.T, opts ...option) *harness {
 
 func (h *harness) claims(perms ...string) jwt.MapClaims {
 	return jwt.MapClaims{
-		"sub": userID, "email": "axel@demo.com", "roles": []string{"cocinero"},
+		"sub": userID, "email": "cocina@demo.com", "roles": []string{"cocinero"},
 		"permissions": perms, "level": 50, "iss": issuer, "aud": audience,
 		"iat": time.Now().Unix(), "exp": time.Now().Add(15 * time.Minute).Unix(),
 	}

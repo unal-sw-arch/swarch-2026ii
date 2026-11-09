@@ -1,4 +1,3 @@
-// Package proxy reenvía a los servicios internos.
 package proxy
 
 import (
@@ -14,7 +13,6 @@ import (
 	httpx "api-gateway/internal/http"
 )
 
-// identityHeaders solo los puede poner el Gateway.
 var identityHeaders = []string{
 	"X-User-Id", "X-User-Email", "X-Roles", "X-Permissions", "X-Level", "X-Service-Token", "X-Request-Id",
 }
@@ -25,7 +23,7 @@ func StripIdentityHeaders(h http.Header) {
 	}
 }
 
-// New conserva Authorization (Identity la usa en /auth/me y /auth/logout).
+// Authorization se conserva: Identity la usa.
 func New(target *url.URL, log *slog.Logger) *httputil.ReverseProxy {
 	return &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {

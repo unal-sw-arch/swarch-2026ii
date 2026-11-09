@@ -1,9 +1,5 @@
-// Command load es una prueba de carga ligera contra GET /queue: encola N pedidos (50 por
-// defecto), consulta la cola con varios clientes en paralelo y comprueba que las respuestas
-// sean correctas y estables, y que la latencia se mantenga bajo un umbral.
-//
-//	go run ./tests/load                                   # Kitchen directo en localhost:8001
-//	go run ./tests/load -gateway http://localhost:8080 -token <JWT con kitchen:read>
+// load mide GET /queue con 50 pedidos y varios clientes; falla si hay respuestas incorrectas o el p95 es alto.
+// Uso: go run ./tests/load [-gateway URL -token JWT]
 package main
 
 import (
@@ -129,8 +125,6 @@ func main() {
 	fmt.Println("PASS respuesta estable con", *orders, "pedidos")
 }
 
-// seed encola n pedidos con tiempos de 1 a 20 minutos. Los order_id son deterministas, así que
-// repetir la prueba no duplica pedidos (el encolado es idempotente).
 func seed(client *http.Client, kitchen, serviceToken string, n int) error {
 	ns := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 	customer := uuid.NewSHA1(ns, []byte("load-customer")).String()
@@ -160,8 +154,6 @@ func seed(client *http.Client, kitchen, serviceToken string, n int) error {
 	return nil
 }
 
-// query hace un GET /queue y verifica la respuesta: 200, al menos `want` pedidos, posiciones
-// 1..n consecutivas y pendientes en orden de priority_score (FIFO en empate).
 func query(client *http.Client, url string, headers map[string]string, want int) (time.Duration, string) {
 	req, _ := http.NewRequest("GET", url, nil)
 	for k, v := range headers {

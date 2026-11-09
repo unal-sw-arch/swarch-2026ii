@@ -21,7 +21,7 @@ type Config struct {
 	ServiceToken string
 	CORSOrigins  []string
 
-	// Variables propias, ver axel-notas-integracion.md.
+	// TODO documentar RATE_LIMIT_* en contratos.md.
 	RateLimitUserPerMinute int
 	RateLimitIPPerMinute   int
 }

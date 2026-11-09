@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import '../api/gateway_client.dart';
 import 'session_store.dart';
 
-/// Estado de la sesión del personal: login, restauración desde el almacenamiento seguro y cierre.
 class SessionController extends ChangeNotifier {
   SessionController({required this.client, required this.store}) {
     client.onSessionChanged = _onClientSession;
@@ -15,7 +14,6 @@ class SessionController extends ChangeNotifier {
   Session? session;
   bool restoring = true;
 
-  /// Mensaje que se muestra en el login (por ejemplo, "su sesión expiró").
   String? notice;
 
   Future<void> restore() async {
@@ -30,8 +28,6 @@ class SessionController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Inicia sesión. Solo entran cocinero, despachador, supervisor o admin (según los claims del
-  /// JWT); con otro rol la sesión no se guarda. Lanza [ApiException] si falla.
   Future<void> login(String email, String password) async {
     final next = await client.login(email.trim(), password);
     if (!next.canAccessKds) {

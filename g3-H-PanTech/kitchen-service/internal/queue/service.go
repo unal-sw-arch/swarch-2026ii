@@ -16,21 +16,18 @@ type EnqueueInput struct {
 	CustomerID string
 	OrderType  string
 	PaidAt     time.Time
-	// PrepMinutes <= 0 significa no informado.
+	// PrepMinutes <= 0: no informado.
 	Items []OrderItem
 }
 
-// History registra una fila por transición (kitchen.order_status_events). changedBy nil = el sistema.
 type History interface {
 	Record(ctx context.Context, orderID, status string, changedBy *string, at time.Time) error
 }
 
-// EventSink recibe los eventos de dominio que genera la cola.
 type EventSink interface {
 	OrderReady(ctx context.Context, orderID, customerID string, readyAt time.Time, prepMinutes int) error
 }
 
-// Service reúne la lógica de la cola. Prep, CapacityFrom, History y Events son opcionales.
 type Service struct {
 	Store        *Store
 	Prep         PrepLookup
@@ -51,7 +48,8 @@ func (s *Service) now() time.Time {
 	return time.Now()
 }
 
-// ResolvePrepMinutes toma el máximo de los ítems; sin tiempo usa prep_times y luego DEFAULT_PREP_MINUTES.
+// TODO verificar con el Worker: order.paid no trae items.
+// Máximo de los ítems; sin tiempo usa prep_times y luego DEFAULT_PREP_MINUTES.
 func (s *Service) ResolvePrepMinutes(ctx context.Context, items []OrderItem) ([]OrderItem, int, error) {
 	if len(items) == 0 {
 		return items, s.DefaultPrep, nil
@@ -125,7 +123,6 @@ func (s *Service) Enqueue(ctx context.Context, in EnqueueInput) (View, bool, err
 	return view, created, nil
 }
 
-// Snapshot reescribe los scores en Redis en cada consulta.
 func (s *Service) Snapshot(ctx context.Context) ([]View, Capacity, error) {
 	orders, err := s.Store.ListActive(ctx)
 	if err != nil {
@@ -152,7 +149,6 @@ func (s *Service) Snapshot(ctx context.Context) ([]View, Capacity, error) {
 	return views, Capacity{Max: capacity, InPreparation: inPrep}, nil
 }
 
-// Get devuelve sin posición ni ETA si la comanda ya fue entregada.
 func (s *Service) Get(ctx context.Context, id string) (View, bool, error) {
 	views, _, err := s.Snapshot(ctx)
 	if err != nil {
@@ -202,7 +198,6 @@ func (s *Service) log() *slog.Logger {
 	return slog.Default()
 }
 
-// capacity lee la capacidad vigente; si la tabla no responde usa la configurada.
 func (s *Service) capacity(ctx context.Context) int {
 	if s.CapacityFrom != nil {
 		if max, err := s.CapacityFrom.Capacity(ctx); err == nil && max > 0 {
@@ -214,7 +209,7 @@ func (s *Service) capacity(ctx context.Context) int {
 	return s.Capacity
 }
 
-// record guarda el historial sin revertir el cambio de estado si PostgreSQL falla.
+// El historial no revierte el estado si falla.
 func (s *Service) record(ctx context.Context, orderID, status string, actor *string, at time.Time) {
 	if s.History == nil {
 		return
@@ -224,7 +219,6 @@ func (s *Service) record(ctx context.Context, orderID, status string, actor *str
 	}
 }
 
-// ChangeStatus aplica una transición pedida por la cocina (PATCH .../status).
 func (s *Service) ChangeStatus(ctx context.Context, id, to string, actor *string) (View, error) {
 	switch to {
 	case StatusEnPreparacion:
@@ -242,7 +236,6 @@ func (s *Service) ChangeStatus(ctx context.Context, id, to string, actor *string
 	return View{}, &InvalidStateError{Current: order.Status, Requested: to}
 }
 
-// Deliver confirma la entrega de una comanda lista.
 func (s *Service) Deliver(ctx context.Context, id string, actor *string) (View, error) {
 	return s.transition(ctx, id, StatusListo, StatusEntregado, actor, false)
 }

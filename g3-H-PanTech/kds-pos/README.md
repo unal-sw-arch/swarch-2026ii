@@ -83,7 +83,7 @@ Para probar contra el sistema real, el Gateway necesita un Identity que emita lo
 | `502`/`503`/`504` | "El servicio no está disponible. Reintente en unos segundos." |
 | Sin red o sin respuesta en 8 s | Aviso "Sin conexión con el Gateway" con los últimos datos y *Reintentar* |
 
-## Supuestos sobre Identity (Diego)
+## Supuestos sobre Identity (por verificar)
 
 El cuerpo de `POST /auth/login` no está definido en ningún documento. El KDS asume:
 

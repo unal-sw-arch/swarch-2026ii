@@ -7,7 +7,6 @@ import 'order_card.dart';
 import 'queue_controller.dart';
 import 'status_buttons.dart';
 
-/// Cola de cocina: pedidos en preparación, pendientes (en orden de prioridad) y listos.
 class QueuePage extends StatelessWidget {
   const QueuePage({super.key, required this.controller, required this.session});
 

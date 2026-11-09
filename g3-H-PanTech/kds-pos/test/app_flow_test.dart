@@ -112,7 +112,6 @@ void main() {
       expect(find.text('ETA 12 min'), findsOneWidget);
       expect(find.text('2 × Croissant'), findsNWidgets(3));
       expect(find.text('En mesa'), findsOneWidget);
-      // El pedido más prioritario queda antes que el siguiente.
       expect(tester.getTopLeft(card(idB)).dx, lessThan(tester.getTopLeft(card(idC)).dx));
       expect(find.byType(NavigationBar), findsNothing);
       await disposeApp(tester);

@@ -51,7 +51,6 @@ func TestOpenAPISpecIsValidAndCoversEveryRoute(t *testing.T) {
 	}
 }
 
-// contract valida una respuesta real contra el contrato (estado, encabezados y cuerpo).
 type contract struct {
 	t      *testing.T
 	e      *env
@@ -120,7 +119,6 @@ func TestRealResponsesMatchTheOpenAPIContract(t *testing.T) {
 	c.call("GET", "/health", nil, nil, 200, true)
 	c.call("GET", "/ready", nil, nil, 200, true)
 
-	// Encolar
 	c.call("POST", "/queue/orders", orderBody(orderA, 8), svcHeaders(), 201, true)
 	c.call("POST", "/queue/orders", orderBody(orderA, 8), svcHeaders(), 200, true)
 	c.call("POST", "/queue/orders", orderBody(orderB, 4), svcHeaders(), 201, true)
@@ -130,7 +128,6 @@ func TestRealResponsesMatchTheOpenAPIContract(t *testing.T) {
 	c.call("POST", "/queue/orders", map[string]any{"order_id": "x"}, svcHeaders(), 400, false)
 	c.call("POST", "/queue/orders", orderBody(orderA, 8), nil, 401, true)
 
-	// Consultar
 	cook, dispatcher := userHeaders(cookPerms), userHeaders(dispatchPerms)
 	c.call("GET", "/queue", nil, cook, 200, true)
 	c.call("GET", "/queue?status=pendiente", nil, cook, 200, true)
@@ -145,7 +142,6 @@ func TestRealResponsesMatchTheOpenAPIContract(t *testing.T) {
 	c.call("GET", "/queue/orders/"+orderA, nil, userHeaders("orders:read_own"), 403, true)
 	c.call("GET", "/queue/orders/"+orderC+"0", nil, cook, 404, true)
 
-	// Estados
 	path := "/queue/orders/" + orderA + "/status"
 	c.call("PATCH", path, map[string]string{"status": "listo"}, cook, 409, true)
 	c.call("PATCH", path, map[string]string{"status": "en_preparacion"}, cook, 200, true)
@@ -156,7 +152,6 @@ func TestRealResponsesMatchTheOpenAPIContract(t *testing.T) {
 	c.call("PATCH", "/queue/orders/"+orderC+"0/status", map[string]string{"status": "listo"}, cook, 404, true)
 	c.call("PATCH", path, map[string]string{"status": "listo"}, cook, 200, true)
 
-	// Entrega
 	deliver := "/queue/orders/" + orderA + "/deliver"
 	c.call("POST", deliver, nil, nil, 401, true)
 	c.call("POST", deliver, nil, cook, 403, true)

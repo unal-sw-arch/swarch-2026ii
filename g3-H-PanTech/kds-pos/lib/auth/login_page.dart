@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../api/gateway_client.dart';
 import 'session_controller.dart';
 
-/// Inicio de sesión del personal. Solo entran cocinero, despachador, supervisor o admin.
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, required this.controller});
 

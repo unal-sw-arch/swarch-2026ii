@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// runSmoke recorre el flujo de cocina completo a través del Gateway.
 func (s *suite) runSmoke() {
 	long, short, medium := uuid.NewString(), uuid.NewString(), uuid.NewString()
 

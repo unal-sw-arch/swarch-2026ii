@@ -1,7 +1,7 @@
 # Override de Compose solo para las pruebas de humo (nunca para despliegue).
 #
 # - Redis con contraseña: infrastructure/redis/redis.conf tiene protected-mode yes sin
-#   contraseña y Redis rechaza a los demás contenedores. Cuando Jaime lo corrija se puede
+#   contraseña y Redis rechaza a los demás contenedores. Cuando se corrija se puede
 #   quitar redis-smoke y las dos variables de Redis.
 # - JWKS falso: el Gateway valida los tokens contra el proceso `go run ./tests/smoke`,
 #   que corre en el host (puerto 9999).

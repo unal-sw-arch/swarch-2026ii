@@ -1,4 +1,3 @@
-// Package events publica eventos de dominio en RabbitMQ (exchange panaderia.events).
 package events
 
 import (
@@ -11,12 +10,10 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-// Publisher publica un mensaje ya serializado.
 type Publisher interface {
 	Publish(ctx context.Context, routingKey, messageID string, body []byte) error
 }
 
-// Rabbit publica con confirmaciones del broker y reconecta solo cuando se cae la conexión.
 type Rabbit struct {
 	url      string
 	exchange string
@@ -26,7 +23,6 @@ type Rabbit struct {
 	ch   *amqp.Channel
 }
 
-// NewRabbit crea el publicador; no conecta hasta el primer uso.
 func NewRabbit(url, exchange string) *Rabbit { return &Rabbit{url: url, exchange: exchange} }
 
 func (r *Rabbit) ensure() (*amqp.Channel, error) {
@@ -44,7 +40,8 @@ func (r *Rabbit) ensure() (*amqp.Channel, error) {
 		_ = conn.Close()
 		return nil, fmt.Errorf("abrir canal: %w", err)
 	}
-	// Mismos argumentos que infrastructure/rabbitmq/definitions.json.
+	// Mismos argumentos que definitions.json.
+	// TODO verificar que worker.order_ready tenga binding: sin cola el mensaje se pierde.
 	if err := ch.ExchangeDeclare(r.exchange, "topic", true, false, false, false, nil); err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("declarar exchange: %w", err)
@@ -64,7 +61,6 @@ func (r *Rabbit) close() {
 	r.conn, r.ch = nil, nil
 }
 
-// Publish envía el mensaje y espera la confirmación del broker.
 func (r *Rabbit) Publish(ctx context.Context, routingKey, messageID string, body []byte) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -96,7 +92,6 @@ func (r *Rabbit) Publish(ctx context.Context, routingKey, messageID string, body
 	return nil
 }
 
-// Ping verifica que se pueda conectar al broker.
 func (r *Rabbit) Ping(_ context.Context) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -104,7 +99,6 @@ func (r *Rabbit) Ping(_ context.Context) error {
 	return err
 }
 
-// Close cierra la conexión.
 func (r *Rabbit) Close() {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -6,7 +6,6 @@ import (
 	httpx "api-gateway/internal/http"
 )
 
-// RequirePermissions exige al menos uno de los permisos (permisos generales por prefijo).
 func RequirePermissions(anyOf []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

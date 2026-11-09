@@ -1,4 +1,3 @@
-/// Estados de una comanda (contratos.md §6).
 class OrderStatus {
   static const pendiente = 'pendiente';
   static const enPreparacion = 'en_preparacion';
@@ -27,7 +26,6 @@ class OrderLine {
       );
 }
 
-/// Una comanda de `GET /queue` (JSON en snake_case).
 class QueueItem {
   const QueueItem({
     required this.orderId,
@@ -59,7 +57,6 @@ class QueueItem {
   final DateTime? readyAt;
   final List<OrderLine> items;
 
-  /// Primeros 8 caracteres del UUID, para mostrar en la comanda.
   String get shortId => orderId.length >= 8 ? orderId.substring(0, 8) : orderId;
 
   bool get isTakeaway => orderType == 'para_llevar';
@@ -100,7 +97,6 @@ class Capacity {
       );
 }
 
-/// Respuesta de `GET /queue`.
 class QueueSnapshot {
   const QueueSnapshot({required this.items, required this.capacity, required this.generatedAt});
 

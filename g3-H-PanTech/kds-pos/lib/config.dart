@@ -3,12 +3,6 @@ import 'dart:io' show File, Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 
-/// Configuración del KDS. El KDS siempre habla con el API Gateway, nunca con Kitchen.
-///
-/// Orden de resolución de la URL:
-/// 1. `--dart-define=GATEWAY_URL=http://host:8080`
-/// 2. `kds_config.json` junto al ejecutable: `{"gateway_url": "...", "poll_seconds": 4}`
-/// 3. [defaultGatewayUrl], el puerto publicado del Gateway según contratos.md (solo desarrollo).
 class AppConfig {
   const AppConfig({required this.gatewayUrl, required this.pollInterval});
 
@@ -20,7 +14,7 @@ class AppConfig {
   final String gatewayUrl;
   final Duration pollInterval;
 
-  /// Combina las fuentes en orden de prioridad. Lanza [FormatException] si la URL no es http(s).
+  // Orden: --dart-define, kds_config.json y valor de desarrollo.
   factory AppConfig.resolve({
     String? define,
     int? definePollSeconds,
@@ -41,7 +35,6 @@ class AppConfig {
     );
   }
 
-  /// Lee `--dart-define` y, si existe, `kds_config.json` junto al ejecutable.
   static Future<AppConfig> load() async {
     Map<String, dynamic>? file;
     if (!kIsWeb) {

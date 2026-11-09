@@ -1,4 +1,3 @@
-// Package jwks obtiene y cachea las claves públicas RSA de Identity.
 package jwks
 
 import (
@@ -16,13 +15,10 @@ import (
 )
 
 var (
-	// ErrKeyNotFound indica que el kid no está en el JWKS vigente.
 	ErrKeyNotFound = errors.New("jwks: clave no encontrada")
-	// ErrUnavailable indica que no se pudo obtener el JWKS y no hay clave en caché.
 	ErrUnavailable = errors.New("jwks: no disponible")
 )
 
-// Cache guarda las claves y las renueva al vencer el TTL o ante un kid desconocido.
 type Cache struct {
 	url        string
 	client     *http.Client
@@ -36,19 +32,14 @@ type Cache struct {
 	lastAttempt time.Time
 }
 
-// Option ajusta el caché.
 type Option func(*Cache)
 
-// WithTTL fija cuánto vive una clave antes de renovar el JWKS (por defecto 10 min).
 func WithTTL(d time.Duration) Option { return func(c *Cache) { c.ttl = d } }
 
-// WithMinRefresh fija el intervalo mínimo entre consultas al JWKS (por defecto 10 s).
 func WithMinRefresh(d time.Duration) Option { return func(c *Cache) { c.minRefresh = d } }
 
-// WithClock reemplaza el reloj (pruebas).
 func WithClock(now func() time.Time) Option { return func(c *Cache) { c.now = now } }
 
-// New crea un caché para la URL del JWKS.
 func New(url string, opts ...Option) *Cache {
 	c := &Cache{
 		url:        url,
@@ -64,7 +55,8 @@ func New(url string, opts ...Option) *Cache {
 	return c
 }
 
-// Key devuelve la clave del kid. Sin kid solo acepta un JWKS de una única clave.
+// TODO verificar con Identity que el JWT lleve kid.
+// Sin kid solo se acepta un JWKS de una única clave.
 func (c *Cache) Key(ctx context.Context, kid string) (*rsa.PublicKey, error) {
 	c.mu.RLock()
 	key, fresh := c.lookup(kid)

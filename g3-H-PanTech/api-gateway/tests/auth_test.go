@@ -83,7 +83,6 @@ func TestPublicAuthRoutesNeedNoToken(t *testing.T) {
 func TestIdentityIsPropagatedFromJWT(t *testing.T) {
 	h := newHarness(t)
 	headers := h.bearer("kitchen:read", "kitchen:update")
-	// El cliente intenta hacerse pasar por otra persona con más permisos.
 	headers["X-User-Id"] = otherID
 	headers["X-User-Email"] = "admin@evil.com"
 	headers["X-Roles"] = "admin"
@@ -99,7 +98,7 @@ func TestIdentityIsPropagatedFromJWT(t *testing.T) {
 	}
 	want := map[string]string{
 		"X-User-Id":     userID,
-		"X-User-Email":  "axel@demo.com",
+		"X-User-Email":  "cocina@demo.com",
 		"X-Roles":       "cocinero",
 		"X-Permissions": "kitchen:read,kitchen:update",
 		"X-Level":       "50",

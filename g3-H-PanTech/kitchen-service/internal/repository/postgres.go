@@ -1,4 +1,3 @@
-// Package repository accede a PostgreSQL (esquema kitchen).
 package repository
 
 import (
@@ -11,12 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Postgres es el acceso a kitchen.prep_times, order_status_events y kitchen_capacity.
 type Postgres struct {
 	pool *pgxpool.Pool
 }
 
-// Connect abre el pool y reintenta hasta que PostgreSQL responda.
 func Connect(ctx context.Context, url string, attempts int, delay time.Duration) (*Postgres, error) {
 	pool, err := pgxpool.New(ctx, url)
 	if err != nil {
@@ -38,17 +35,13 @@ func Connect(ctx context.Context, url string, attempts int, delay time.Duration)
 	return nil, fmt.Errorf("postgres no responde: %w", last)
 }
 
-// New envuelve un pool existente.
 func New(pool *pgxpool.Pool) *Postgres { return &Postgres{pool: pool} }
 
-// Close cierra el pool.
 func (p *Postgres) Close() { p.pool.Close() }
 
-// Ping verifica la conexión.
 func (p *Postgres) Ping(ctx context.Context) error { return p.pool.Ping(ctx) }
 
-// Migrate aplica los .sql de migrations en orden, una sola vez cada uno. Es idempotente
-// y seguro con varias réplicas arrancando a la vez (advisory lock).
+// Idempotente; el advisory lock evita choques entre réplicas.
 func (p *Postgres) Migrate(ctx context.Context, files fs.FS) error {
 	conn, err := p.pool.Acquire(ctx)
 	if err != nil {
@@ -105,21 +98,19 @@ func (p *Postgres) Migrate(ctx context.Context, files fs.FS) error {
 	return nil
 }
 
-// SeedCapacity crea la fila de capacidad con el valor de KITCHEN_CAPACITY si no existe.
+// Solo siembra si la fila no existe: después manda la tabla.
 func (p *Postgres) SeedCapacity(ctx context.Context, max int) error {
 	_, err := p.pool.Exec(ctx,
 		`INSERT INTO kitchen.kitchen_capacity (id, max_orders) VALUES (1, $1) ON CONFLICT (id) DO NOTHING`, max)
 	return err
 }
 
-// Capacity devuelve la capacidad máxima vigente.
 func (p *Postgres) Capacity(ctx context.Context) (int, error) {
 	var max int
 	err := p.pool.QueryRow(ctx, `SELECT max_orders FROM kitchen.kitchen_capacity WHERE id = 1`).Scan(&max)
 	return max, err
 }
 
-// Lookup devuelve los tiempos base conocidos de los productos dados.
 func (p *Postgres) Lookup(ctx context.Context, productIDs []string) (map[string]int, error) {
 	out := map[string]int{}
 	if len(productIDs) == 0 {
@@ -142,14 +133,12 @@ func (p *Postgres) Lookup(ctx context.Context, productIDs []string) (map[string]
 	return out, rows.Err()
 }
 
-// SetPrepTime crea o actualiza el tiempo base de un producto.
 func (p *Postgres) SetPrepTime(ctx context.Context, productID string, minutes int) error {
 	_, err := p.pool.Exec(ctx, `INSERT INTO kitchen.prep_times (product_id, prep_minutes) VALUES ($1, $2)
 		ON CONFLICT (product_id) DO UPDATE SET prep_minutes = EXCLUDED.prep_minutes, updated_at = now()`, productID, minutes)
 	return err
 }
 
-// Record guarda una fila de historial por transición. changedBy nil = el sistema (Worker).
 func (p *Postgres) Record(ctx context.Context, orderID, status string, changedBy *string, at time.Time) error {
 	_, err := p.pool.Exec(ctx,
 		`INSERT INTO kitchen.order_status_events (order_id, status, changed_at, changed_by) VALUES ($1, $2, $3, $4)`,
@@ -157,7 +146,6 @@ func (p *Postgres) Record(ctx context.Context, orderID, status string, changedBy
 	return err
 }
 
-// Events devuelve el historial de una comanda en orden cronológico.
 func (p *Postgres) Events(ctx context.Context, orderID string) ([]StatusEvent, error) {
 	rows, err := p.pool.Query(ctx, `SELECT order_id::text, status, changed_at, changed_by::text
 		FROM kitchen.order_status_events WHERE order_id = $1 ORDER BY changed_at, id`, orderID)

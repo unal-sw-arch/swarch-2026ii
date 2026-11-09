@@ -1,4 +1,3 @@
-// Package migrations embebe los scripts SQL del esquema kitchen.
 package migrations
 
 import "embed"

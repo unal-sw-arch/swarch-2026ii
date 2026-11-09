@@ -1,4 +1,3 @@
-// Package router enruta por prefijo hacia los servicios.
 package router
 
 import (
@@ -16,7 +15,6 @@ import (
 	"api-gateway/internal/proxy"
 )
 
-// Gateway enruta por prefijo hacia los servicios de lógica.
 type Gateway struct {
 	cfg      config.Config
 	rdb      *redis.Client
@@ -26,17 +24,15 @@ type Gateway struct {
 	handlers map[*Rule]http.Handler
 }
 
-// Option ajusta el Gateway (pruebas).
 type Option func(*Gateway)
 
-// WithKeys reemplaza el proveedor de claves JWKS.
 func WithKeys(k middleware.KeyProvider) Option {
 	return func(g *Gateway) {
 		g.auth = middleware.Authenticate(middleware.NewValidator(k, g.cfg.JWTIssuer, g.cfg.JWTAudience))
 	}
 }
 
-// New construye el handler HTTP completo: request id → logging → CORS → rate limit (IP) → auth → rate limit (usuario) → permisos → proxy.
+// Orden: request id, logging, CORS, rate limit IP, auth, rate limit usuario, permisos, proxy.
 func New(cfg config.Config, rdb *redis.Client, log *slog.Logger, opts ...Option) http.Handler {
 	g := &Gateway{cfg: cfg, rdb: rdb, log: log, limiter: middleware.NewLimiter(rdb, log), handlers: map[*Rule]http.Handler{}}
 	WithKeys(jwks.New(cfg.JWKSURL))(g)
@@ -92,7 +88,6 @@ func (g *Gateway) health(w http.ResponseWriter, _ *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// ready verifica solo Redis.
 func (g *Gateway) ready(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()

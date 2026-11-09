@@ -1,9 +1,5 @@
-// Command smoke prueba de punta a punta el Gateway y Kitchen contra un stack levantado con
-// Docker Compose: flujo de cocina, order.ready en RabbitMQ y pruebas de seguridad.
-//
-// Sirve un JWKS falso y firma los tokens de prueba, por eso el Gateway debe apuntar su
-// JWKS_URL a este proceso (ver docker-compose.smoke.yml). Solo para pruebas locales: nunca
-// forma parte de la imagen de producción.
+// smoke prueba el flujo completo y la seguridad contra el stack de Docker Compose.
+// Sirve un JWKS falso: el Gateway debe apuntar JWKS_URL a este proceso. Solo para pruebas.
 package main
 
 import (

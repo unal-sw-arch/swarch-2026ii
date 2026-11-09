@@ -9,7 +9,6 @@ import 'kitchen/queue_controller.dart';
 import 'kitchen/queue_page.dart';
 import 'widgets/status_banner.dart';
 
-/// Tema y navegación: login → cocina y/o despacho según los roles del JWT.
 class KdsApp extends StatefulWidget {
   const KdsApp({
     super.key,
@@ -64,7 +63,6 @@ class _KdsAppState extends State<KdsApp> {
   }
 }
 
-/// Pantalla principal: cola de cocina y despacho con polling.
 class HomeShell extends StatefulWidget {
   const HomeShell({
     super.key,

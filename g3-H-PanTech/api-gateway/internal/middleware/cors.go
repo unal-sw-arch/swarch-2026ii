@@ -7,8 +7,6 @@ import (
 	httpx "api-gateway/internal/http"
 )
 
-// CORS permite solo los orígenes de CORS_ORIGINS. Las peticiones sin Origin (KDS de escritorio,
-// Web SSR desde el servidor) pasan sin cambios.
 func CORS(origins []string) func(http.Handler) http.Handler {
 	allowed := make(map[string]bool, len(origins))
 	for _, o := range origins {

@@ -6,23 +6,19 @@ import 'package:http/http.dart' as http;
 import '../auth/session_store.dart';
 import '../models/queue_item.dart';
 
-/// Error de la API ya traducido, con un mensaje claro para mostrar en pantalla.
 sealed class ApiException implements Exception {
   const ApiException(this.message);
 
-  /// Mensaje para la persona que usa el KDS.
   final String message;
 
   @override
   String toString() => message;
 }
 
-/// 401: sin token, vencido o inválido. Se vuelve a la pantalla de inicio de sesión.
 class UnauthenticatedException extends ApiException {
   const UnauthenticatedException([super.message = 'Su sesión expiró. Inicie sesión de nuevo.']);
 }
 
-/// 403: la cuenta no tiene permiso.
 class ForbiddenException extends ApiException {
   const ForbiddenException([super.message = 'Su cuenta no tiene permiso para esta operación.']);
 }
@@ -35,7 +31,6 @@ class ValidationException extends ApiException {
   const ValidationException(super.message);
 }
 
-/// 409 INVALID_STATE: otra persona cambió el pedido antes.
 class InvalidStateException extends ApiException {
   InvalidStateException({this.current, this.requested})
       : super('El pedido cambió de estado${current == null ? '' : ' (ahora está "$current")'}. '
@@ -45,7 +40,6 @@ class InvalidStateException extends ApiException {
   final String? requested;
 }
 
-/// 409 KITCHEN_AT_CAPACITY: el pedido sigue pendiente, no se pierde.
 class CapacityException extends ApiException {
   CapacityException({this.max, this.inPreparation})
       : super('La cocina está llena${max == null ? '' : ' ($inPreparation de $max en preparación)'}. '
@@ -59,22 +53,17 @@ class RateLimitedException extends ApiException {
   const RateLimitedException([super.message = 'Demasiadas consultas seguidas. Espere unos segundos.']);
 }
 
-/// Sin conexión con el Gateway.
 class NetworkException extends ApiException {
   const NetworkException([super.message = 'Sin conexión con el Gateway.']);
 }
 
-/// 5xx u otra respuesta inesperada.
 class ServerException extends ApiException {
   const ServerException(super.message, {this.status});
 
   final int? status;
 }
 
-/// Respuesta de `POST /auth/login` y `POST /auth/refresh`.
-///
-/// SUPUESTO (Diego no definió el cuerpo): `{access_token, refresh_token, token_type, expires_in}`.
-/// Es el único lugar donde se interpreta; si Identity responde otra forma, se cambia aquí.
+// TODO verificar con Identity el cuerpo de login y refresh: {access_token, refresh_token, token_type, expires_in}.
 class LoginResponse {
   const LoginResponse({required this.accessToken, this.refreshToken, this.tokenType = 'Bearer', this.expiresIn});
 
@@ -97,7 +86,6 @@ class LoginResponse {
   }
 }
 
-/// Cliente del API Gateway. El KDS nunca llama a Kitchen directo.
 class GatewayClient {
   GatewayClient({
     required String baseUrl,
@@ -110,11 +98,9 @@ class GatewayClient {
   final http.Client _http;
   final Duration timeout;
 
-  /// Sesión vigente; la asigna el controlador de sesión.
   Session? session;
 
-  /// Se llama con la sesión renovada, o con `null` cuando el Gateway rechazó el token (401) y
-  /// no se pudo renovar: la app debe volver al inicio de sesión.
+  // null cuando el 401 no se pudo renovar.
   Future<void> Function(Session? session)? onSessionChanged;
 
   Future<Session>? _refreshing;
@@ -122,9 +108,8 @@ class GatewayClient {
   Uri _uri(String path, [Map<String, String>? query]) =>
       _base.replace(path: '${_base.path}$path'.replaceAll('//', '/'), queryParameters: query);
 
-  // --- Autenticación -----------------------------------------------------------------------
 
-  /// `POST /auth/login`. SUPUESTO: cuerpo `{email, password}`.
+  // TODO verificar con Identity: cuerpo {email, password}.
   Future<Session> login(String email, String password) async {
     final res = await _send(() => _http.post(
           _uri('/auth/login'),
@@ -144,13 +129,13 @@ class GatewayClient {
     }
   }
 
-  /// `POST /auth/refresh`. SUPUESTO: cuerpo `{refresh_token}`.
   Future<Session> _refresh(Session current) {
     final inFlight = _refreshing;
     if (inFlight != null) return inFlight;
     return _refreshing = _doRefresh(current).whenComplete(() => _refreshing = null);
   }
 
+  // TODO verificar con Identity: cuerpo {refresh_token}.
   Future<Session> _doRefresh(Session current) async {
     final refreshToken = current.refreshToken;
     if (refreshToken == null) throw const UnauthenticatedException();
@@ -172,7 +157,6 @@ class GatewayClient {
     }
   }
 
-  // --- Cola de cocina ----------------------------------------------------------------------
 
   Future<QueueSnapshot> fetchQueue({String? status}) async {
     final body = await _authed((headers) => _http.get(
@@ -182,7 +166,6 @@ class GatewayClient {
     return QueueSnapshot.fromJson(body);
   }
 
-  /// `PATCH /queue/orders/{id}/status` (`en_preparacion` o `listo`).
   Future<QueueItem> setStatus(String orderId, String status) async {
     final body = await _authed((headers) => _http.patch(
           _uri('/queue/orders/$orderId/status'),
@@ -192,16 +175,13 @@ class GatewayClient {
     return QueueItem.fromJson(body);
   }
 
-  /// `POST /queue/orders/{id}/deliver`.
   Future<QueueItem> deliver(String orderId) async {
     final body = await _authed((headers) => _http.post(_uri('/queue/orders/$orderId/deliver'), headers: headers));
     return QueueItem.fromJson(body);
   }
 
-  // --- Internos ----------------------------------------------------------------------------
 
-  /// Envía con el token; ante un 401 intenta renovar la sesión una vez y reintenta. Si no se
-  /// puede, avisa con `onSessionChanged(null)` y lanza [UnauthenticatedException].
+  // Ante un 401 renueva la sesión una vez y repite la petición.
   Future<Map<String, dynamic>> _authed(Future<http.Response> Function(Map<String, String> headers) send) async {
     var current = session;
     if (current == null) throw const UnauthenticatedException();
@@ -240,7 +220,6 @@ class GatewayClient {
     }
   }
 
-  /// Devuelve el cuerpo JSON de una respuesta 2xx o lanza la excepción que corresponda.
   Map<String, dynamic> _checked(http.Response res, {bool loginRequest = false}) {
     if (res.statusCode >= 200 && res.statusCode < 300) {
       try {

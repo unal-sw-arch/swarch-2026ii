@@ -8,8 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// runSecurity ejecuta las pruebas de denegación (A4.2): tokens ajenos o inválidos, rol
-// insuficiente, llamadas directas a Kitchen sin X-Service-Token y falsificación de encabezados.
 func (s *suite) runSecurity() {
 	pending := uuid.NewString()
 	s.enqueue(pending, 7)

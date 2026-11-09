@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import '../api/gateway_client.dart';
 import '../models/queue_item.dart';
 
-/// Resultado de una acción de la persona (cambiar estado o entregar), para mostrar un mensaje.
 class ActionResult {
   const ActionResult.ok(this.message) : ok = true;
   const ActionResult.failed(this.message) : ok = false;
@@ -14,8 +13,6 @@ class ActionResult {
   final String message;
 }
 
-/// Consulta la cola por polling y ejecuta las acciones. Conserva los últimos datos si falla la
-/// red, para que la pantalla no se quede en blanco, y permite reintentar a mano.
 class QueueController extends ChangeNotifier {
   QueueController({required this.client, this.pollInterval = const Duration(seconds: 4)});
 
@@ -32,7 +29,6 @@ class QueueController extends ChangeNotifier {
   bool _inFlight = false;
   bool _disposed = false;
 
-  /// Consulta ya y luego cada [pollInterval].
   void start() {
     _timer?.cancel();
     refresh();
@@ -44,7 +40,7 @@ class QueueController extends ChangeNotifier {
     _timer = null;
   }
 
-  /// Una consulta a `GET /queue`. No se solapan: si hay una en curso, no hace nada.
+  // No solapa consultas.
   Future<void> refresh() async {
     if (_inFlight || _disposed) return;
     _inFlight = true;
@@ -66,7 +62,6 @@ class QueueController extends ChangeNotifier {
     }
   }
 
-  /// `pendiente → en_preparacion` o `en_preparacion → listo`.
   Future<ActionResult> changeStatus(QueueItem item, String status) => _act(item, () async {
         await client.setStatus(item.orderId, status);
         return status == OrderStatus.enPreparacion
@@ -87,7 +82,7 @@ class QueueController extends ChangeNotifier {
       await _refreshNow();
       return ActionResult.ok(message);
     } on ApiException catch (e) {
-      // 409 y 404 significan que la cola cambió: se actualiza para mostrar el estado real.
+      // 409 y 404: la cola cambió, se actualiza.
       if (e is InvalidStateException || e is CapacityException || e is NotFoundException) {
         await _refreshNow();
       }

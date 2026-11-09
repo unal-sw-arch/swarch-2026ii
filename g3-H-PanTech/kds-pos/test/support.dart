@@ -12,7 +12,6 @@ import 'package:kds_pos/auth/session_store.dart';
 const gatewayUrl = 'http://gateway.test:8080';
 const userId = '8f14e45f-ceea-467f-a0e6-1f3d3b6a1c11';
 
-/// JWT sin firma válida (el KDS solo lee los claims; el Gateway verifica la firma).
 String fakeJwt({
   String sub = userId,
   String email = 'cocina@demo.com',
@@ -64,7 +63,7 @@ const idA = 'aaaaaaaa-1111-4111-8111-111111111111';
 const idB = 'bbbbbbbb-2222-4222-8222-222222222222';
 const idC = 'cccccccc-3333-4333-8333-333333333333';
 
-/// Gateway falso que imita a Kitchen detrás del Gateway y registra cada petición.
+// Imita al API Gateway; solo para pruebas.
 class FakeGateway {
   FakeGateway({List<Map<String, dynamic>>? items, this.maxCapacity = 4, String? loginToken})
       : items = items ?? [],
@@ -171,7 +170,6 @@ class FakeGateway {
   }
 }
 
-/// Controladores conectados a un [FakeGateway] y a un almacenamiento en memoria.
 class TestApp {
   TestApp(this.gateway, {Session? saved})
       : store = MemorySessionStore(saved),
@@ -191,14 +189,12 @@ class TestApp {
 Session sessionFor({List<String> roles = cookRoles, List<String> perms = cookPerms}) =>
     Session.fromTokens(accessToken: fakeJwt(roles: roles, permissions: perms), refreshToken: 'r1');
 
-/// Avanza el reloj en pasos cortos para que se resuelvan las futuras del cliente HTTP falso.
 Future<void> settle(WidgetTester tester, {int steps = 6}) async {
   for (var i = 0; i < steps; i++) {
     await tester.pump(const Duration(milliseconds: 50));
   }
 }
 
-/// Desmonta la app para cancelar los timers del polling.
 Future<void> disposeApp(WidgetTester tester) async {
   await tester.pumpWidget(const SizedBox.shrink());
 }

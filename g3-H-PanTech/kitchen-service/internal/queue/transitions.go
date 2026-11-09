@@ -10,10 +10,7 @@ import (
 
 const inPrepKey = "kitchen:in_preparation"
 
-// transitionScript valida el estado y la capacidad y aplica la transición en un solo paso.
-// KEYS: hash, zset, set de en_preparacion. ARGV: id, desde, hacia, capacidad (-1 = sin límite),
-// instante, campo de tiempo, TTL en segundos (solo al entregar).
-// Devuelve {código, estado actual, en preparación}: 0 no existe, 1 estado inválido, 2 sin capacidad, 3 hecho.
+// Atómico. Devuelve {código, estado, en preparación}: 0 no existe, 1 estado inválido, 2 sin capacidad, 3 hecho.
 var transitionScript = redis.NewScript(`
 local status = redis.call('HGET', KEYS[1], 'status')
 if not status then return {0, '', 0} end
@@ -34,8 +31,6 @@ end
 return {3, status, inprep}
 `)
 
-// Transition mueve la comanda de from a to. capacity < 0 no limita. Devuelve ErrNotFound,
-// *InvalidStateError o *CapacityError cuando corresponde.
 func (s *Store) Transition(ctx context.Context, id, from, to string, capacity int, at time.Time, ttl time.Duration) error {
 	field := map[string]string{StatusEnPreparacion: "started_at", StatusListo: "ready_at", StatusEntregado: "delivered_at"}[to]
 	res, err := transitionScript.Run(ctx, s.rdb, []string{orderKey(id), queueKey, inPrepKey},
@@ -57,7 +52,6 @@ func (s *Store) Transition(ctx context.Context, id, from, to string, capacity in
 	return nil
 }
 
-// InPreparation devuelve cuántas comandas están en preparación.
 func (s *Store) InPreparation(ctx context.Context) (int, error) {
 	n, err := s.rdb.SCard(ctx, inPrepKey).Result()
 	return int(n), err

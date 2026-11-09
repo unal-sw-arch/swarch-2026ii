@@ -6,7 +6,6 @@ import '../kitchen/queue_controller.dart' show ActionResult;
 String formatClock(DateTime t) =>
     '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:${t.second.toString().padLeft(2, '0')}';
 
-/// Aviso de error con reintento manual. Los datos anteriores siguen visibles debajo.
 class StatusBanner extends StatelessWidget {
   const StatusBanner({super.key, required this.error, required this.lastUpdated, required this.onRetry});
 
@@ -45,7 +44,6 @@ class StatusBanner extends StatelessWidget {
   }
 }
 
-/// Muestra el resultado de una acción en un SnackBar.
 void showResult(BuildContext context, ActionResult result) {
   final messenger = ScaffoldMessenger.of(context);
   messenger

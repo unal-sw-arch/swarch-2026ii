@@ -18,12 +18,10 @@ import (
 	"api-gateway/internal/proxy"
 )
 
-// KeyProvider entrega la clave pública RSA de un kid.
 type KeyProvider interface {
 	Key(ctx context.Context, kid string) (*rsa.PublicKey, error)
 }
 
-// Principal es la identidad validada del JWT.
 type Principal struct {
 	UserID      string
 	Email       string
@@ -32,7 +30,6 @@ type Principal struct {
 	Level       int
 }
 
-// Has indica si la persona tiene el permiso.
 func (p Principal) Has(permission string) bool {
 	for _, have := range p.Permissions {
 		if have == permission {
@@ -42,7 +39,6 @@ func (p Principal) Has(permission string) bool {
 	return false
 }
 
-// Headers devuelve los encabezados internos de contratos.md §3.
 func (p Principal) Headers() http.Header {
 	h := http.Header{}
 	h.Set("X-User-Id", p.UserID)
@@ -57,12 +53,12 @@ func (p Principal) Headers() http.Header {
 
 type principalKey struct{}
 
-// PrincipalFrom devuelve la identidad que dejó Authenticate en el contexto.
 func PrincipalFrom(ctx context.Context) (Principal, bool) {
 	p, ok := ctx.Value(principalKey{}).(Principal)
 	return p, ok
 }
 
+// TODO verificar con Identity los claims: sub (UUID), roles, permissions y level.
 type claims struct {
 	jwt.RegisteredClaims
 	Email       string   `json:"email"`
@@ -71,13 +67,11 @@ type claims struct {
 	Level       int      `json:"level"`
 }
 
-// Validator valida JWT RS256 con iss, aud y exp.
 type Validator struct {
 	keys   KeyProvider
 	parser *jwt.Parser
 }
 
-// NewValidator crea un validador para el emisor y la audiencia dados.
 func NewValidator(keys KeyProvider, issuer, audience string) *Validator {
 	return &Validator{
 		keys: keys,
@@ -91,8 +85,6 @@ func NewValidator(keys KeyProvider, issuer, audience string) *Validator {
 	}
 }
 
-// Validate devuelve la identidad del token. Un error que envuelve jwks.ErrUnavailable
-// significa que no se pudo verificar la firma (no que el token sea inválido).
 func (v *Validator) Validate(ctx context.Context, raw string) (Principal, error) {
 	var c claims
 	_, err := v.parser.ParseWithClaims(raw, &c, func(t *jwt.Token) (any, error) {
@@ -124,8 +116,7 @@ func allHeaderSafe(list []string) bool {
 	return true
 }
 
-// Authenticate exige un JWT válido y propaga la identidad al proxy. Reemplaza
-// cualquier encabezado de identidad del cliente con los del token.
+// Reemplaza los encabezados de identidad del cliente con los del token.
 func Authenticate(v *Validator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

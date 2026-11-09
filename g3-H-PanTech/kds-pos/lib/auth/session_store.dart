@@ -2,14 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// Roles que pueden entrar al KDS.
 const kdsRoles = {'cocinero', 'despachador', 'supervisor', 'admin'};
 
-/// Sesión del personal. Los datos de identidad (roles, permisos) se leen de los claims del
-/// JWT de acceso; solo se guardan los tokens.
-///
-/// SUPUESTO de Diego (cuerpo de `POST /auth/login`): `{access_token, refresh_token, token_type,
-/// expires_in}`. Si cambia, se ajusta `LoginResponse.fromJson` en `gateway_client.dart`.
 class Session {
   Session({
     required this.accessToken,
@@ -29,8 +23,7 @@ class Session {
   final List<String> roles;
   final List<String> permissions;
 
-  /// Lee los claims del JWT (`sub`, `email`, `roles`, `permissions`). No verifica la firma:
-  /// eso lo hace el Gateway en cada petición. Lanza [FormatException] si el token no es un JWT.
+  // TODO verificar con Identity los claims roles y permissions. La firma la verifica el API Gateway.
   factory Session.fromTokens({
     required String accessToken,
     String? refreshToken,
@@ -51,13 +44,10 @@ class Session {
 
   bool get canAccessKds => roles.any(kdsRoles.contains);
 
-  /// Vista de cocina: cocinero, supervisor o admin.
   bool get canSeeKitchen => roles.any(const {'cocinero', 'supervisor', 'admin'}.contains);
 
-  /// Vista de despacho: despachador, supervisor o admin.
   bool get canSeeDispatch => roles.any(const {'despachador', 'supervisor', 'admin'}.contains);
 
-  /// El Gateway y Kitchen validan el permiso; aquí solo se decide qué botones mostrar.
   bool get canUpdate => permissions.contains('kitchen:update');
   bool get canDeliver => permissions.contains('kitchen:deliver');
 
@@ -86,15 +76,13 @@ class Session {
   }
 }
 
-/// Dónde se guarda la sesión entre ejecuciones.
 abstract class SessionStore {
   Future<Session?> read();
   Future<void> write(Session session);
   Future<void> clear();
 }
 
-/// Almacenamiento seguro del sistema (Windows Credential Locker / DPAPI). No se guarda en
-/// texto plano ni en un archivo del proyecto. En web (solo demo) lo cifra el navegador.
+// TODO verificar en Windows. En web no es almacenamiento seguro (solo demo).
 class SecureSessionStore implements SessionStore {
   SecureSessionStore([FlutterSecureStorage? storage]) : _storage = storage ?? const FlutterSecureStorage();
 
@@ -125,7 +113,6 @@ class SecureSessionStore implements SessionStore {
   Future<void> clear() => _storage.delete(key: _key);
 }
 
-/// Para pruebas.
 class MemorySessionStore implements SessionStore {
   MemorySessionStore([this.session]);
 

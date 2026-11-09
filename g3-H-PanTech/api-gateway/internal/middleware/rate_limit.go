@@ -18,19 +18,18 @@ const (
 	redisBudget = 300 * time.Millisecond
 )
 
-// Limiter cuenta peticiones por ventana fija de un minuto en Redis.
 type Limiter struct {
 	rdb *redis.Client
 	log *slog.Logger
 	now func() time.Time
 }
 
-// NewLimiter crea un limitador sobre Redis.
 func NewLimiter(rdb *redis.Client, log *slog.Logger) *Limiter {
 	return &Limiter{rdb: rdb, log: log, now: time.Now}
 }
 
-// RateLimitIP limita por IP del cliente. No confía en X-Forwarded-For.
+// No confía en X-Forwarded-For.
+// TODO verificar con Web SSR: todas sus llamadas comparten IP.
 func RateLimitIP(l *Limiter, limit int) func(http.Handler) http.Handler {
 	return l.middleware("ip", limit, func(r *http.Request) string {
 		host, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -41,7 +40,6 @@ func RateLimitIP(l *Limiter, limit int) func(http.Handler) http.Handler {
 	})
 }
 
-// RateLimitUser limita por usuario; va después de Authenticate.
 func RateLimitUser(l *Limiter, limit int) func(http.Handler) http.Handler {
 	return l.middleware("user", limit, func(r *http.Request) string {
 		p, _ := PrincipalFrom(r.Context())
@@ -68,7 +66,7 @@ func (l *Limiter) middleware(scope string, limit int, id func(*http.Request) str
 			incr := pipe.Incr(ctx, key)
 			pipe.Expire(ctx, key, 2*rateWindow)
 			if _, err := pipe.Exec(ctx); err != nil {
-				// Sin Redis no se bloquea el tráfico: el límite deja de aplicarse.
+				// Sin Redis el límite no se aplica.
 				l.log.Warn("rate limit sin redis", "request_id", httpx.RequestID(r.Context()), "error", err.Error())
 				next.ServeHTTP(w, r)
 				return

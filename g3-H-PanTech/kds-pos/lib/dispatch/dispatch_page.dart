@@ -6,7 +6,6 @@ import '../kitchen/queue_controller.dart';
 import '../models/queue_item.dart';
 import '../widgets/status_banner.dart';
 
-/// Despacho: pedidos listos separados por tipo, con el botón *Entregar*.
 class DispatchPage extends StatelessWidget {
   const DispatchPage({super.key, required this.controller, required this.session});
 

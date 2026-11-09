@@ -2,13 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../models/queue_item.dart';
 
-/// Tarjeta de comanda: posición, tipo, productos, espera, ETA y, si corresponde, un botón de acción.
 class OrderCard extends StatelessWidget {
   const OrderCard({super.key, required this.item, this.action});
 
   final QueueItem item;
 
-  /// Botones de acción (cocina o despacho); `null` si la persona no tiene permiso.
   final Widget? action;
 
   static Color statusColor(String status) => switch (status) {

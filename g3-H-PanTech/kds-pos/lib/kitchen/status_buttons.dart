@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../models/queue_item.dart';
 
-/// Botones de la comanda en cocina: *En preparación* (pendiente) y *Listo* (en preparación).
 class StatusButtons extends StatelessWidget {
   const StatusButtons({
     super.key,

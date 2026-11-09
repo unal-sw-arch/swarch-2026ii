@@ -11,13 +11,11 @@ import (
 )
 
 const (
-	outboxKey = "kitchen:outbox"
-	// EventOrderReady es el routing key y el event_type del evento de pedido listo.
+	outboxKey       = "kitchen:outbox"
 	EventOrderReady = "order.ready"
 	producer        = "kitchen-service"
 )
 
-// Envelope es el sobre de contratos.md §4.
 type Envelope struct {
 	EventID    string         `json:"event_id"`
 	EventType  string         `json:"event_type"`
@@ -27,8 +25,7 @@ type Envelope struct {
 	Payload    map[string]any `json:"payload"`
 }
 
-// Outbox guarda los eventos en Redis hasta que RabbitMQ los confirma. Si el broker falla no
-// se pierde nada ni se revierte el cambio de estado: un worker reintenta con backoff exponencial.
+// Guarda el evento en Redis hasta que RabbitMQ lo confirma; si falla no se revierte el estado.
 type Outbox struct {
 	rdb  redis.Cmdable
 	pub  Publisher
@@ -37,12 +34,10 @@ type Outbox struct {
 	kick chan struct{}
 }
 
-// NewOutbox crea el outbox.
 func NewOutbox(rdb redis.Cmdable, pub Publisher, log *slog.Logger) *Outbox {
 	return &Outbox{rdb: rdb, pub: pub, log: log, now: time.Now, kick: make(chan struct{}, 1)}
 }
 
-// OrderReady encola el evento order.ready y despierta al worker.
 func (o *Outbox) OrderReady(ctx context.Context, orderID, customerID string, readyAt time.Time, prepMinutes int) error {
 	body, err := json.Marshal(Envelope{
 		EventID:    uuid.NewString(),
@@ -72,12 +67,10 @@ func (o *Outbox) OrderReady(ctx context.Context, orderID, customerID string, rea
 	return nil
 }
 
-// Pending devuelve cuántos eventos esperan confirmación del broker.
 func (o *Outbox) Pending(ctx context.Context) (int64, error) {
 	return o.rdb.HLen(ctx, outboxKey).Result()
 }
 
-// Flush intenta publicar todos los eventos pendientes. Devuelve cuántos salieron y cuántos fallaron.
 func (o *Outbox) Flush(ctx context.Context) (published, failed int) {
 	entries, err := o.rdb.HGetAll(ctx, outboxKey).Result()
 	if err != nil {
@@ -108,8 +101,8 @@ func (o *Outbox) Flush(ctx context.Context) (published, failed int) {
 	return published, failed
 }
 
-// Run publica en segundo plano hasta que ctx termine: reintenta con backoff (1 s a 30 s)
-// mientras haya fallos y revisa cada 5 s si quedó algo pendiente.
+// Reintenta con backoff de 1 s a 30 s.
+// TODO verificar con el Worker que deduplique por event_id.
 func (o *Outbox) Run(ctx context.Context) {
 	backoff := time.Second
 	for {

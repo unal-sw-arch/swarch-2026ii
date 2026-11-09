@@ -18,8 +18,7 @@ import (
 	"kitchen-service/migrations"
 )
 
-// startContainer levanta una imagen con Docker y devuelve host:puerto. Si Docker no está
-// disponible (o corre con -short) el test se salta solo.
+// Se salta si Docker no está disponible.
 func startContainer(t *testing.T, image, internalPort string, env ...string) string {
 	t.Helper()
 	if testing.Short() {

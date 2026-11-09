@@ -174,7 +174,7 @@ func truncate(b []byte) string {
 	return s
 }
 
-// waitReady espera a que el Gateway y Kitchen respondan /ready y a que el Gateway acepte el JWKS falso.
+// Espera /ready y que el Gateway acepte el JWKS falso (renueva como máximo cada 10 s).
 func (s *suite) waitReady(ctx context.Context) error {
 	for _, base := range []string{s.cfg.kitchen, s.cfg.gateway} {
 		for {
@@ -188,7 +188,6 @@ func (s *suite) waitReady(ctx context.Context) error {
 			}
 		}
 	}
-	// El Gateway renueva el JWKS como máximo cada 10 s ante un kid nuevo.
 	for {
 		if r := s.gw("GET", "/queue", nil, s.as(s.ids.cook)); r.status == 200 {
 			return nil

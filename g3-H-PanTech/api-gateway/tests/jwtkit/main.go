@@ -1,8 +1,4 @@
-// Command jwtkit sirve un JWKS falso y firma JWT RS256 de prueba. Solo para pruebas locales:
-// no forma parte de la imagen de producción.
-//
-//	jwtkit serve -addr :9999 -key key.pem
-//	jwtkit token -key key.pem -sub <uuid> -roles cocinero -perms kitchen:read,kitchen:update
+// jwtkit sirve un JWKS falso y firma JWT de prueba. Solo para pruebas locales.
 package main
 
 import (
