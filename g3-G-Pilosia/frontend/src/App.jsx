@@ -1,14 +1,14 @@
- "use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { getNotifications } from "./api.js";
-import Login from "./legacy-pages/Login.jsx";
-import Catalog from "./legacy-pages/Catalog.jsx";
-import MyEnrollments from "./legacy-pages/MyEnrollments.jsx";
-import MySchedule from "./legacy-pages/MySchedule.jsx";
-import AcademicHistory from "./legacy-pages/AcademicHistory.jsx";
-import MyGroups from "./legacy-pages/MyGroups.jsx";
-import GroupGrades from "./legacy-pages/GroupGrades.jsx";
+import Login from "./views/Login.jsx";
+import Catalog from "./views/Catalog.jsx";
+import MyEnrollments from "./views/MyEnrollments.jsx";
+import MySchedule from "./views/MySchedule.jsx";
+import AcademicHistory from "./views/AcademicHistory.jsx";
+import MyGroups from "./views/MyGroups.jsx";
+import GroupGrades from "./views/GroupGrades.jsx";
 
 // Opciones del menú según el rol
 const MENUS = {
@@ -21,29 +21,27 @@ const MENUS = {
   professor: [{ id: "groups", label: "Mis grupos" }],
 };
 
-// La sesión se guarda en el navegador para no perderla al recargar.
+// La sesión se guarda en una cookie para que el servidor (SSR) sepa qué página armar.
 // No hay autenticación real: es solo para el prototipo.
-function loadSession() {
-  try {
-    return JSON.parse(localStorage.getItem("pilosia-session"));
-  } catch {
-    return null;
-  }
-}
-
 function saveSession(session) {
-  try {
-    if (session) localStorage.setItem("pilosia-session", JSON.stringify(session));
-    else localStorage.removeItem("pilosia-session");
-  } catch {
-    // si el navegador no deja guardar, la sesión solo dura mientras la página esté abierta
+  if (session) {
+    const id = session.role === "student" ? session.user.code : session.user.id;
+    document.cookie = `pilosia-session=${session.role}:${id}; path=/; max-age=86400; SameSite=Lax`;
+  } else {
+    document.cookie = "pilosia-session=; path=/; max-age=0";
   }
 }
 
-export default function App() {
-  const [session, setSession] = useState(loadSession);
-  const [page, setPage] = useState(session ? MENUS[session.role][0].id : null);
+export default function App({ initialSession, initialUsers, initialCatalog, initialEnrollments, initialGroups }) {
+  const [session, setSession] = useState(initialSession);
+  const [page, setPage] = useState(initialSession ? MENUS[initialSession.role][0].id : null);
   const [selectedGroup, setSelectedGroup] = useState(null);
+  // Datos que ya trajo el servidor. Solo sirven para la primera vista; después cada vista consulta sola.
+  const [ssrData, setSsrData] = useState({
+    catalog: initialCatalog,
+    enrollments: initialEnrollments,
+    groups: initialGroups,
+  });
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
@@ -70,8 +68,14 @@ export default function App() {
     };
   }, [session]);
 
+  function goTo(newPage) {
+    setSsrData({});
+    setPage(newPage);
+  }
+
   function handleLogin(newSession) {
     saveSession(newSession);
+    setSsrData({});
     setSession(newSession);
     setPage(MENUS[newSession.role][0].id);
   }
@@ -84,7 +88,7 @@ export default function App() {
   }
 
   if (!session) {
-    return <Login onLogin={handleLogin} />;
+    return <Login onLogin={handleLogin} initialUsers={initialUsers} />;
   }
 
   const { role, user } = session;
@@ -92,7 +96,7 @@ export default function App() {
   function renderPage() {
     switch (page) {
       case "catalog":
-        return <Catalog student={user} />;
+        return <Catalog student={user} initialCatalog={ssrData.catalog} initialEnrollments={ssrData.enrollments} />;
       case "enrollments":
         return <MyEnrollments student={user} />;
       case "schedule":
@@ -103,14 +107,15 @@ export default function App() {
         return (
           <MyGroups
             professor={user}
+            initialData={ssrData.groups}
             onSelectGroup={(groupId) => {
               setSelectedGroup(groupId);
-              setPage("grades");
+              goTo("grades");
             }}
           />
         );
       case "grades":
-        return <GroupGrades groupId={selectedGroup} onBack={() => setPage("groups")} />;
+        return <GroupGrades groupId={selectedGroup} onBack={() => goTo("groups")} />;
       default:
         return null;
     }
@@ -139,7 +144,7 @@ export default function App() {
               <button
                 key={item.id}
                 className={page === item.id || (page === "grades" && item.id === "groups") ? "active" : ""}
-                onClick={() => setPage(item.id)}
+                onClick={() => goTo(item.id)}
               >
                 {item.label}
               </button>

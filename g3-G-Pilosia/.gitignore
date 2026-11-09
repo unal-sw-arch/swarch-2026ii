@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.next/
 __pycache__/
 *.pyc
-[SwArch_2025ii] - Project - Prototype 1.pdf
+target/

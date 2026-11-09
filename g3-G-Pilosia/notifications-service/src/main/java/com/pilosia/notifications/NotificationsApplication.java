@@ -1,9 +1,12 @@
 package com.pilosia.notifications;
 
+import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.FanoutExchange;
+import org.springframework.amqp.core.Queue;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
-import org.springframework.amqp.core.Queue;
 
 @SpringBootApplication
 public class NotificationsApplication {
@@ -11,8 +14,19 @@ public class NotificationsApplication {
         SpringApplication.run(NotificationsApplication.class, args);
     }
 
+    // courses-service publica en este exchange; cada servicio tiene su propia cola
+    @Bean
+    FanoutExchange eventsExchange() {
+        return new FanoutExchange("pilosia.events", true, false);
+    }
+
     @Bean
     Queue notificationsQueue() {
         return new Queue("pilosia.notifications", true);
+    }
+
+    @Bean
+    Binding notificationsBinding(Queue notificationsQueue, FanoutExchange eventsExchange) {
+        return BindingBuilder.bind(notificationsQueue).to(eventsExchange);
     }
 }

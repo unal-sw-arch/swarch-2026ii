@@ -27,12 +27,14 @@ services:
       API_TARGET: http://courses-service:8000
       GRAPHQL_TARGET: http://grades-service:4000
       NOTIFICATIONS_TARGET: http://notifications-service:8081
+      STATS_TARGET: http://stats-service:8082
     ports:
       - "8000:8080"
     depends_on:
       - courses-service
       - grades-service
       - notifications-service
+      - stats-service
 
   # ---------- Lógica ----------
   courses-service:
@@ -65,7 +67,21 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: pilosia
       SPRING_RABBITMQ_PASSWORD: pilosia
+      REDIS_HOST: notifications-db
     depends_on:
+      rabbitmq:
+        condition: service_healthy
+      notifications-db:
+        condition: service_healthy
+
+  stats-service:
+    build: ./stats-service
+    environment:
+      DATABASE_URL: postgresql://stats:stats@stats-db:5432/stats_db
+      RABBITMQ_URL: amqp://pilosia:pilosia@rabbitmq:5672/
+    depends_on:
+      stats-db:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
 
@@ -109,6 +125,32 @@ services:
       interval: 5s
       retries: 10
 
+  notifications-db:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - notifications-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  stats-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: stats_db
+      POSTGRES_USER: stats
+      POSTGRES_PASSWORD: stats
+    volumes:
+      - ./databases/stats/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - stats-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stats -d stats_db"]
+      interval: 5s
+      retries: 10
+
 volumes:
   courses-data:
   grades-data:
+  notifications-data:
+  stats-data:

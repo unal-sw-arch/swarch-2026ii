@@ -19,6 +19,11 @@
   <p>Segundo componente de presentación para consultas operativas.</p>
   <button id="load">Cargar información</button>
   <p id="status"></p>
+  <section>
+    <h2>Movimientos de inscripción</h2>
+    <p>Datos de stats-service. Se arman con los eventos que llegan por RabbitMQ cada vez que alguien inscribe o cancela una asignatura.</p>
+    <table><thead><tr><th>Código</th><th>Asignatura</th><th>Inscripciones</th><th>Cancelaciones</th><th>Último movimiento</th></tr></thead><tbody id="stats"></tbody></table>
+  </section>
   <section><h2>Estudiantes</h2><table><thead><tr><th>Código</th><th>Nombre</th><th>Programa</th></tr></thead><tbody id="students"></tbody></table></section>
   <section><h2>Docentes</h2><table><thead><tr><th>Nombre</th><th>Departamento</th></tr></thead><tbody id="professors"></tbody></table></section>
 </main>
@@ -28,10 +33,14 @@
   async function load() {
     status.textContent = "Cargando...";
     try {
-      const [students, professors] = await Promise.all([
+      const [students, professors, stats] = await Promise.all([
         fetch("/api/students").then(r => r.json()),
-        fetch("/api/professors").then(r => r.json())
+        fetch("/api/professors").then(r => r.json()),
+        fetch("/stats/courses").then(r => r.json())
       ]);
+      document.querySelector("#stats").innerHTML = stats.length
+        ? rows(stats, ["course_code", "course_name", "enrolled", "cancelled", "last_event_at"])
+        : '<tr><td colspan="5">Todavía no hay movimientos. Inscribe o cancela una asignatura en el frontend.</td></tr>';
       document.querySelector("#students").innerHTML = rows(students, ["code", "name", "program"]);
       document.querySelector("#professors").innerHTML = rows(professors, ["name", "department"]);
       status.textContent = "Información actualizada.";

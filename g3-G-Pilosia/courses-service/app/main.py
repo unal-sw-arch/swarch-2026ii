@@ -35,10 +35,11 @@ def publish_event(event_type, payload):
     try:
         connection = pika.BlockingConnection(pika.URLParameters(url))
         channel = connection.channel()
-        channel.queue_declare(queue="pilosia.notifications", durable=True)
+        # exchange tipo fanout: cada servicio interesado tiene su propia cola y recibe una copia
+        channel.exchange_declare(exchange="pilosia.events", exchange_type="fanout", durable=True)
         channel.basic_publish(
-            exchange="",
-            routing_key="pilosia.notifications",
+            exchange="pilosia.events",
+            routing_key="",
             body=json.dumps({"type": event_type, **payload}),
             properties=pika.BasicProperties(delivery_mode=2),
         )
@@ -284,14 +285,28 @@ def delete_enrollment(code: str, enrollment_id: int):
     """Cancela una inscripción del periodo actual."""
     with get_connection() as conn:
         deleted = conn.execute(
-            """DELETE FROM enrollments e USING course_groups g
+            """DELETE FROM enrollments e USING course_groups g, courses c
                WHERE e.id = %s AND e.student_code = %s
-                 AND g.id = e.group_id AND g.period = %s
-               RETURNING e.id""",
+                 AND g.id = e.group_id AND g.period = %s AND c.code = g.course_code
+               RETURNING e.id, g.id AS group_id, g.group_number, g.professor_id,
+                         c.code AS course_code, c.name AS course_name""",
             (enrollment_id, code, CURRENT_PERIOD),
         ).fetchone()
     if deleted is None:
         raise HTTPException(status_code=404, detail="Inscripción no encontrada")
+
+    publish_event(
+        "EnrollmentCancelled",
+        {
+            "enrollmentId": deleted["id"],
+            "studentCode": code,
+            "groupId": deleted["group_id"],
+            "courseCode": deleted["course_code"],
+            "courseName": deleted["course_name"],
+            "groupNumber": deleted["group_number"],
+            "professorId": deleted["professor_id"],
+        },
+    )
     return {"message": "Inscripción cancelada"}
 
 

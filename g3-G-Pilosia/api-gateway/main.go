@@ -14,6 +14,7 @@ func main() {
 	apiTarget := mustURL("API_TARGET", "http://courses-service:8000")
 	graphqlTarget := mustURL("GRAPHQL_TARGET", "http://grades-service:4000")
 	notificationsTarget := mustURL("NOTIFICATIONS_TARGET", "http://notifications-service:8081")
+	statsTarget := mustURL("STATS_TARGET", "http://stats-service:8082")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", health)
@@ -21,6 +22,8 @@ func main() {
 	mux.Handle("/api/", proxy(apiTarget))
 	mux.Handle("/graphql", proxy(graphqlTarget))
 	mux.Handle("/notifications", proxy(notificationsTarget))
+	mux.Handle("/stats", proxy(statsTarget))
+	mux.Handle("/stats/", proxy(statsTarget))
 
 	server := &http.Server{
 		Addr:              ":" + env("PORT", "8080"),
