@@ -56,6 +56,11 @@ Departamento de Ingeniería de Sistemas e Industrial\
         -   [Descripción de elementos y relaciones](#descripción-de-elementos-y-relaciones)
         -   [Descripción de patrones arquitecturales](#descripción-de-patrones-arquitecturales)
         -   [Infraestructura y comunicaciones](#infraestructura-y-comunicaciones)
+    -   [Estructura por capas (Layered Structure)](#estructura-por-capas-layered-structure)
+        -   [Diagrama de capas](#diagrama-de-capas)
+        -   [Descripción de las capas](#descripción-de-las-capas)
+        -   [Organización de módulos por capa](#organización-de-módulos-por-capa)
+        -   [Reglas de dependencia](#reglas-de-dependencia)
 -   [Guía de Despliegue y Ejecución](#guía-de-despliegue-y-ejecución)
     -   [Requisitos previos](#requisitos-previos)
     -   [Configuración de variables de entorno](#configuración-de-variables-de-entorno)
@@ -617,6 +622,174 @@ Los nodos se organizan por zonas según quién puede alcanzarlos. Frontend y gat
 ### Infraestructura y comunicaciones
 
 El modelo de despliegue es **híbrido**. Los componentes propios corren en la infraestructura Local (MyPC): un equipo con Windows 11, Ryzen 7 5700 y 32 GB de RAM, sobre Docker Engine. Autenticación, almacenamiento de imágenes, mapas y correo se consumen como SaaS desde la nube pública. La infraestructura Client es el teléfono del usuario, conectado a la misma red que el equipo.
+
+---
+## Estructura por capas (Layered Structure)
+
+### Diagrama de capas
+
+![Diagrama de capas](images/diagrama_capas.png)
+
+La organización parte de las tres categorías definidas en la descomposición. La categoría **Front-End & Gateway** se separa en dos capas, porque la interacción con el usuario y la entrada al backend tienen responsabilidades y niveles de abstracción diferentes. Las otras dos categorías corresponden cada una a una capa.
+
+| Capa | Categoría de origen | Subsistemas | Componentes del C&C |
+|---|---|---|---|
+| **Presentation Layer** | Front-End & Gateway | Presentation Subsystem | `ReactWebPage`, `FlutterMobileApp` |
+| **API & Gateway Layer** | Front-End & Gateway | API & Gateway Subsystem | `APIGateway` |
+| **Core Business Logic Layer** | Core Business Logic | User Management, Inventory y Event Management | `Users`, `Inventory`, `Events` |
+| **Support & Integration Layer** | Support & Integration Services | Asynchronous & Notification Subsystem | `NotificationsQueue` (interacción), `Notifications` |
+
+### Descripción de las capas
+
+#### Capa 1: Presentation Layer
+
+Es la capa de mayor nivel de abstracción y la más cercana al usuario final. Contiene los clientes web y móvil con los que los miembros de la universidad consultan el catálogo de implementos, visualizan los eventos y sus ubicaciones, consultan la disponibilidad y realizan reservas.
+
+Sus responsabilidades son renderizar las interfaces, capturar la interacción del usuario, gestionar el estado local de navegación y de la sesión, obtener el ID Token directamente desde `FirebaseAuth` y mostrar las ubicaciones de los eventos mediante `GoogleMapsAPI`.
+
+No contiene reglas de negocio, no accede a las bases de datos y no se comunica directamente con los servicios de dominio. Todas las operaciones sobre usuarios, eventos, implementos y reservas se delegan a la API & Gateway Layer.
+
+#### Capa 2: API & Gateway Layer
+
+Actúa como punto único de entrada al backend y como frontera inicial de seguridad. Recibe las solicitudes HTTP de los clientes, valida el ID Token de Firebase en cada solicitud protegida y encamina cada petición al módulo de negocio correspondiente.
+
+Para construir el contexto interno del usuario, añade los encabezados `X-From-Gateway`, `X-User-Id`, `X-User-Email`, `X-User-Role`, `X-User-Faculty` y `X-User-Status`. El token de Firebase no se reenvía a los servicios de dominio.
+
+Mantiene en memoria una caché de datos de usuario con TTL de 60 segundos. Si la información no está vigente, consulta al módulo de usuarios; si el usuario no existe, solicita su creación.
+
+No contiene lógica de negocio ni reemplaza la autorización propia de cada servicio. Se limita al enrutamiento, la validación de identidad y la transmisión del contexto del usuario.
+
+#### Capa 3: Core Business Logic Layer
+
+Contiene las reglas principales del dominio universitario y corresponde a la categoría Core Business Logic de la descomposición.
+
+Administra los usuarios, roles y estados; controla el registro, la disponibilidad, la reserva y el préstamo de implementos; y gestiona el ciclo de vida de los eventos, sus suscripciones y sus datos de ubicación dentro del campus.
+
+- Cada módulo aplica sus propios permisos a partir del contexto recibido del Gateway.
+- Cada subsistema accede únicamente a su propia base de datos PostgreSQL mediante Django ORM: el módulo de usuarios utiliza `UsersDB`, los de eventos `EventsDB` y los de inventario `Inventory DB`.
+- Los módulos de eventos e inventario gestionan también las imágenes de eventos e implementos con Firebase Storage.
+- Aquí residen las reglas de reserva: el límite de un implemento reservado o prestado por miembro y la obligación de confirmar la reserva en un plazo de diez minutos.
+- Las tareas periódicas previstas en `Events` e `Inventory` revisarán aproximadamente cada 30 segundos los cambios de estado o vencimientos que puedan generar notificaciones.
+
+Esta capa no conoce cómo se construyen las interfaces ni cómo se envían los correos. Los mapas los muestran los clientes con `GoogleMapsAPI`; el Campus Map Integration Module solo estructura y procesa las coordenadas geográficas de los eventos.
+
+#### Capa 4: Support & Integration Layer
+
+Es la capa de menor nivel de abstracción y la más cercana a los mecanismos técnicos de infraestructura. Corresponde a la categoría Support & Integration Services de la descomposición. Su responsabilidad es proporcionar la comunicación asíncrona y el procesamiento en segundo plano que requiere la capa de negocio.
+
+Los módulos de eventos e inventario no se comunican directamente con el servicio de notificaciones: publican mensajes mediante el Message Queue Adapter, con AMQP sobre RabbitMQ. Después, el Background Notification Engine consume los mensajes, construye los correos y solicita su envío a Brevo.
+
+Este desacoplamiento evita que la lógica de negocio dependa del mecanismo de envío de correos y permite procesar las notificaciones sin bloquear la respuesta de los servicios de eventos e inventario.
+
+Las bases de datos PostgreSQL, la cola RabbitMQ, Firebase Storage, `FirebaseAuth`, `GoogleMapsAPI` y Brevo no son módulos adicionales: son componentes de infraestructura o servicios externos representados en la vista C&C y utilizados desde los módulos ya definidos.
+
+### Organización de módulos por capa
+
+| Capa | Categoría de origen | Subsistema | Módulo | Responsabilidad | Componente C&C |
+|---|---|---|---|---|---|
+| Presentation Layer | Front-End & Gateway | Presentation Subsystem | Web Client App (React) | Renderizar el catálogo de implementos, el mapa de eventos y la interfaz de reservas. Gestionar el estado de la sesión en el navegador. | `ReactWebPage` |
+| Presentation Layer | Front-End & Gateway | Presentation Subsystem | Mobile Client App | Proporcionar la interfaz móvil e integrar el SDK de autenticación en dispositivos móviles. | `FlutterMobileApp` |
+| API & Gateway Layer | Front-End & Gateway | API & Gateway Subsystem | API Routing & Auth Middleware | Recibir y encaminar el tráfico de los clientes, validar los tokens de Firebase, construir el contexto del usuario y mantener la caché de usuarios con TTL de 60 segundos. No contiene lógica de negocio. | `APIGateway` |
+| Core Business Logic Layer | Core Business Logic | User Management Subsystem | User Profile & Status Engine | Validar usuarios con correo institucional, administrar perfiles, roles y estados, y persistir la información en `UsersDB`. También comprueba la identidad recibida consultando su propia base de datos. | `Users` |
+| Core Business Logic Layer | Core Business Logic | Inventory Subsystem | Equipment Inventory Engine | Registrar, actualizar, consultar y eliminar implementos; filtrarlos por categoría; controlar su disponibilidad y vincular sus imágenes en Firebase Storage. Persiste en `Inventory DB`. | `Inventory` |
+| Core Business Logic Layer | Core Business Logic | Inventory Subsystem | Reservation Logic | Procesar reservas y préstamos, aplicar el límite de un implemento por miembro, activar el plazo de confirmación de diez minutos y cancelar reservas vencidas restableciendo la disponibilidad. | `Inventory` |
+| Core Business Logic Layer | Core Business Logic | Event Management Subsystem | Event Lifecycle Engine | Crear, modificar y cancelar eventos; gestionar suscripciones y estados de publicación; aplicar los permisos correspondientes y persistir la información en `EventsDB`. | `Events` |
+| Core Business Logic Layer | Core Business Logic | Event Management Subsystem | Campus Map Integration Module | Estructurar y procesar las coordenadas geográficas y los datos descriptivos de los eventos dentro del campus. | `Events` |
+| Support & Integration Layer | Support & Integration Services | Asynchronous & Notification Subsystem | Message Queue Adapter | Recibir las publicaciones asíncronas de eventos e inventario mediante AMQP y almacenarlas en la cola para garantizar su entrega al consumidor. | Interacción con `NotificationsQueue` |
+| Support & Integration Layer | Support & Integration Services | Asynchronous & Notification Subsystem | Background Notification Engine | Consumir los mensajes de la cola, construir los correos y solicitar su envío mediante Brevo. | `Notifications` |
+
+**Aclaraciones sobre la organización**
+
+- El servicio `Inventory` de la vista C&C está implementado por dos módulos: Equipment Inventory Engine y Reservation Logic.
+- El servicio `Events` está implementado por Event Lifecycle Engine y Campus Map Integration Module.
+- `NotificationsQueue` es un componente de infraestructura en tiempo de ejecución. El código que publica y consume sus mensajes está en los módulos Message Queue Adapter y Background Notification Engine.
+- `UsersDB`, `EventsDB` e `Inventory DB` son bases de datos PostgreSQL independientes. Su acceso está encapsulado en los módulos de negocio correspondientes y no da lugar a nuevos módulos.
+- `FirebaseAuth`, `GoogleMapsAPI`, Firebase Storage y Brevo son servicios externos, por lo que no forman una capa adicional.
+
+### Reglas de dependencia
+
+#### Reglas generales
+
+**R1. Asignación única de módulos.** Cada módulo pertenece exactamente a una capa. Ningún módulo puede aparecer en dos capas ni se pueden incorporar módulos que no existan en la vista de descomposición.
+
+**R2. Dependencia descendente.** La relación «allowed-to-use» fluye solo desde las capas superiores hacia las inferiores:
+
+```text
+Presentation Layer
+        ↓
+API & Gateway Layer
+        ↓
+Core Business Logic Layer
+        ↓
+Support & Integration Layer
+```
+
+**R3. Capas cerradas (strict layering).** Una capa solo puede utilizar la capa inmediatamente inferior; no se permite el salto de capas (*layer bridging*). Por ejemplo, Web Client App y Mobile Client App no pueden invocar directamente Event Lifecycle Engine, Equipment Inventory Engine ni Message Queue Adapter: todas sus solicitudes de negocio pasan por API Routing & Auth Middleware.
+
+**R4. Prohibición de dependencias ascendentes.** Ningún módulo de una capa inferior puede importar, invocar o conocer módulos de una capa superior. Por ejemplo, Background Notification Engine no puede consultar a Event Lifecycle Engine ni a Reservation Logic: la información necesaria para construir una notificación debe venir en el mensaje que recibe de la cola.
+
+**R5. Dependencias dentro de una misma capa.** Solo se permiten las dependencias intracapa definidas en la descomposición, en un único sentido y sin formar ciclos:
+
+- Reservation Logic → Equipment Inventory Engine
+- Reservation Logic → User Profile & Status Engine
+- Campus Map Integration Module → Event Lifecycle Engine
+- Background Notification Engine → Message Queue Adapter
+
+La dependencia de Reservation Logic hacia User Profile & Status Engine sirve para actualizar el estado de un usuario, por ejemplo de «Activo» a «Sancionado» ante la devolución de un implemento dañado. User Profile & Status Engine no debe depender en sentido contrario de Reservation Logic. Web Client App y Mobile Client App no dependen entre sí.
+
+**R6. Separación entre autenticación y autorización.** La API & Gateway Layer autentica la solicitud validando el ID Token; la autorización de cada operación pertenece a la Core Business Logic Layer. Que API Routing & Auth Middleware consulte a User Profile & Status Engine para obtener o crear el usuario no le permite decidir los permisos sobre eventos, implementos o reservas.
+
+**R7. Encapsulamiento de la persistencia.** Cada subsistema de negocio accede solo a su propia base de datos:
+
+- User Profile & Status Engine → `UsersDB`
+- Event Lifecycle Engine y Campus Map Integration Module → `EventsDB`
+- Equipment Inventory Engine y Reservation Logic → `Inventory DB`
+
+Ningún módulo puede consultar directamente la base de datos de otro subsistema. Por ejemplo, Equipment Inventory Engine no puede acceder a `EventsDB`, ni User Profile & Status Engine puede modificar `Inventory DB`.
+
+**R8. Comunicación asíncrona mediante la capa de soporte.** Event Lifecycle Engine y Equipment Inventory Engine publican las notificaciones mediante Message Queue Adapter; no pueden comunicarse directamente con Background Notification Engine ni con Brevo. Las tareas periódicas de eventos e inventario, previstas aproximadamente cada 30 segundos, publican un mensaje cuando detectan un vencimiento o cambio de estado y terminan sin esperar el envío del correo.
+
+**R9. Uso controlado de servicios externos.** El uso de `FirebaseAuth` y `GoogleMapsAPI` por parte de los clientes, y el de Firebase Storage por parte de eventos e inventario, no constituye un salto de capas, porque esos servicios no son módulos internos del sistema. La validación del token sigue realizándose en la API & Gateway Layer y las reglas sobre ubicaciones y eventos permanecen en la Core Business Logic Layer.
+
+**R10. Protección del contexto interno.** Los módulos de negocio solo deben aceptar los encabezados `X-From-Gateway` y `X-User-*` cuando la solicitud proviene efectivamente del Gateway. Como `X-From-Gateway: true` no autentica criptográficamente al emisor, la comunicación interna debe restringirse a los componentes autorizados e incorporar un mecanismo de autenticación entre servicios que impida la falsificación de encabezados.
+
+**R11. Ausencia de ciclos.** Las dependencias entre capas y entre módulos forman un grafo dirigido acíclico. Si una funcionalidad requiere que un módulo inferior invoque a uno superior, debe resolverse mediante interfaces de la capa correspondiente o mensajes asíncronos, nunca con una dependencia ascendente.
+
+#### Dependencias permitidas entre módulos
+
+Las dependencias definidas en la descomposición se interpretan en la estructura por capas así:
+
+| Dependencia | Interpretación en capas |
+|---|---|
+| Web Client App / Mobile Client App → API Routing & Auth Middleware | Dependencia descendente de Presentation Layer hacia API & Gateway Layer. |
+| API Routing & Auth Middleware → User Profile & Status Engine | Dependencia descendente hacia Core Business Logic Layer para validar perfiles, estados y datos del usuario. |
+| API Routing & Auth Middleware → Event Lifecycle Engine | Dependencia descendente para encaminar consultas, creación y actualización de eventos. |
+| API Routing & Auth Middleware → Equipment Inventory Engine | Dependencia descendente para encaminar la administración de implementos y consultas del catálogo. |
+| Reservation Logic → Equipment Inventory Engine | Dependencia intracapa dentro de Inventory Subsystem para consultar y actualizar la disponibilidad. |
+| Reservation Logic → User Profile & Status Engine | Dependencia intracapa unidireccional para actualizar el estado del usuario cuando corresponda. |
+| Campus Map Integration Module → Event Lifecycle Engine | Dependencia intracapa dentro de Event Management Subsystem para obtener los datos geográficos y descriptivos de los eventos. |
+| Event Lifecycle Engine → Message Queue Adapter | Dependencia descendente hacia Support & Integration Layer para publicar notificaciones de eventos. |
+| Equipment Inventory Engine → Message Queue Adapter | Dependencia descendente hacia Support & Integration Layer para publicar notificaciones de inventario y reservas. |
+| Background Notification Engine → Message Queue Adapter | Dependencia intracapa dentro de Asynchronous & Notification Subsystem para consumir las tareas pendientes. |
+
+#### Matriz de dependencias permitidas
+
+| Desde \ Hacia | Presentation | API & Gateway | Core Business Logic | Support & Integration |
+|---|---|---|---|---|
+| **Presentation** | — | Permitido | Prohibido | Prohibido |
+| **API & Gateway** | Prohibido | — | Permitido | Prohibido |
+| **Core Business Logic** | Prohibido | Prohibido | Solo dependencias intracapa definidas | Permitido |
+| **Support & Integration** | Prohibido | Prohibido | Prohibido | Solo dependencias intracapa definidas |
+
+#### Dependencias prohibidas
+
+- Mobile Client App → Event Lifecycle Engine directamente, porque saltaría la validación realizada por el Gateway.
+- Web Client App → Message Queue Adapter, porque la presentación no debe conocer los mecanismos de mensajería.
+- API Routing & Auth Middleware → Background Notification Engine, porque saltaría la Core Business Logic Layer y la cola de mensajes.
+- Background Notification Engine → Reservation Logic, porque constituiría una dependencia ascendente.
+- Equipment Inventory Engine → `EventsDB`, porque rompería el encapsulamiento de datos de cada servicio.
+- Event Lifecycle Engine → Brevo directamente, porque el envío de correos pertenece exclusivamente a Background Notification Engine.
+- User Profile & Status Engine → Equipment Inventory Engine para modificar disponibilidad, porque invertiría la dependencia definida y podría producir un ciclo con Reservation Logic.
 
 ---
 
