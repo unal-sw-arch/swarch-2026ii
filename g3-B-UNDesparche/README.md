@@ -46,6 +46,11 @@ Departamento de Ingeniería de Sistemas e Industrial\
     -   [Calidad](#calidad)
     -   [Concurrencia](#concurrencia)
 -   [Arquitectura del sistema](#arquitectura-del-sistema)
+    -   [Estructura de Componentes y Conectores (C&C)](#estructura-de-componentes-y-conectores-c-c)
+    -   [Diagrama C&C](#diagrama-c-c)
+    -   [Descripción de componentes](#descripción-de-componentes)
+    -   [Interfaces y mecanismos de comunicación](#interfaces-y-mecanismos-de-comunicación)
+    -   [Escenarios de interacción](#escenarios-de-interacción)
 
 ### Descripción del proyecto
 
