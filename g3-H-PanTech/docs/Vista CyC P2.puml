@@ -120,8 +120,8 @@ Empleado -[#F9A825]down-> Web : Navegador web
 Empleado -[#F9A825]down-> KDS : Cliente de escritorio
 
 ' Presentación -> borde
-Web .[#00897B]down.> IGW : <<HTTPS / REST>>\nSSR y acciones del cliente
-KDS .[#00897B]down.> IGW : <<HTTPS / REST>>\nCola y despacho
+Web .[#00897B]down.> IGW : <<HTTP / REST>>\nSSR y acciones del cliente
+KDS .[#00897B]down.> IGW : <<HTTP / REST>>\nCola y despacho
 
 ' Borde -> servicios de lógica
 GW .[#1565C0]right.> IAuth : <<HTTP / REST>>\nLogin, registro y sesión
@@ -131,12 +131,16 @@ GW .[#1565C0]down.> IReport : <<HTTP / REST + JWT>>\nHistorial y reportes
 
 ' Persistencia
 Identity .[#E65100]down.> PG : <<SQL / TCP>>\nusuarios, roles y auditoría
+Identity .[#AD1457]left.> Redis : <<Redis / TCP>>\nrefresh tokens
+GW .[#AD1457]left.> Redis : <<Redis / TCP>>\nrate limiting
 Order .[#E65100]down.> PG : <<SQL / TCP>>\npedidos, pagos y reservas
 Order .[#C62828]down.> Mongo : <<MongoDB / TCP>>\nmenú y vistas de lectura
+Order .[#AD1457]left.> Redis : <<Redis / TCP>>\nidempotencia y caché
 Kitchen .[#E65100]down.> PG : <<SQL / TCP>>\ntiempos base e historial
 Kitchen .[#AD1457]down.> Redis : <<Redis / TCP>>\ncola priorizada y ETA
 Reporting .[#E65100]down.> PG : <<SQL / TCP>>\nconsultas de historial
 Reporting .[#C62828]down.> Mongo : <<MongoDB / TCP>>\nreportes precalculados
+Reporting .[#4E342E]down.> RustFS : <<S3 / HTTP>>\nexportaciones
 
 ' Eventos y procesos asíncronos
 Order .[#6A1B9A]right.> MQ : <<AMQP>>\norder.paid
@@ -160,7 +164,7 @@ note bottom of Worker
 end note
 
 legend right
-  <color:#00897B>■</color> HTTPS / REST
+  <color:#00897B>■</color> HTTP / REST
   <color:#1565C0>■</color> HTTP / REST + JWT
   <color:#6A1B9A>■</color> AMQP (eventos)
   <color:#E65100>■</color> SQL / TCP

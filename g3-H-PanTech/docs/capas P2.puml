@@ -65,8 +65,8 @@ package "Capa 4 - Infraestructura" as I #FFF3E0;line:E65100;text:E65100 {
 }
 
 ' Dependencias permitidas entre capas
-Web -[#00897B]down-> E : HTTPS / REST
-KDS -[#00897B]down-> E : HTTPS / REST
+Web -[#00897B]down-> E : HTTP / REST (local)
+KDS -[#00897B]down-> E : HTTP / REST (local)
 E -[#1565C0]down-> L : HTTP / REST + JWT
 L -[#E65100]down-> I : SQL / MongoDB / Redis / S3 / AMQP
 
@@ -86,7 +86,7 @@ note right of I
 end note
 
 legend right
-  <color:#00897B>■</color> HTTPS / REST
+  <color:#00897B>■</color> HTTP / REST (local)
   <color:#1565C0>■</color> HTTP / REST
   <color:#E65100>■</color> Persistencia y mensajería
 endlegend

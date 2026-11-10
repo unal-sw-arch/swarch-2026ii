@@ -20,7 +20,7 @@ Revisado contra `docker-compose.p2.yml`, `.env.p2.example` y `infrastructure/`. 
 
 1. **`docker-compose.p2.yml`, servicio `worker`:** agregar `ORDER_SERVICE_URL: ${ORDER_URL:-http://order-service:8000}` y `order-service: condition: service_healthy` en `depends_on`. (Funciona con el valor por defecto del código, pero conviene que sea explícito.)
 2. **Servicios `order-service` y `reporting-service`:** agregar `JWKS_URL`, `JWT_ISSUER` y `JWT_AUDIENCE` (ya están en `.env.p2.example`); el gateway sí los recibe, estos dos no.
-3. **URLs firmadas de los reportes:** RustFS no publica el puerto 9000 al host (solo la consola 9001), así que el navegador no podría abrir la URL de una exportación. Opciones: publicar 9000, o que Reporting entregue el archivo por un endpoint propio. Reporting acepta `S3_PUBLIC_ENDPOINT` para firmar con el host visible desde el navegador.
+3. **URLs firmadas de los reportes (resuelto):** Compose publica RustFS `:9000` para S3 y configura `S3_PUBLIC_ENDPOINT=http://localhost:9000`, de modo que el navegador pueda abrir las exportaciones.
 4. **Cola de `reservation.confirmed` (opcional):** ver `rabbitmq.reservation_confirmed.parche.json`. Sin ella, el read model `reservation_read` queda en `pendiente` después de confirmar.
 5. **Variables nuevas para `.env.p2.example`:** `PUBLISH_RESERVATION_CONFIRMED=false` (Order Service) y `S3_PUBLIC_ENDPOINT` (Reporting).
 6. **Mongo:** no hay que cambiar `init.js`. El `menu` acepta mis documentos (`price` decimal, `category`, `available`).

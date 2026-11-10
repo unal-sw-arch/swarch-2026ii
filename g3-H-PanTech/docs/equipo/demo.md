@@ -10,7 +10,8 @@ improvisar. Todos los comandos se ejecutan desde `g3-H-PanTech/`.
   `scripts/smoke_test.py`; no requiere paquetes externos).
 - Flutter SDK solo si se quiere abrir el KDS/POS de escritorio.
 - Puertos libres: `3000` (Web SSR), `8080` (Gateway), `15672` (RabbitMQ),
-  `9001` (RustFS), `5432`/`27017`/`6379` si se publican para inspección local.
+  `9000` (RustFS S3), `9001` (consola RustFS), `5432`/`27017`/`6379` si se
+  publican para inspección local.
 
 ## 2. Levantar el stack
 

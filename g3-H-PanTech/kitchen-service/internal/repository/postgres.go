@@ -117,7 +117,7 @@ func (p *Postgres) Lookup(ctx context.Context, productIDs []string) (map[string]
 		return out, nil
 	}
 	rows, err := p.pool.Query(ctx,
-		`SELECT product_id::text, prep_minutes FROM kitchen.prep_times WHERE product_id = ANY($1::uuid[])`, productIDs)
+		`SELECT product_id, prep_minutes FROM kitchen.prep_times WHERE product_id = ANY($1::text[])`, productIDs)
 	if err != nil {
 		return nil, err
 	}

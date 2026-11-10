@@ -44,9 +44,8 @@ node "Host Docker" as Host #FAFAFA;line:757575 {
 }
 
 ' Clientes -> presentación y borde
-Browser -[#00897B]down-> Web : HTTPS\nSSR
-Browser -[#00897B]down-> GW : HTTPS / REST\nAcciones del cliente
-KDS -[#00897B]down-> GW : HTTPS / REST\nCola y despacho
+Browser -[#00897B]down-> Web : HTTP\nSSR y acciones
+KDS -[#00897B]down-> GW : HTTP / REST\nCola y despacho
 
 ' Presentación -> borde
 Web -[#1565C0]down-> GW : HTTP / REST\nServidor Next.js
@@ -58,9 +57,12 @@ GW -[#1565C0]down-> Kitchen : HTTP / REST + JWT
 GW -[#1565C0]down-> Reporting : HTTP / REST + JWT
 
 ' Lógica -> datos y eventos
+GW -[#AD1457]left-> Redis : Redis / TCP\nRate limiting
 Identity -[#E65100]down-> PG : SQL / TCP
+Identity -[#AD1457]left-> Redis : Redis / TCP\nRefresh tokens
 Order -[#E65100]down-> PG : SQL / TCP
 Order -[#C62828]right-> Mongo : MongoDB / TCP
+Order -[#AD1457]left-> Redis : Redis / TCP\nIdempotencia
 Order -[#6A1B9A]right-> MQ : AMQP
 Kitchen -[#E65100]down-> PG : SQL / TCP
 Kitchen -[#AD1457]down-> Redis : Redis / TCP
@@ -75,16 +77,18 @@ Reporting -[#4E342E]down-> RustFS : S3 / HTTP
 
 note bottom of Net
   12 contenedores orquestados con Docker Compose sobre panaderia-net.
-  Solo web-ssr (:3000) y api-gateway (:8080) se publican al exterior.
-  postgres, mongodb, redis, rustfs y rabbitmq quedan en la red interna.
+  web-ssr (:3000) y api-gateway (:8080) son las entradas de usuario.
+  También se publican RabbitMQ (:15672) y RustFS (:9000 S3, :9001 consola).
+  Los servicios y bases de datos quedan en la red interna.
 
   Volúmenes: postgres_data, mongo_data, redis_data, rustfs_data, rustfs_logs, rabbitmq_data e identity_keys.
   web-ssr se ejecuta con Node en modo SSR; no es un sitio estático.
+  El Compose local usa HTTP sin TLS; HTTPS requiere terminación TLS externa.
   El KDS/POS es una aplicación de escritorio y no se despliega como contenedor.
 end note
 
 legend right
-  <color:#00897B>■</color> HTTPS / REST
+  <color:#00897B>■</color> HTTP / REST (local)
   <color:#1565C0>■</color> HTTP / REST
   <color:#6A1B9A>■</color> AMQP
   <color:#E65100>■</color> SQL / TCP

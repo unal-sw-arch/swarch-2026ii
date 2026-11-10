@@ -22,12 +22,13 @@ Este documento es la fuente única de verdad para puertos, autenticación, event
 | `postgres` | 5432 | `postgresql://postgres:5432` | No |
 | `mongodb` | 27017 | `mongodb://mongodb:27017` | No |
 | `redis` | 6379 | `redis://redis:6379` | No |
-| `rustfs` | 9000 / 9001 | `http://rustfs:9000` | Solo `:9001` (consola) |
+| `rustfs` | 9000 / 9001 | `http://rustfs:9000` | `:9000` (S3) y `:9001` (consola) |
 
 **Reglas:**
 
-- Solo `web-ssr` y `api-gateway` se publican como entrada de usuario.
+- `web-ssr` y `api-gateway` son las entradas de usuario. RustFS publica `:9000` para descargas firmadas; las consolas locales de RabbitMQ (`:15672`) y RustFS (`:9001`) también se publican.
 - Los servicios de lógica se llaman entre sí por nombre de contenedor, nunca por `localhost`.
+- El Compose local usa HTTP sin TLS; HTTPS requiere terminación TLS externa.
 - El KDS/POS es un cliente de escritorio y no tiene puerto en el compose.
 - Los puertos internos no se cambian sin actualizar este documento, el compose y los diagramas.
 

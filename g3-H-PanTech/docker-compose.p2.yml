@@ -6,9 +6,9 @@
 #   cp .env.p2.example .env.p2
 #   docker compose -f docker-compose.p2.yml --env-file .env.p2 up --build
 #
-# Solo se publican web-ssr (:3000), api-gateway (:8080) y las consolas de
-# RabbitMQ (:15672) y RustFS (:9001). Los servicios de lógica y los almacenes
-# quedan en la red interna panaderia-net.
+# web-ssr (:3000) y api-gateway (:8080) son las entradas de usuario. También se
+# publican RabbitMQ (:15672) y RustFS (:9000 S3, :9001 consola) para gestión y
+# descargas firmadas. Los servicios y bases de datos quedan en panaderia-net.
 #
 # El KDS/POS es una aplicación de escritorio Flutter y no se despliega aquí.
 #
@@ -44,7 +44,7 @@ services:
     ports:
       - "${WEB_SSR_HOST_PORT:-3000}:${WEB_SSR_PORT:-3000}"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${WEB_SSR_PORT:-3000}/health"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -226,6 +226,9 @@ services:
       S3_BUCKET_REPORTS: ${S3_BUCKET_REPORTS:-reports}
       S3_USE_SSL: ${S3_USE_SSL:-false}
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      # Host con el que se firman las URLs de exportación: el navegador debe
+      # poder resolverlo (localhost:9000), no `rustfs:9000`.
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
     depends_on:
       postgres:
@@ -280,7 +283,9 @@ services:
   # Mensajería
   # ---------------------------------------------------------------------------
   rabbitmq:
-    image: rabbitmq:3.13-management-alpine
+    # Versión fija: las etiquetas flotantes 3.13.x más nuevas de Alpine ya no
+    # incluyen rabbitmqadmin, que es lo que usa el job de importación.
+    image: rabbitmq:3.13.7-management-alpine
     container_name: panaderia-p2-rabbitmq
     restart: unless-stopped
     environment:
@@ -309,7 +314,8 @@ services:
   # permanentes.
   # ---------------------------------------------------------------------------
   rabbitmq-init:
-    image: rabbitmq:3.13-management-alpine
+    # Misma imagen fija que el broker: 3.13.7 sí trae rabbitmqadmin (v1).
+    image: rabbitmq:3.13.7-management-alpine
     container_name: panaderia-p2-rabbitmq-init
     restart: "no"
     depends_on:
@@ -433,6 +439,9 @@ services:
       RUSTFS_OBS_LOGGER_LEVEL: info
       RUSTFS_OBS_LOG_DIRECTORY: /logs
     ports:
+      # 9000 se publica para que el navegador abra las URLs firmadas de las
+      # exportaciones.
+      - "${RUSTFS_S3_HOST_PORT:-9000}:9000"
       - "${RUSTFS_CONSOLE_HOST_PORT:-9001}:9001"
     volumes:
       - rustfs_data:/data

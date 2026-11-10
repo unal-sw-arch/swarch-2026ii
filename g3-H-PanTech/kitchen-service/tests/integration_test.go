@@ -127,8 +127,13 @@ func TestPostgresPrepTimesHistoryAndConcurrentMigrate(t *testing.T) {
 	if err := db.SetPrepTime(ctx, product, 7); err != nil {
 		t.Fatal(err)
 	}
-	got, err := db.Lookup(ctx, []string{product, "66666666-6666-4666-8666-666666666666"})
-	if err != nil || len(got) != 1 || got[product] != 7 {
+	// Los IDs reales del menú son slugs, no UUID (migración 0002).
+	const slug = "p-cafe-americano"
+	if err := db.SetPrepTime(ctx, slug, 2); err != nil {
+		t.Fatal(err)
+	}
+	got, err := db.Lookup(ctx, []string{product, slug, "66666666-6666-4666-8666-666666666666"})
+	if err != nil || len(got) != 2 || got[product] != 7 || got[slug] != 2 {
 		t.Fatalf("lookup = %v %v", got, err)
 	}
 
@@ -165,10 +170,15 @@ func TestPrepTimesResolveThroughService(t *testing.T) {
 	if err := db.SetPrepTime(ctx, product, 9); err != nil {
 		t.Fatal(err)
 	}
+	const slug = "p-cafe-americano"
+	if err := db.SetPrepTime(ctx, slug, 4); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := &queue.Service{Prep: db, DefaultPrep: 5}
 	items := []queue.OrderItem{
 		{ProductID: product, Name: "Desayuno", Quantity: 1},
+		{ProductID: slug, Name: "Café", Quantity: 1},
 		{ProductID: "66666666-6666-4666-8666-666666666666", Name: "Sin tiempo", Quantity: 1},
 		{ProductID: "77777777-7777-4777-8777-777777777777", Name: "Pan", Quantity: 1, PrepMinutes: 3},
 	}
@@ -176,7 +186,8 @@ func TestPrepTimesResolveThroughService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if prep != 9 || resolved[0].PrepMinutes != 9 || resolved[1].PrepMinutes != 5 || resolved[2].PrepMinutes != 3 {
+	if prep != 9 || resolved[0].PrepMinutes != 9 || resolved[1].PrepMinutes != 4 ||
+		resolved[2].PrepMinutes != 5 || resolved[3].PrepMinutes != 3 {
 		t.Fatalf("prep = %d, ítems = %+v", prep, resolved)
 	}
 }

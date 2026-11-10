@@ -36,5 +36,5 @@ Todos llevan `event_id` (UUID, también `message_id` de AMQP) y `occurred_at`. E
 
 **Jaime (Infraestructura)** — el detalle está en `ALINEACION-CON-INFRAESTRUCTURA.md`
 8. Agregar `ORDER_SERVICE_URL` y la dependencia de `order-service` al worker, y `JWKS_URL`, `JWT_ISSUER`, `JWT_AUDIENCE` a order-service y reporting-service.
-9. Decidir cómo se descargan las exportaciones (RustFS no publica el puerto 9000) y si se agrega la cola de `reservation.confirmed`.
+9. Las exportaciones usan `S3_PUBLIC_ENDPOINT` y RustFS publica `:9000` para S3; queda pendiente decidir si se agrega la cola de `reservation.confirmed`.
 10. Dar `SELECT` a Reporting sobre `orders.*` y `kitchen.order_status_events` (hoy comparten el usuario `panaderia`, así que ya lo tiene).

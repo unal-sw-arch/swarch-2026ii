@@ -36,7 +36,8 @@ services:
     healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 3s, retries: 12 }
 
   rabbitmq:
-    image: rabbitmq:3.13-management-alpine
+    # Versión fija: las etiquetas flotantes nuevas ya no traen rabbitmqadmin.
+    image: rabbitmq:3.13.7-management-alpine
     environment: { RABBITMQ_DEFAULT_USER: panaderia, RABBITMQ_DEFAULT_PASS: panaderia, RABBITMQ_DEFAULT_VHOST: / }
     ports: ["15672:15672"]                   # consola: http://localhost:15672 (panaderia / panaderia)
     volumes:
@@ -45,7 +46,8 @@ services:
     healthcheck: { test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"], interval: 10s, timeout: 5s, retries: 12, start_period: 20s }
 
   rabbitmq-init:                             # importa exchanges, colas y bindings de definitions.json
-    image: rabbitmq:3.13-management-alpine
+    # Misma imagen fija que el broker: 3.13.7 sí trae rabbitmqadmin (v1).
+    image: rabbitmq:3.13.7-management-alpine
     restart: "no"
     depends_on: { rabbitmq: { condition: service_healthy } }
     environment: { RABBITMQ_DEFAULT_USER: panaderia, RABBITMQ_DEFAULT_PASS: panaderia }

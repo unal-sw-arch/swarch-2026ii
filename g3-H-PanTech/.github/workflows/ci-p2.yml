@@ -137,9 +137,11 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
-      - run: dotnet restore
-      - run: dotnet build --no-restore
-      - run: dotnet test --no-build
+      # Las pruebas viven en Tests/ con su propio proyecto: hay que apuntarlo
+      # explícitamente o `dotnet test` en la raíz no ejecuta nada.
+      - run: dotnet restore Tests/ReportingService.Tests.csproj
+      - run: dotnet build Tests/ReportingService.Tests.csproj --no-restore
+      - run: dotnet test Tests/ReportingService.Tests.csproj --no-build
 
   kds-pos:
     name: KDS/POS (Flutter)
