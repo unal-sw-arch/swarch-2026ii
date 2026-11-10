@@ -165,7 +165,7 @@ func TestEnqueueIsIdempotent(t *testing.T) {
 		t.Fatalf("el existente debe quedar intacto: %+v", second)
 	}
 
-	res, body = e.do(t, "GET", "/queue", nil, userHeaders("kitchen:read"))
+	res, body = e.do(t, "GET", "/queue", nil, userHeaders("kitchen:read,kitchen:update"))
 	var q struct{ Items []queue.View }
 	_ = json.Unmarshal(body, &q)
 	if res.StatusCode != 200 || len(q.Items) != 1 {
@@ -264,7 +264,7 @@ func TestGetQueueAuthorization(t *testing.T) {
 	if res.StatusCode != 403 {
 		t.Fatalf("sin permiso = %d", res.StatusCode)
 	}
-	res, _ = e.do(t, "GET", "/queue?status=cocinando", nil, userHeaders("kitchen:read"))
+	res, _ = e.do(t, "GET", "/queue?status=cocinando", nil, userHeaders("kitchen:read,kitchen:update"))
 	if res.StatusCode != 400 {
 		t.Fatalf("status inválido = %d", res.StatusCode)
 	}
@@ -273,20 +273,31 @@ func TestGetQueueAuthorization(t *testing.T) {
 func TestGetQueueDispatcherSeesOnlyReady(t *testing.T) {
 	e := newEnv(t)
 	e.do(t, "POST", "/queue/orders", orderBody(orderA, 5), svcHeaders())
+	e.do(t, "POST", "/queue/orders", orderBody(orderB, 5), svcHeaders())
 
-	res, raw := e.do(t, "GET", "/queue", nil, userHeaders("kitchen:deliver"))
+	cookHeaders := userHeaders("kitchen:read,kitchen:update")
+	res, _ := e.do(t, "PATCH", "/queue/orders/"+orderA+"/status", map[string]string{"status": "en_preparacion"}, cookHeaders)
+	if res.StatusCode != 200 {
+		t.Fatalf("iniciar preparación = %d", res.StatusCode)
+	}
+	res, _ = e.do(t, "PATCH", "/queue/orders/"+orderA+"/status", map[string]string{"status": "listo"}, cookHeaders)
+	if res.StatusCode != 200 {
+		t.Fatalf("marcar como listo = %d", res.StatusCode)
+	}
+
+	res, raw := e.do(t, "GET", "/queue", nil, userHeaders("kitchen:read,kitchen:deliver"))
 	var q struct {
 		Items    []queue.View
 		Capacity queue.Capacity
 	}
 	_ = json.Unmarshal(raw, &q)
-	if res.StatusCode != 200 || len(q.Items) != 0 || q.Capacity.Max != 4 {
+	if res.StatusCode != 200 || len(q.Items) != 1 || q.Items[0].OrderID != orderA || q.Items[0].Status != queue.StatusListo || q.Capacity.Max != 4 {
 		t.Fatalf("%d %s", res.StatusCode, raw)
 	}
-	res, raw = e.do(t, "GET", "/queue", nil, userHeaders("kitchen:read"))
+	res, raw = e.do(t, "GET", "/queue", nil, cookHeaders)
 	_ = json.Unmarshal(raw, &q)
-	if len(q.Items) != 1 {
-		t.Fatalf("cocinero debe ver el pendiente: %s", raw)
+	if len(q.Items) != 2 {
+		t.Fatalf("cocinero debe ver ambos pedidos, incluido el pendiente: %s", raw)
 	}
 }
 
@@ -296,7 +307,7 @@ func TestQueueOrderSJFAndFIFOOverHTTP(t *testing.T) {
 	e.now = e.now.Add(time.Minute)
 	e.do(t, "POST", "/queue/orders", orderBody(orderB, 3), svcHeaders())
 
-	_, raw := e.do(t, "GET", "/queue", nil, userHeaders("kitchen:read"))
+	_, raw := e.do(t, "GET", "/queue", nil, userHeaders("kitchen:read,kitchen:update"))
 	var q struct{ Items []queue.View }
 	_ = json.Unmarshal(raw, &q)
 	if len(q.Items) != 2 || q.Items[0].OrderID != orderB || q.Items[1].OrderID != orderA {

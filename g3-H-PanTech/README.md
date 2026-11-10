@@ -86,7 +86,7 @@ El documento del proyecto no impone las funciones: deja la completitud funcional
 
 | N.º | Requerimiento | Cambio para el Prototipo 2 |
 |---|---|---|
-| 1 | Crear pedido para llevar o en mesa | Admite pedidos creados por `cliente` (solo `para_llevar`) y por `mesero`, `supervisor` o `admin` (para llevar o en mesa). El pedido guarda `customer_id` tomado del JWT, nunca del cuerpo de la petición. |
+| 1 | Crear y cancelar pedidos | Admite pedidos creados por `cliente` (solo `para_llevar`) y por `mesero`, `supervisor` o `admin` (para llevar o en mesa). El cliente puede cancelar sus propios pedidos mientras sigan pendientes; supervisor y admin pueden cancelar cualquier pedido pendiente. Los pedidos pagados no se cancelan porque podrían estar en cocina. El pedido guarda `customer_id` tomado del JWT, nunca del cuerpo de la petición. |
 | 2 | Crear cita de reserva | El `cliente` puede crear, consultar y cancelar sus propias reservas; `mesero`, `supervisor` o `admin` gestionan todas. La reserva guarda `customer_id` tomado del JWT y un estado `pendiente`, `confirmada` o `cancelada`. |
 | 3 | Elegir productos de vitrina o preparados | Exige sesión autenticada; sigue siendo una operación de lectura. |
 | 4 | Ver menú y tiempos estimados | El menú lo consultan el `cliente` y todo el personal autenticado. |
@@ -137,7 +137,7 @@ Los roles del Prototipo 2 no son pestañas de la interfaz: son **cuentas persona
 |---:|---|---|---|---|
 | 100 | `admin` | Empleado | Todo el sistema | Usuarios, roles, catálogo, reportes y configuración |
 | 80 | `supervisor` | Empleado | Toda la operación | Supervisa el turno, consulta historial, cancela pedidos y cubre a los operativos |
-| 50 | `mesero` | Empleado | Pedidos y reservas | Crea pedidos, cobra y gestiona reservas |
+| 50 | `mesero` | Empleado | Pedidos propios de mostrador y reservas | Crea, consulta y cobra los pedidos que registró; gestiona reservas |
 | 50 | `cocinero` | Empleado | Cola de cocina | Consulta la cola y cambia estados de preparación |
 | 50 | `despachador` | Empleado | Pedidos listos | Confirma entregas |
 | 10 | `cliente` | Externo | Solo lo propio | Menú, reservas, pedidos para llevar, pago y seguimiento |

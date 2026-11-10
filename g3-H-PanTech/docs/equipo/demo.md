@@ -99,7 +99,8 @@ Todas usan la contraseña `Demo1234!`.
    - Si se usa el KDS Flutter: `flutter run -d windows`.
 
 3. **Despacho**
-   - Entrar con `despachador@demo.com`; confirmar la entrega del pedido listo.
+   - Entrar con `despachador@demo.com`; en **Backoffice → Cocina (KDS)** solo aparecen los pedidos listos.
+   - Confirmar la entrega desde Flutter KDS/POS; la vista web de despacho es de solo lectura.
 
 4. **Backoffice**
    - Entrar con `supervisor@demo.com`: historial general, cancelar un pedido

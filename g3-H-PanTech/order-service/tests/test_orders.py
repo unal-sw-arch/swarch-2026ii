@@ -91,12 +91,77 @@ def test_cliente_solo_ve_sus_pedidos(client, auth):
     assert client.get(f"/orders/{order_id}", headers=h1).status_code == 200
 
 
+def test_mesero_ve_y_consulta_solo_los_pedidos_que_creo(client, auth):
+    waiter = auth("waiter-1", *WAITER, roles=("mesero",))
+    other_waiter = auth("waiter-2", *WAITER, roles=("mesero",))
+    order_id = client.post("/orders", json=TAKEAWAY, headers=waiter).json()["id"]
+    other_order_id = client.post("/orders", json=TAKEAWAY, headers=other_waiter).json()["id"]
+
+    response = client.get("/orders", headers=waiter)
+    assert response.status_code == 200
+    assert [order["id"] for order in response.json()] == [order_id]
+    assert client.get(f"/orders/{order_id}", headers=waiter).status_code == 200
+    assert client.get(f"/orders/{other_order_id}", headers=waiter).status_code == 404
+
+
 def test_personal_con_read_all_ve_todos(client, auth):
     client.post("/orders", json=TAKEAWAY, headers=auth("cust-1", *CUSTOMER))
     client.post("/orders", json=TAKEAWAY, headers=auth("cust-2", *CUSTOMER))
     r = client.get("/orders", headers=auth("sup-1", *SUPERVISOR, roles=("supervisor",)))
     assert r.status_code == 200
     assert len(r.json()) == 2
+
+
+def test_cliente_cancela_su_pedido_pendiente(client, auth):
+    customer = auth("cust-1", *CUSTOMER)
+    order_id = client.post("/orders", json=TAKEAWAY, headers=customer).json()["id"]
+
+    response = client.post(f"/orders/{order_id}/cancel", headers=customer)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "cancelado"
+
+
+def test_cliente_no_puede_cancelar_pedido_ajeno(client, auth):
+    owner = auth("cust-1", *CUSTOMER)
+    other_customer = auth("cust-2", *CUSTOMER)
+    order_id = client.post("/orders", json=TAKEAWAY, headers=owner).json()["id"]
+
+    response = client.post(f"/orders/{order_id}/cancel", headers=other_customer)
+
+    assert response.status_code == 404
+    assert client.get(f"/orders/{order_id}", headers=owner).json()["status"] == "pendiente"
+
+
+def test_cliente_no_puede_cancelar_pedido_ya_pagado(client, auth):
+    customer = auth("cust-1", *CUSTOMER)
+    order_id = client.post("/orders", json=TAKEAWAY, headers=customer).json()["id"]
+    payment = client.post(
+        f"/orders/{order_id}/payment",
+        json={"amount": "12000.00", "method": "simulado"},
+        headers=customer,
+    )
+    assert payment.status_code == 201
+
+    response = client.post(f"/orders/{order_id}/cancel", headers=customer)
+
+    assert response.status_code == 409
+    assert client.get(f"/orders/{order_id}", headers=customer).json()["status"] == "pagado"
+
+
+def test_pedidos_cancelados_no_aparecen_en_la_lista_de_pendientes(client, auth):
+    customer = auth("cust-1", *CUSTOMER)
+    supervisor = auth("sup-1", *SUPERVISOR, roles=("supervisor",))
+    order_id = client.post("/orders", json=TAKEAWAY, headers=customer).json()["id"]
+    canceled = client.post(f"/orders/{order_id}/cancel", headers=supervisor)
+    assert canceled.status_code == 200
+
+    pending = client.get("/orders?status=pendiente", headers=supervisor)
+    canceled_orders = client.get("/orders?status=cancelado", headers=supervisor)
+
+    assert pending.status_code == 200
+    assert pending.json() == []
+    assert [order["id"] for order in canceled_orders.json()] == [order_id]
 
 
 def test_estado_del_pedido_para_polling(client, auth):

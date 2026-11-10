@@ -6,6 +6,7 @@ import { changeReservationStatus, createReservation } from '@/lib/actions';
 import { apiFetch, ApiError } from '@/lib/api';
 import { requireSession } from '@/lib/auth';
 import { formatDate, todayISO } from '@/lib/format';
+import { can } from '@/lib/permissions';
 import type { Reservation } from '@/lib/types';
 
 export const metadata = { title: 'Reservas' };
@@ -20,7 +21,8 @@ function value(input?: string | string[]): string | undefined {
 }
 
 export default async function ReservationsPage({ searchParams }: Props) {
-  requireSession();
+  const session = requireSession();
+  const canManageOwn = can(session, 'reservations:manage_own');
   let reservations: Reservation[] = [];
   let error: string | undefined;
   try {
@@ -34,41 +36,47 @@ export default async function ReservationsPage({ searchParams }: Props) {
       <PageHeader
         eyebrow="Reservas"
         title="Tus reservas"
-        description="Crea una reserva y cancélala cuando lo necesites. El personal confirma la disponibilidad desde el backoffice."
+        description={
+          canManageOwn
+            ? 'Crea una reserva y cancélala cuando lo necesites.'
+            : 'Consulta las reservas disponibles para tu rol desde esta página o el backoffice.'
+        }
       />
       <Alert error={value(searchParams?.error) ?? error} ok={value(searchParams?.ok)} />
 
       <div className="two-column">
-        <form action={createReservation} className="card form">
-          <h2>Nueva reserva</h2>
-          <div className="field">
-            <label htmlFor="reservation-date">Fecha</label>
-            <input id="reservation-date" name="date" type="date" defaultValue={todayISO()} required />
-          </div>
-          <div className="field">
-            <label htmlFor="reservation-time">Hora</label>
-            <input id="reservation-time" name="time" type="time" defaultValue="10:00" required />
-          </div>
-          <div className="field">
-            <label htmlFor="reservation-people">Personas</label>
-            <input
-              id="reservation-people"
-              name="people"
-              type="number"
-              min={1}
-              max={20}
-              defaultValue={2}
-              required
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="reservation-notes">Notas</label>
-            <textarea id="reservation-notes" name="notes" rows={3} maxLength={500} />
-          </div>
-          <button className="button" type="submit">
-            Solicitar reserva
-          </button>
-        </form>
+        {canManageOwn ? (
+          <form action={createReservation} className="card form">
+            <h2>Nueva reserva</h2>
+            <div className="field">
+              <label htmlFor="reservation-date">Fecha</label>
+              <input id="reservation-date" name="date" type="date" defaultValue={todayISO()} required />
+            </div>
+            <div className="field">
+              <label htmlFor="reservation-time">Hora</label>
+              <input id="reservation-time" name="time" type="time" defaultValue="10:00" required />
+            </div>
+            <div className="field">
+              <label htmlFor="reservation-people">Personas</label>
+              <input
+                id="reservation-people"
+                name="people"
+                type="number"
+                min={1}
+                max={20}
+                defaultValue={2}
+                required
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="reservation-notes">Notas</label>
+              <textarea id="reservation-notes" name="notes" rows={3} maxLength={500} />
+            </div>
+            <button className="button" type="submit">
+              Solicitar reserva
+            </button>
+          </form>
+        ) : null}
 
         <section className="card">
           <h2>Historial de reservas</h2>
@@ -92,7 +100,7 @@ export default async function ReservationsPage({ searchParams }: Props) {
                   </div>
                   <div className="stack-actions">
                     <StatusBadge status={reservation.status} />
-                    {reservation.status !== 'cancelada' ? (
+                    {canManageOwn && reservation.status !== 'cancelada' ? (
                       <form action={changeReservationStatus}>
                         <input type="hidden" name="reservation_id" value={reservation.id} />
                         <input type="hidden" name="status" value="cancelada" />

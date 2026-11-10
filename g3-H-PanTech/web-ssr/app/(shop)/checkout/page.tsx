@@ -80,10 +80,12 @@ export default async function CheckoutPage({ searchParams }: Props) {
             ) : (
               <input type="hidden" name="order_type" value="para_llevar" />
             )}
-            <div className="field">
-              <label htmlFor="checkout-table">Número de mesa (solo si es en mesa)</label>
-              <input id="checkout-table" name="table_number" type="number" min={1} max={999} />
-            </div>
+            {staff ? (
+              <div className="field">
+                <label htmlFor="checkout-table">Número de mesa (solo si es en mesa)</label>
+                <input id="checkout-table" name="table_number" type="number" min={1} max={999} />
+              </div>
+            ) : null}
             <div className="field">
               <label htmlFor="checkout-notes">Notas</label>
               <textarea id="checkout-notes" name="notes" maxLength={500} rows={3} />

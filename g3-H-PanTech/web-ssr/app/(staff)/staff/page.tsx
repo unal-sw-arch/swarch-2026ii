@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requireStaff } from '@/lib/auth';
-import { can } from '@/lib/permissions';
+import { can, canAny } from '@/lib/permissions';
 
 export const metadata = { title: 'Backoffice' };
 export const dynamic = 'force-dynamic';
@@ -9,7 +9,7 @@ type Tile = {
   title: string;
   description: string;
   href: string;
-  permission?: string;
+  permission?: string | string[];
 };
 
 const TILES: Tile[] = [
@@ -17,7 +17,7 @@ const TILES: Tile[] = [
     title: 'Pedidos de mostrador',
     description: 'Crear pedidos, cobrar y confirmar pagos.',
     href: '/staff/orders',
-    permission: 'orders:create',
+    permission: ['orders:create', 'orders:charge'],
   },
   {
     title: 'Reservas',
@@ -63,7 +63,7 @@ const TILES: Tile[] = [
   },
   {
     title: 'Cocina (KDS)',
-    description: 'Vista web de solo lectura de la cola priorizada.',
+    description: 'Preparar y despachar pedidos según tus permisos.',
     href: '/staff/kitchen',
     permission: 'kitchen:read',
   },
@@ -71,7 +71,12 @@ const TILES: Tile[] = [
 
 export default function StaffPage() {
   const session = requireStaff();
-  const visible = TILES.filter((tile) => !tile.permission || can(session, tile.permission));
+  const visible = TILES.filter((tile) => {
+    if (!tile.permission) return true;
+    return Array.isArray(tile.permission)
+      ? canAny(session, tile.permission)
+      : can(session, tile.permission);
+  });
 
   return (
     <main>

@@ -3,9 +3,11 @@ import Alert from '@/components/Alert';
 import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/PageHeader';
 import StatusBadge from '@/components/StatusBadge';
+import { cancelOrder } from '@/lib/actions';
 import { apiFetch, ApiError } from '@/lib/api';
 import { requireSession } from '@/lib/auth';
 import { formatDateTime, money } from '@/lib/format';
+import { can } from '@/lib/permissions';
 import type { Order } from '@/lib/types';
 
 export const metadata = { title: 'Mis pedidos' };
@@ -20,7 +22,8 @@ function value(input?: string | string[]): string | undefined {
 }
 
 export default async function OrdersPage({ searchParams }: Props) {
-  requireSession();
+  const session = requireSession();
+  const canCancelOwn = can(session, 'orders:cancel_own');
   let orders: Order[] = [];
   let error: string | undefined;
   try {
@@ -81,9 +84,20 @@ export default async function OrdersPage({ searchParams }: Props) {
                   Ver seguimiento
                 </Link>
                 {order.status === 'pendiente' ? (
-                  <Link className="button" href={`/checkout/payment?orderId=${order.id}`}>
-                    Pagar
-                  </Link>
+                  <>
+                    <Link className="button" href={`/checkout/payment?orderId=${order.id}`}>
+                      Pagar
+                    </Link>
+                    {canCancelOwn ? (
+                      <form action={cancelOrder}>
+                        <input type="hidden" name="order_id" value={order.id} />
+                        <input type="hidden" name="return_to" value="/orders" />
+                        <button className="button button-secondary" type="submit">
+                          Cancelar pedido
+                        </button>
+                      </form>
+                    ) : null}
+                  </>
                 ) : null}
               </div>
             </article>

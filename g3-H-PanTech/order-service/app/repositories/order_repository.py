@@ -30,12 +30,20 @@ def get_for_update(db: Session, order_id: uuid.UUID) -> Order | None:
 
 
 def list_orders(
-    db: Session, *, customer_id: str | None, status: str | None, limit: int, offset: int
+    db: Session,
+    *,
+    customer_id: str | None,
+    created_by: str | None,
+    status: str | None,
+    limit: int,
+    offset: int,
 ) -> list[Order]:
-    """`customer_id=None` devuelve todos los pedidos (alcance `all`)."""
+    """Filtra por cliente o creador; ambos filtros nulos permiten el alcance global."""
     stmt = select(Order).order_by(Order.created_at.desc(), Order.id)
     if customer_id is not None:
         stmt = stmt.where(Order.customer_id == customer_id)
+    if created_by is not None:
+        stmt = stmt.where(Order.created_by == created_by)
     if status is not None:
         stmt = stmt.where(Order.status == status)
     return list(db.scalars(stmt.limit(limit).offset(offset)))

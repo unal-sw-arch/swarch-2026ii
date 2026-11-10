@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getSession } from '@/lib/auth';
 import { readCart } from '@/lib/cart';
-import { isStaff } from '@/lib/permissions';
+import { can, canAny, isStaff } from '@/lib/permissions';
 import LogoutButton from './LogoutButton';
 
 export default function NavBar() {
@@ -17,13 +17,21 @@ export default function NavBar() {
 
       <nav className="main-nav" aria-label="Navegación principal">
         <Link href="/">Inicio</Link>
-        <Link href="/menu">Menú</Link>
+        {session ? <Link href="/menu">Menú</Link> : null}
 
         {session ? (
           <>
-            <Link href="/cart">Carrito{cartCount > 0 ? ` (${cartCount})` : ''}</Link>
-            <Link href="/orders">Mis pedidos</Link>
-            <Link href="/reservations">Reservas</Link>
+            {can(session, 'orders:create_own') ? (
+              <Link href="/cart">Carrito{cartCount > 0 ? ` (${cartCount})` : ''}</Link>
+            ) : null}
+            {canAny(session, ['orders:read_own', 'orders:read_all']) ? (
+              <Link href="/orders">
+                {can(session, 'orders:read_all') ? 'Pedidos' : 'Mis pedidos'}
+              </Link>
+            ) : null}
+            {canAny(session, ['reservations:manage_own', 'reservations:manage_all']) ? (
+              <Link href="/reservations">Reservas</Link>
+            ) : null}
             {isStaff(session) ? <Link href="/staff">Backoffice</Link> : null}
             <span className="session-chip" title={session.email}>
               {session.email}

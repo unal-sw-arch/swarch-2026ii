@@ -250,6 +250,7 @@ services:
     container_name: panaderia-p2-worker
     restart: unless-stopped
     environment:
+      PYTHONPATH: /app
       RABBITMQ_URL: ${RABBITMQ_URL:-amqp://panaderia:panaderia@rabbitmq:5672/}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-amqp://panaderia:panaderia@rabbitmq:5672/}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/3}

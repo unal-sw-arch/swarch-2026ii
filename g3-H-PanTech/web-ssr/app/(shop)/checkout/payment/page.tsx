@@ -7,6 +7,7 @@ import { payOrder } from '@/lib/actions';
 import { apiFetch, ApiError } from '@/lib/api';
 import { requireSession } from '@/lib/auth';
 import { money } from '@/lib/format';
+import { canAny } from '@/lib/permissions';
 import type { Order } from '@/lib/types';
 
 export const metadata = { title: 'Pago simulado' };
@@ -25,7 +26,8 @@ function value(input?: string | string[]): string | undefined {
 }
 
 export default async function PaymentPage({ searchParams }: Props) {
-  requireSession();
+  const session = requireSession();
+  const canReadOrders = canAny(session, ['orders:read_own', 'orders:read_all']);
   const orderId = value(searchParams?.orderId);
   if (!orderId) notFound();
 
@@ -44,11 +46,11 @@ export default async function PaymentPage({ searchParams }: Props) {
         eyebrow="Pago"
         title="Confirma el pago simulado"
         description="El total mostrado viene del servidor. Order Service rechazará cualquier monto distinto al total calculado."
-        actions={
+        actions={canReadOrders ? (
           <Link className="button button-secondary" href="/orders">
-            Mis pedidos
+            {session.permissions.includes('orders:read_all') ? 'Pedidos' : 'Mis pedidos'}
           </Link>
-        }
+        ) : null}
       />
       <Alert error={value(searchParams?.error) ?? error} ok={value(searchParams?.ok)} />
 
@@ -93,8 +95,10 @@ export default async function PaymentPage({ searchParams }: Props) {
             </form>
           ) : (
             <p className="notice">
-              Este pedido ya está <StatusBadge status={order.status} />. Puedes seguirlo desde{' '}
-              <Link href={`/orders/${order.id}`}>su detalle</Link>.
+              Este pedido ya está <StatusBadge status={order.status} />.
+              {canReadOrders ? (
+                <> Puedes seguirlo desde <Link href={`/orders/${order.id}`}>su detalle</Link>.</>
+              ) : null}
             </p>
           )}
         </div>

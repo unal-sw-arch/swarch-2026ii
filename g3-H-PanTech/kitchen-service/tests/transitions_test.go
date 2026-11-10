@@ -86,7 +86,7 @@ func TestFullLifecycleHistoryAndEvent(t *testing.T) {
 		t.Fatal("el encolado lo hace el sistema (changed_by nulo)")
 	}
 
-	_, raw := e.do(t, "GET", "/queue", nil, userHeaders("kitchen:read"))
+	_, raw := e.do(t, "GET", "/queue", nil, userHeaders("kitchen:read,kitchen:update"))
 	var q struct{ Items []queue.View }
 	_ = json.Unmarshal(raw, &q)
 	if len(q.Items) != 0 {
@@ -165,7 +165,7 @@ func TestCapacityBlocksWithoutLosingTheOrder(t *testing.T) {
 		t.Fatalf("cocina llena: %d %+v", code, eb)
 	}
 
-	_, raw := e.do(t, "GET", "/queue/orders/"+orderC, nil, userHeaders("kitchen:read"))
+	_, raw := e.do(t, "GET", "/queue/orders/"+orderC, nil, userHeaders("kitchen:read,kitchen:update"))
 	var v queue.View
 	_ = json.Unmarshal(raw, &v)
 	if v.Status != "pendiente" {
@@ -179,7 +179,7 @@ func TestCapacityBlocksWithoutLosingTheOrder(t *testing.T) {
 		t.Fatal("con cupo libre debe iniciar")
 	}
 
-	_, raw = e.do(t, "GET", "/queue", nil, userHeaders("kitchen:read"))
+	_, raw = e.do(t, "GET", "/queue", nil, userHeaders("kitchen:read,kitchen:update"))
 	var q struct {
 		Items    []queue.View
 		Capacity queue.Capacity
@@ -309,13 +309,13 @@ func TestQueueStatusFilter(t *testing.T) {
 	e.enqueue(t, orderB, 9)
 	e.setStatus(t, orderA, "en_preparacion", cookPerms)
 
-	_, raw := e.do(t, "GET", "/queue?status=pendiente", nil, userHeaders("kitchen:read"))
+	_, raw := e.do(t, "GET", "/queue?status=pendiente", nil, userHeaders("kitchen:read,kitchen:update"))
 	var q struct{ Items []queue.View }
 	_ = json.Unmarshal(raw, &q)
 	if len(q.Items) != 1 || q.Items[0].OrderID != orderB {
 		t.Fatalf("filtro pendiente: %s", raw)
 	}
-	_, raw = e.do(t, "GET", "/queue", nil, userHeaders("kitchen:read"))
+	_, raw = e.do(t, "GET", "/queue", nil, userHeaders("kitchen:read,kitchen:update"))
 	_ = json.Unmarshal(raw, &q)
 	if len(q.Items) != 2 || q.Items[0].Status != "en_preparacion" {
 		t.Fatalf("en_preparacion primero: %s", raw)
@@ -337,7 +337,7 @@ func TestAgingChangesQueueOrderOverTime(t *testing.T) {
 	e.now = e.now.Add(70 * time.Minute)
 	e.enqueue(t, orderB, 3)
 
-	_, raw := e.do(t, "GET", "/queue", nil, userHeaders("kitchen:read"))
+	_, raw := e.do(t, "GET", "/queue", nil, userHeaders("kitchen:read,kitchen:update"))
 	var q struct{ Items []queue.View }
 	_ = json.Unmarshal(raw, &q)
 	if q.Items[0].OrderID != orderA || q.Items[1].OrderID != orderB {

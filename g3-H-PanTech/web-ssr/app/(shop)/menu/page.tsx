@@ -7,7 +7,7 @@ import { apiFetch, ApiError } from '@/lib/api';
 import { requireSession } from '@/lib/auth';
 import { readCart } from '@/lib/cart';
 import { money } from '@/lib/format';
-import { isStaff } from '@/lib/permissions';
+import { can, isStaff } from '@/lib/permissions';
 import type { MenuItem } from '@/lib/types';
 
 export const metadata = { title: 'Menú' };
@@ -23,6 +23,7 @@ function value(input?: string | string[]): string | undefined {
 
 export default async function MenuPage({ searchParams }: Props) {
   const session = requireSession();
+  const canOrder = can(session, 'orders:create_own');
   const cart = readCart();
   const count = Object.values(cart).reduce((total, qty) => total + qty, 0);
 
@@ -46,7 +47,11 @@ export default async function MenuPage({ searchParams }: Props) {
       <PageHeader
         eyebrow="Tienda"
         title="Menú de la panadería"
-        description="Precios y tiempos de preparación calculados por el servidor. Agrega productos al carrito y paga en línea."
+        description={
+          canOrder
+            ? 'Precios y tiempos de preparación calculados por el servidor. Agrega productos al carrito y paga en línea.'
+            : 'Consulta los productos, precios y tiempos de preparación de la panadería.'
+        }
         actions={
           <>
             {isStaff(session) ? (
@@ -54,9 +59,11 @@ export default async function MenuPage({ searchParams }: Props) {
                 Backoffice
               </Link>
             ) : null}
-            <Link className="button" href="/cart">
-              Carrito ({count})
-            </Link>
+            {canOrder ? (
+              <Link className="button" href="/cart">
+                Carrito ({count})
+              </Link>
+            ) : null}
           </>
         }
       />
@@ -85,23 +92,25 @@ export default async function MenuPage({ searchParams }: Props) {
                   </p>
                 </div>
                 <p className="product-price">{money(item.price)}</p>
-                <form action={addToCart} className="quick-add">
-                  <input type="hidden" name="product_id" value={item.product_id} />
-                  <label>
-                    <span className="sr-only">Cantidad</span>
-                    <input
-                      type="number"
-                      name="quantity"
-                      min={1}
-                      max={50}
-                      defaultValue={1}
-                      aria-label={`Cantidad de ${item.name}`}
-                    />
-                  </label>
-                  <button className="button" type="submit">
-                    Agregar
-                  </button>
-                </form>
+                {canOrder ? (
+                  <form action={addToCart} className="quick-add">
+                    <input type="hidden" name="product_id" value={item.product_id} />
+                    <label>
+                      <span className="sr-only">Cantidad</span>
+                      <input
+                        type="number"
+                        name="quantity"
+                        min={1}
+                        max={50}
+                        defaultValue={1}
+                        aria-label={`Cantidad de ${item.name}`}
+                      />
+                    </label>
+                    <button className="button" type="submit">
+                      Agregar
+                    </button>
+                  </form>
+                ) : null}
               </article>
             ))}
           </div>

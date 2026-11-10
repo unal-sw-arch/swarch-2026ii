@@ -11,7 +11,7 @@ from app.services import order_service
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
-_READ = ("orders:read_all", "orders:read_own")
+_READ = ("orders:read_all", "orders:read_own", "orders:create", "orders:charge")
 
 
 @router.post("", response_model=OrderOut, status_code=status.HTTP_201_CREATED, summary="Crear pedido")
@@ -58,11 +58,11 @@ def get_order_status(
 @router.post(
     "/{order_id}/cancel",
     response_model=OrderOut,
-    summary="Cancelar un pedido pendiente (supervisor o admin)",
+    summary="Cancelar un pedido pendiente propio o como supervisor",
 )
 def cancel_order(
     order_id: uuid.UUID,
-    principal: Principal = Depends(require_permission("orders:read_all")),
+    principal: Principal = Depends(require_permission("orders:cancel_own", "orders:read_all")),
     db: Session = Depends(get_db),
 ):
     return order_service.cancel_pending_order(db, order_id, principal)

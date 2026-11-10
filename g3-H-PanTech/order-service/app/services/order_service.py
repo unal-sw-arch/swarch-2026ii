@@ -64,7 +64,9 @@ def get_visible_order(db: Session, order_id: uuid.UUID, principal: Principal) ->
     """Pedido si existe Y el solicitante puede verlo. Ajeno = 404 (no filtra su existencia)."""
     order = order_repository.get(db, order_id)
     if order is None or (
-        not principal.has("orders:read_all") and order.customer_id != principal.user_id
+        not principal.has("orders:read_all")
+        and order.customer_id != principal.user_id
+        and order.created_by != principal.user_id
     ):
         raise NotFound("Pedido no encontrado")
     return order
@@ -73,23 +75,37 @@ def get_visible_order(db: Session, order_id: uuid.UUID, principal: Principal) ->
 def list_visible_orders(
     db: Session, principal: Principal, *, status: str | None, limit: int, offset: int
 ) -> list[Order]:
-    customer_id = None if principal.has("orders:read_all") else principal.user_id
+    customer_id = None
+    created_by = None
+    if not principal.has("orders:read_all"):
+        if principal.has("orders:create") or principal.has("orders:charge"):
+            created_by = principal.user_id
+        else:
+            customer_id = principal.user_id
     return order_repository.list_orders(
-        db, customer_id=customer_id, status=status, limit=limit, offset=offset
+        db,
+        customer_id=customer_id,
+        created_by=created_by,
+        status=status,
+        limit=limit,
+        offset=offset,
     )
 
 
 def cancel_pending_order(db: Session, order_id: uuid.UUID, principal: Principal) -> Order:
-    """Cancela un pedido aún no pagado (supervisor/admin).
+    """Cancela un pedido propio aún no pagado o cualquier pendiente como supervisor.
 
     Un pedido pagado ya pudo entrar a la cola de cocina; para no dejar comandas
     fantasma, la cancelación posterior al pago requiere un flujo de reembolso
     que no forma parte de este prototipo.
     """
-    if not principal.has("orders:read_all"):
-        raise Forbidden("Solo supervisión puede cancelar pedidos")
+    can_cancel_any = principal.has("orders:read_all")
+    if not can_cancel_any and not principal.has("orders:cancel_own"):
+        raise Forbidden("No tienes permiso para cancelar pedidos")
     order = order_repository.get_for_update(db, order_id)
     if order is None:
+        raise NotFound("Pedido no encontrado")
+    if not can_cancel_any and order.customer_id != principal.user_id:
         raise NotFound("Pedido no encontrado")
     if order.status != "pendiente":
         raise Conflict(f"El pedido está '{order.status}'; solo se cancelan pedidos pendientes")

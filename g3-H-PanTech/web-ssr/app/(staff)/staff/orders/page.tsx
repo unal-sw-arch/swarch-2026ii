@@ -44,18 +44,27 @@ export default async function StaffOrdersPage({ searchParams }: Props) {
   }
 
   const canCharge = can(session, 'orders:charge');
+  const canCreate = can(session, 'orders:create');
+  const canManageReservations = can(session, 'reservations:manage_all');
+  const canReadOrders = can(session, 'orders:read_own') || can(session, 'orders:read_all');
 
   return (
     <main>
       <PageHeader
         eyebrow="Mesero"
         title="Pedidos de mostrador"
-        description="Crea pedidos para llevar o en mesa, cobra con pago simulado y consulta el estado de cada orden."
+        description={
+          canCreate
+            ? 'Crea pedidos para llevar o en mesa, cobra con pago simulado y consulta el estado de los pedidos que registraste.'
+            : 'Consulta y cobra los pedidos disponibles para tu rol.'
+        }
         actions={
           <>
-            <Link className="button button-secondary" href="/staff/reservations">
-              Reservas
-            </Link>
+            {canManageReservations ? (
+              <Link className="button button-secondary" href="/staff/reservations">
+                Reservas
+              </Link>
+            ) : null}
             <Link className="button button-secondary" href="/staff">
               Volver al panel
             </Link>
@@ -65,7 +74,7 @@ export default async function StaffOrdersPage({ searchParams }: Props) {
       <Alert error={value(searchParams?.error) ?? error} ok={value(searchParams?.ok)} />
 
       <div className="two-column two-column-wide">
-        <form action={createStaffOrder} className="card form">
+        {canCreate ? <form action={createStaffOrder} className="card form">
           <h2>Nuevo pedido</h2>
           <div className="form-row">
             <div className="field">
@@ -106,7 +115,7 @@ export default async function StaffOrdersPage({ searchParams }: Props) {
           <button className="button" type="submit">
             Crear pedido
           </button>
-        </form>
+        </form> : null}
 
         <section className="card">
           <div className="section-heading">
@@ -126,7 +135,11 @@ export default async function StaffOrdersPage({ searchParams }: Props) {
                 <li className="stack-item" key={order.id}>
                   <div>
                     <strong>
-                      <Link href={`/orders/${order.id}`}>{order.id.slice(0, 8)}</Link>
+                      {canReadOrders ? (
+                        <Link href={`/orders/${order.id}`}>{order.id.slice(0, 8)}</Link>
+                      ) : (
+                        order.id.slice(0, 8)
+                      )}
                     </strong>
                     <div className="muted">
                       {order.order_type === 'en_mesa'

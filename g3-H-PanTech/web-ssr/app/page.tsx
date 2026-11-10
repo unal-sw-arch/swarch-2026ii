@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getSession } from '@/lib/auth';
-import { isStaff } from '@/lib/permissions';
+import { canAny, isStaff } from '@/lib/permissions';
 
 export default function HomePage() {
   const session = getSession();
@@ -21,9 +21,11 @@ export default function HomePage() {
                 <Link className="button" href={isStaff(session) ? '/staff' : '/menu'}>
                   {isStaff(session) ? 'Ir al backoffice' : 'Ver el menú'}
                 </Link>
-                <Link className="button button-secondary" href="/orders">
-                  Mis pedidos
-                </Link>
+                {canAny(session, ['orders:read_own', 'orders:read_all']) ? (
+                  <Link className="button button-secondary" href="/orders">
+                    {session.permissions.includes('orders:read_all') ? 'Pedidos' : 'Mis pedidos'}
+                  </Link>
+                ) : null}
               </>
             ) : (
               <>

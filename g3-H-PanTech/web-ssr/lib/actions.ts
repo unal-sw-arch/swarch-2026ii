@@ -163,6 +163,8 @@ export async function cancelOrder(data: FormData): Promise<void> {
   const returnTo = text(data, 'return_to') || '/staff/cancel';
   try {
     await apiFetch<Order>(`/orders/${orderId}/cancel`, { method: 'POST' });
+    revalidatePath('/orders');
+    revalidatePath(`/orders/${orderId}`);
     revalidatePath('/staff/cancel');
     revalidatePath('/staff/orders');
     redirect(`${returnTo}${returnTo.includes('?') ? '&' : '?'}ok=Pedido%20cancelado`);

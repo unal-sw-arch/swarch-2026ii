@@ -181,7 +181,7 @@ func (h *Handler) GetQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	onlyReady := !p.Has(PermKitchenRead)
+	onlyReady := !p.Has(PermKitchenUpdate)
 	out := make([]queue.View, 0, len(views))
 	for _, v := range views {
 		if onlyReady && v.Status != queue.StatusListo {

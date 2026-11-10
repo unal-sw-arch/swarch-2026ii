@@ -18,7 +18,11 @@ function value(input?: string | string[]): string | undefined {
 }
 
 export default async function KitchenPage({ searchParams }: Props) {
-  requirePermission('kitchen:read');
+  const session = requirePermission('kitchen:read');
+  const canUpdate = session.permissions.includes('kitchen:update');
+  const canDeliver = session.permissions.includes('kitchen:deliver');
+  const dispatchOnly =
+    canDeliver && !canUpdate;
 
   let queue: QueueResponse = {
     items: [],
@@ -35,22 +39,34 @@ export default async function KitchenPage({ searchParams }: Props) {
   return (
     <main>
       <PageHeader
-        eyebrow="Cocina / KDS"
-        title="Cola priorizada"
-        description="Vista web de solo lectura. La app Flutter KDS/POS sigue siendo el cliente principal para cocineros; esta vista sirve como respaldo cuando no está instalada."
+        eyebrow={dispatchOnly ? 'Despacho' : 'Cocina / KDS'}
+        title={dispatchOnly ? 'Pedidos listos para entregar' : 'Cola priorizada'}
+        description={
+          dispatchOnly
+            ? 'Solo aparecen pedidos marcados como listos. Confirma su entrega desde esta vista o desde Flutter KDS/POS.'
+            : 'Actualiza los estados de preparación desde esta vista. La app Flutter KDS/POS también permite operar la cola.'
+        }
         actions={
           <>
             <Link className="button button-secondary" href="/staff">
               Volver al panel
             </Link>
-            <Link className="button button-secondary" href="/staff/orders">
-              Pedidos
-            </Link>
+            {session.permissions.includes('orders:create') ||
+            session.permissions.includes('orders:charge') ? (
+              <Link className="button button-secondary" href="/staff/orders">
+                Pedidos
+              </Link>
+            ) : null}
           </>
         }
       />
       <Alert error={value(searchParams?.error) ?? error} ok={value(searchParams?.ok)} />
-      <KitchenBoard initial={queue} />
+      <KitchenBoard
+        initial={queue}
+        dispatchOnly={dispatchOnly}
+        canUpdate={canUpdate}
+        canDeliver={canDeliver}
+      />
     </main>
   );
 }
