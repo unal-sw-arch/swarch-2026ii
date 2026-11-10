@@ -75,18 +75,6 @@ Reporting -[#E65100]down-> PG : SQL / TCP
 Reporting -[#C62828]left-> Mongo : MongoDB / TCP
 Reporting -[#4E342E]down-> RustFS : S3 / HTTP
 
-note bottom of Net
-  12 contenedores orquestados con Docker Compose sobre panaderia-net.
-  web-ssr (:3000) y api-gateway (:8080) son las entradas de usuario.
-  También se publican RabbitMQ (:15672) y RustFS (:9000 S3, :9001 consola).
-  Los servicios y bases de datos quedan en la red interna.
-
-  Volúmenes: postgres_data, mongo_data, redis_data, rustfs_data, rustfs_logs, rabbitmq_data e identity_keys.
-  web-ssr se ejecuta con Node en modo SSR; no es un sitio estático.
-  El Compose local usa HTTP sin TLS; HTTPS requiere terminación TLS externa.
-  El KDS/POS es una aplicación de escritorio y no se despliega como contenedor.
-end note
-
 legend right
   <color:#00897B>■</color> HTTP / REST (local)
   <color:#1565C0>■</color> HTTP / REST
