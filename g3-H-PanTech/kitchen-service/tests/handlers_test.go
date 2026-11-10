@@ -204,6 +204,29 @@ func TestEnqueuePrepIsMaxOfItems(t *testing.T) {
 	}
 }
 
+func TestEnqueueAcceptsOrderServiceSlugsAndStaffOrders(t *testing.T) {
+	e := newEnv(t)
+	body := orderBody(orderA, 3)
+	body["customer_id"] = nil
+	body["items"] = []map[string]any{
+		{"product_id": "p-cafe-americano", "name": "Café americano", "quantity": 1, "prep_minutes": 1},
+	}
+	res, raw := e.do(t, "POST", "/queue/orders", body, svcHeaders())
+	if res.StatusCode != 201 {
+		t.Fatalf("POST = %d %s", res.StatusCode, raw)
+	}
+	var view queue.View
+	if err := json.Unmarshal(raw, &view); err != nil {
+		t.Fatal(err)
+	}
+	if view.OrderID != orderA || view.OrderType != "para_llevar" || view.CustomerID != "" {
+		t.Fatalf("vista = %+v", view)
+	}
+	if len(view.Items) != 1 || view.Items[0].ProductID != "p-cafe-americano" {
+		t.Fatalf("items = %+v", view.Items)
+	}
+}
+
 func TestEnqueueValidation(t *testing.T) {
 	e := newEnv(t)
 	bad := orderBody("no-es-uuid", 5)

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -78,8 +79,10 @@ func (req enqueueRequest) validate() (queue.EnqueueInput, map[string]any) {
 	if _, err := uuid.Parse(req.OrderID); err != nil {
 		problems["order_id"] = "debe ser un UUID"
 	}
-	if _, err := uuid.Parse(req.CustomerID); err != nil {
-		problems["customer_id"] = "debe ser un UUID"
+	// `customer_id` es opcional: los pedidos de mostrador creados por el
+	// personal no tienen cliente asociado (Order Service envía null).
+	if strings.TrimSpace(req.CustomerID) == "" {
+		req.CustomerID = ""
 	}
 	if req.OrderType != queue.OrderTypeParaLlevar && req.OrderType != queue.OrderTypeEnMesa {
 		problems["order_type"] = "debe ser para_llevar o en_mesa"
@@ -92,8 +95,10 @@ func (req enqueueRequest) validate() (queue.EnqueueInput, map[string]any) {
 
 	for i, it := range req.Items {
 		prefix := "items[" + strconv.Itoa(i) + "]."
-		if _, err := uuid.Parse(it.ProductID); err != nil {
-			problems[prefix+"product_id"] = "debe ser un UUID"
+		// Order Service usa slugs (`p-cafe-americano`), no UUID, como id de
+		// producto. Solo exigimos que venga informado.
+		if strings.TrimSpace(it.ProductID) == "" {
+			problems[prefix+"product_id"] = "no puede estar vacío"
 		}
 		if it.Quantity < 1 {
 			problems[prefix+"quantity"] = "debe ser >= 1"
