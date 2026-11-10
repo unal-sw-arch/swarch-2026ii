@@ -9,7 +9,7 @@ export interface UserFormModalProps {
   open: boolean;
   userToEdit: BackendProfile | null;
   onClose: () => void;
-  onSubmit: (id: number, payload: UserUpdatePayload) => Promise<void>;
+  onSubmit: (id: number | string, payload: UserUpdatePayload) => Promise<void>;
   saving?: boolean;
 }
 

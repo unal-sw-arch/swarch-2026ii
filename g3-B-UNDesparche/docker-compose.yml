@@ -45,8 +45,16 @@ services:
         condition: service_healthy
     env_file:
       - ./users_service/users_service/.env
+    environment:
+      DB_NAME: undesparche_users
+      DB_USER: undesparche
+      DB_PASSWORD: undesparche_pass
+      DB_HOST: db
+      DB_PORT: "5432"
     ports:
       - "8001:8001"
+    volumes:
+      - ./users_service:/app
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 8001), 3); s.close()"]
       interval: 10s
@@ -64,9 +72,16 @@ services:
         condition: service_healthy
     env_file:
       - ./events_service/events_service/.env
+    environment:
+      DB_NAME: undesparche_events
+      DB_USER: undesparche
+      DB_PASSWORD: undesparche_pass
+      DB_HOST: db
+      DB_PORT: "5432"
     ports:
       - "8002:8002"
     volumes:
+      - ./events_service:/app
       - ./events_service/firebase_credentials.json:/app/firebase_credentials.json:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 8002), 3); s.close()"]
@@ -87,9 +102,16 @@ services:
         condition: service_healthy
     env_file:
       - ./inventory_service/inventory_service/.env
+    environment:
+      DB_NAME: undesparche_inventory
+      DB_USER: undesparche
+      DB_PASSWORD: undesparche_pass
+      DB_HOST: db
+      DB_PORT: "5432"
     ports:
       - "8003:8003"
     volumes:
+      - ./inventory_service:/app
       - ./inventory_service/firebase_credentials.json:/app/firebase_credentials.json:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 8003), 3); s.close()"]
@@ -121,6 +143,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      - ./gateway/app:/app/app
       - ./gateway/firebase_credentials.json:/app/firebase_credentials.json:ro
     healthcheck:
       test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/', timeout=3)"]
@@ -128,7 +151,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
   rabbitmq:
     image: rabbitmq:3-management

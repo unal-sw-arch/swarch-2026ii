@@ -108,6 +108,9 @@ export function ReservationPage(): React.JSX.Element {
     if (!acceptedTerms || reserving) return;
     try {
       await mutate(implement.id);
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      }
       toast.success(
         '¡Reserva confirmada con éxito!',
         'Tienes 10 minutos para reclamar tu implemento con tu carné institucional.'
@@ -119,18 +122,20 @@ export function ReservationPage(): React.JSX.Element {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8 font-sans">
-      {/* Navegación de retorno */}
-      <div className="mb-6">
-        <Link
-          to={`/equipment/${implement.id}`}
-          className="inline-flex items-center gap-1.5 font-bold text-xs text-gray-500 hover:text-[#00BA7C] dark:hover:text-[#00F5A0] transition-colors focus-visible:outline-2 focus-visible:outline-[#00D592]"
-        >
-          <span className="material-symbols-outlined text-base" aria-hidden="true">
-            arrow_back
-          </span>
-          Cancelar y volver a la ficha
-        </Link>
-      </div>
+      {/* Navegación de retorno (solo visible antes de confirmar la reserva) */}
+      {!reserve && (
+        <div className="mb-6">
+          <Link
+            to={`/equipment/${implement.id}`}
+            className="inline-flex items-center gap-1.5 font-bold text-xs text-gray-500 hover:text-[#00BA7C] dark:hover:text-[#00F5A0] transition-colors focus-visible:outline-2 focus-visible:outline-[#00D592]"
+          >
+            <span className="material-symbols-outlined text-base" aria-hidden="true">
+              arrow_back
+            </span>
+            Cancelar y volver a la ficha
+          </Link>
+        </div>
+      )}
 
       {reserve ? (
         /* VISTA DE ÉXITO: RESERVA ACTIVA CON TEMPORIZADOR */

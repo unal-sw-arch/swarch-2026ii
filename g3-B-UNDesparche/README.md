@@ -51,6 +51,20 @@ Departamento de Ingeniería de Sistemas e Industrial\
     -   [Descripción de componentes](#descripción-de-componentes)
     -   [Interfaces y mecanismos de comunicación](#interfaces-y-mecanismos-de-comunicación)
     -   [Escenarios de interacción](#escenarios-de-interacción)
+    -   [Vista de Despliegue](#vista-de-despliegue)
+        -   [Diagrama de Despliegue](#diagrama-de-despliegue)
+        -   [Descripción de elementos y relaciones](#descripción-de-elementos-y-relaciones)
+        -   [Descripción de patrones arquitecturales](#descripción-de-patrones-arquitecturales)
+        -   [Infraestructura y comunicaciones](#infraestructura-y-comunicaciones)
+-   [Guía de Despliegue y Ejecución](#guía-de-despliegue-y-ejecución)
+    -   [Requisitos previos](#requisitos-previos)
+    -   [Configuración de variables de entorno](#configuración-de-variables-de-entorno)
+    -   [Ejecución de la infraestructura con Docker Compose](#ejecución-de-la-infraestructura-con-docker-compose)
+    -   [Poblado y sembrado de la base de datos](#poblado-y-sembrado-de-la-base-de-datos)
+    -   [Cuentas preconfiguradas para pruebas](#cuentas-preconfiguradas-para-pruebas)
+    -   [Endpoints y puertos de acceso](#endpoints-y-puertos-de-acceso)
+    -   [Ejecución de la aplicación móvil (Flutter)](#ejecución-de-la-aplicación-móvil-flutter)
+    -   [Comandos útiles](#comandos-útiles)
 
 ### Descripción del proyecto
 
@@ -575,3 +589,183 @@ Las tareas periódicas previstas en `Events` e `Inventory` revisarán, aproximad
 3. Si se cumplen las condiciones, registra la reserva, que debe confirmarse en un plazo de diez minutos.
 4. La tarea periódica prevista detecta las reservas vencidas, las cancela y restablece la disponibilidad del implemento.
 5. Si corresponde enviar una notificación, `Inventory` publica el mensaje en RabbitMQ para que `Notifications` lo procese y solicite el envío a Brevo.
+
+---
+
+## Vista de Despliegue
+
+### Diagrama de Despliegue
+
+![Diagrama de Despliegue](images/diagrama_despliegue.png)
+
+### Descripción de elementos y relaciones
+
+La vista asigna cada componente de la vista C&C al elemento del entorno donde se ejecuta, mediante la relación `deployed_in`. El diagrama representa el entorno local, que es el que se usa en este prototipo.
+
+En la infraestructura **Local (MyPC)** cada componente corre en su propio nodo, un contenedor Docker. Frontend, gateway, users, events, inventory y notifications son nodos de cómputo. RabbitMQ es un nodo de comunicación. El nodo de datos es db, un PostgreSQL 15 que guarda las tres bases de datos y las conserva en el volumen `postgres_data`. En la infraestructura **Client**, la app móvil corre en un teléfono Android como APK. En **Cloud** están los nodos externos: Firebase Auth, Firebase Storage, Google Maps y Brevo.
+
+El teléfono llega al equipo por HTTP, usando la IP del PC en la red local y los puertos 5172 (frontend) y 8000 (gateway). Dentro del equipo los contenedores se comunican por nombre de servicio en la red interna que crea Docker Compose. Las llamadas hacia Cloud salen del equipo por HTTPS.
+
+Todos los nodos locales dependen de un mismo equipo, así que si este falla el sistema completo se detiene. Si falla db, se detienen users, events e inventory. Si falla rabbitmq, dejan de enviarse correos, pero el resto del sistema sigue funcionando.
+
+### Descripción de patrones arquitecturales
+
+El despliegue está **orientado a contenedores**. Cada componente tiene su propia imagen y su propio contenedor, y `docker-compose.yml` los levanta juntos en un solo host. Así cada servicio se puede construir, reiniciar o reemplazar sin tocar a los demás.
+
+Los nodos se organizan por zonas según quién puede alcanzarlos. Frontend y gateway están en la **DMZ** porque reciben el tráfico de los clientes, y el gateway es la única entrada a la API. Los servicios y el broker están en la zona **Internal**. La base de datos está en **Restrict**. Hoy esta separación es lógica, porque Compose publica los puertos de todos los contenedores.
+
+### Infraestructura y comunicaciones
+
+El modelo de despliegue es **híbrido**. Los componentes propios corren en la infraestructura Local (MyPC): un equipo con Windows 11, Ryzen 7 5700 y 32 GB de RAM, sobre Docker Engine. Autenticación, almacenamiento de imágenes, mapas y correo se consumen como SaaS desde la nube pública. La infraestructura Client es el teléfono del usuario, conectado a la misma red que el equipo.
+
+---
+
+# Guía de Despliegue y Ejecución
+
+## Requisitos previos
+
+* **Docker & Docker Compose:** Docker Desktop instalado y en ejecución con backend WSL 2.
+* **Python 3.11+:** Para ejecutar scripts de sembrado y pruebas (opcional si se corre dentro de Docker).
+* **Node.js 18+:** Solo si se desea ejecutar el frontend web fuera de Docker.
+* **Flutter SDK (>= 3.24.0) & Android SDK:** Para compilar o ejecutar la aplicación móvil.
+
+## Configuración de variables de entorno
+
+Cada servicio cuenta con un archivo de ejemplo con valores por defecto listos para desarrollo local:
+
+```bash
+# Gateway
+cp gateway/.env.example gateway/.env
+
+# Frontend Web
+cp frontend_web/.env.example frontend_web/.env
+
+# Servicio de Usuarios
+cp users_service/users_service/.env.example users_service/users_service/.env
+
+# Servicio de Eventos
+cp events_service/events_service/.env.example events_service/events_service/.env
+
+# Servicio de Inventario
+cp inventory_service/inventory_service/.env.example inventory_service/inventory_service/.env
+
+# Servicio de Notificaciones
+cp notifications_service/.env.example notifications_service/.env
+```
+
+> [!NOTE]
+> En `gateway/`, debe colocarse el archivo `firebase_credentials.json` con la clave privada de servicio de Firebase Admin SDK para validar los tokens de autenticación institucional.
+
+## Ejecución de la infraestructura con Docker Compose
+
+Para construir y levantar todos los contenedores en segundo plano:
+
+```bash
+docker compose up -d --build
+```
+
+Esto levantará los siguientes 8 contenedores interconectados en una red puente (`bridge`):
+1. `undesparche_db`: PostgreSQL 15 con las 3 bases de datos (`undesparche_users`, `undesparche_events`, `undesparche_inventory`).
+2. `undesparche_users_service`: Microservicio de usuarios (Django REST en puerto 8001).
+3. `undesparche_events_service`: Microservicio de eventos (Django REST en puerto 8002).
+4. `undesparche_inventory_service`: Microservicio de inventario y reservas (Django REST en puerto 8003).
+5. `rabbitmq`: Broker de mensajería AMQP (puerto 5672) y consola web de gestión (puerto 15672).
+6. `notifications_service`: Consumidor de eventos y despachador de correos (FastAPI en puerto 8090).
+7. `undesparche_gateway`: API Gateway centralizado (FastAPI / Uvicorn en puerto 8000).
+8. `frontend_web`: Aplicación web en React (Vite / Node en puerto 5172).
+
+## Poblado y sembrado de la base de datos
+
+Una vez los contenedores estén arriba y en estado saludable (*healthy*), ejecuta el script de sembrado automático para cargar usuarios institucionales, eventos deportivos/culturales e implementos por facultad:
+
+```bash
+python seed_real_stack.py
+```
+
+## Cuentas preconfiguradas para pruebas
+
+El script de sembrado configura cuentas institucionales `@unal.edu.co` listas para autenticarse con Google OAuth o en entorno de prueba:
+
+| Correo Institucional | Nombre | Rol en el Sistema | Facultad |
+| :--- | :--- | :--- | :--- |
+| `dbarragang@unal.edu.co` | Deibyd Barragán | `SYS_ADMIN` (Administrador del Sistema) | Ingeniería |
+| `vcanonc@unal.edu.co` | Víctor Cañón | `EVENT_ADMIN` (Administrador de Eventos) | Ingeniería |
+| `jalzateco@unal.edu.co` | Julián Alzate | `IMPLEMENT_ADMIN` (Administrador de Implementos) | Ingeniería |
+| `dvelasquezg@unal.edu.co` | David Velásquez | `COMMUNITY` (Miembro de la Comunidad) | Ingeniería |
+| `smorales@unal.edu.co` | Santiago Morales | `COMMUNITY` (Miembro de la Comunidad) | Ingeniería |
+
+*Para acceso al panel administrativo de Django (`/admin/`), la contraseña por defecto de superusuario es `Admin123*`.*
+
+## Endpoints y puertos de acceso
+
+| Servicio / Componente | URL de acceso local | Descripción |
+| :--- | :--- | :--- |
+| **Frontend Web** | [http://localhost:5172](http://localhost:5172) | Interfaz web de usuario y administración. |
+| **API Gateway** | [http://localhost:8000](http://localhost:8000) | Puerta de enlace unificada de la API. |
+| **Documentación Swagger** | [http://localhost:8000/docs](http://localhost:8000/docs) | OpenAPI interactiva del Gateway. |
+| **Consola RabbitMQ** | [http://localhost:15672](http://localhost:15672) | Panel de administración de colas y exchanges (`undesparche` / `undesparche`). |
+| **Servicio de Notificaciones** | [http://localhost:8090/health](http://localhost:8090/health) | Healthcheck del servicio asíncrono de correo. |
+| **Users Service (Interno)** | `http://localhost:8001` | API directa de usuarios (para diagnóstico). |
+| **Events Service (Interno)** | `http://localhost:8002` | API directa de eventos (para diagnóstico). |
+| **Inventory Service (Interno)** | `http://localhost:8003` | API directa de inventario (para diagnóstico). |
+| **PostgreSQL** | `localhost:5432` | Servidor de base de datos (`undesparche` / `undesparche_pass`). |
+
+---
+
+## Ejecución de la aplicación móvil (Flutter)
+
+La aplicación móvil (`mobile_app`) está desarrollada en **Flutter 3.24+** con arquitectura limpia (Clean Architecture + BLoC), HeroUI Mint design system y consumo directo del API Gateway.
+
+### 1. Preparar dependencias
+```bash
+cd mobile_app
+flutter pub get
+```
+
+### 2. Conexión con el entorno local (Teléfono Físico o Emulador)
+
+* **En Teléfono Físico (conectado por USB con depuración habilitada):**
+  Para que el dispositivo móvil alcance el API Gateway local a través del cable USB, redirige el puerto 8000:
+  ```bash
+  adb reverse tcp:8000 tcp:8000
+  ```
+  *(Alternativamente, puede configurarse la IP de red local del computador, e.g. `http://192.168.x.x:8000`, en `AppConfig.apiGatewayUrl`).*
+
+* **En Emulador Android:**
+  El emulador redirige automáticamente al host mediante `http://10.0.2.2:8000`.
+
+### 3. Ejecutar la aplicación
+```bash
+# Ejecutar en modo desarrollo
+flutter run
+
+# O compilar el paquete APK para instalación manual
+flutter build apk --debug
+```
+
+### 4. Ejecución de pruebas automatizadas en la app móvil
+```bash
+flutter test
+```
+
+---
+
+## Comandos útiles
+
+* **Ver registros de todos los contenedores en vivo:**
+  ```bash
+  docker compose logs -f
+  ```
+* **Ver registros de un servicio específico (ej. notificaciones o gateway):**
+  ```bash
+  docker compose logs -f notifications_service
+  docker compose logs -f gateway
+  ```
+* **Detener los servicios:**
+  ```bash
+  docker compose down
+  ```
+* **Reinicio limpio eliminando volúmenes de base de datos:**
+  ```bash
+  docker compose down -v
+  ```

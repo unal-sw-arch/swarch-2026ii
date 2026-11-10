@@ -10,7 +10,7 @@ import { LoadingSpinner } from '../../../shared/components/ui/LoadingSpinner';
 import { ErrorAlert } from '../../../shared/components/ui/ErrorAlert';
 
 export function EventsAdminPage(): React.JSX.Element {
-  const { profile, token } = useAuth();
+  const { profile, firebaseUser, token } = useAuth();
   const {
     events,
     loading,
@@ -36,11 +36,43 @@ export function EventsAdminPage(): React.JSX.Element {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // Filtro: para el Administrador de Eventos, solo sus propios eventos (organizer.id === profile.id)
+  // Filtro: para el Administrador de Eventos, solo sus propios eventos
   const myEvents = useMemo(() => {
     if (!profile) return [];
-    return events.filter((ev) => ev.organizer?.id === profile.id);
-  }, [events, profile]);
+    return events.filter((ev) => {
+      const org = ev.organizer;
+      if (!org) return false;
+
+      const orgIdStr = String(org.id);
+
+      // 1. Coincidencia por Firebase UID (entorno real de autenticación)
+      if (firebaseUser?.uid && orgIdStr === firebaseUser.uid) {
+        return true;
+      }
+
+      // 2. Coincidencia por ID numérico / string
+      if (orgIdStr === String(profile.id)) {
+        return true;
+      }
+
+      // 3. Coincidencia por formato de desarrollo dev_uid_{id}
+      if (orgIdStr === `dev_uid_${profile.id}`) {
+        return true;
+      }
+
+      // 4. Coincidencia por correo institucional
+      if (profile.email && (org.email === profile.email || org.name === profile.email)) {
+        return true;
+      }
+
+      // 5. Coincidencia por nombre completo del organizador
+      if (profile.name && org.name === profile.name) {
+        return true;
+      }
+
+      return false;
+    });
+  }, [events, profile, firebaseUser]);
 
   const filteredEvents = useMemo(() => {
     return myEvents.filter((ev) => {

@@ -30,7 +30,9 @@ def verify_firebase_id_token(id_token: str) -> dict:
     """
     init_firebase()
     try:
-        return firebase_auth.verify_id_token(id_token)
+        # clock_skew_seconds=60 tolera diferencias de reloj de hasta 1 minuto
+        # entre los servidores de Google y la máquina local (evita "Token used too early").
+        return firebase_auth.verify_id_token(id_token, clock_skew_seconds=60)
     except (firebase_auth.InvalidIdTokenError, ValueError) as exc:
         raise InvalidTokenError("Token de Firebase inválido o expirado.") from exc
     except firebase_auth.CertificateFetchError as exc:

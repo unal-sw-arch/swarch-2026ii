@@ -5,7 +5,7 @@ import { FACULTY_LABELS } from '../../../../types/equipment';
 
 export interface UserTableProps {
   users: BackendProfile[];
-  currentUserId?: number;
+  currentUserId?: number | string;
   onEdit: (user: BackendProfile) => void;
   onDelete: (user: BackendProfile) => void;
 }

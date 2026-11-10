@@ -143,19 +143,22 @@ export function EventDetailPage(): React.JSX.Element {
             </h1>
 
             {/* Organizador */}
-            {event.organizer && (
-              <div className="mt-4 flex items-center gap-3 border-y border-[#00D592]/15 py-3 dark:border-gray-800">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-[#00D592] to-[#00BA7C] text-sm font-bold text-[#032B1D]">
-                  {event.organizer.name.charAt(0).toUpperCase()}
+            {event.organizer && (() => {
+              const organizerDisplayName = event.organizer.name || event.organizer.email?.split('@')[0] || 'Organizador';
+              return (
+                <div className="mt-4 flex items-center gap-3 border-y border-[#00D592]/15 py-3 dark:border-gray-800">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-[#00D592] to-[#00BA7C] text-sm font-bold text-[#032B1D]">
+                    {organizerDisplayName.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-bold text-xs text-gray-900 dark:text-gray-100">
+                      Organizado por {organizerDisplayName}
+                    </p>
+                    <p className="text-[11px] text-gray-500">{event.organizer.email}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-bold text-xs text-gray-900 dark:text-gray-100">
-                    Organizado por {event.organizer.name}
-                  </p>
-                  <p className="text-[11px] text-gray-500">{event.organizer.email}</p>
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Descripción completa */}
             <div className="mt-6">

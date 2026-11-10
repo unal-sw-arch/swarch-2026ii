@@ -10,7 +10,7 @@ export interface SubscriptionButtonProps {
   eventName: string;
   eventStatus: EventStatus;
   published: boolean;
-  organizerId?: number | null;
+  organizerId?: number | string | null;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
@@ -24,7 +24,7 @@ export function SubscriptionButton({
   size = 'md',
   className = '',
 }: SubscriptionButtonProps): React.JSX.Element {
-  const { profile, token, isAuthenticated } = useAuth();
+  const { profile, firebaseUser, token, isAuthenticated } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const { isSubscribed, loading, toggleSubscription, subscribe } = useSubscriptions(
@@ -32,7 +32,13 @@ export function SubscriptionButton({
     token
   );
 
-  const isOrganizer = Boolean(profile?.id && organizerId && profile.id === organizerId);
+  const isOrganizer = Boolean(
+    organizerId &&
+      ((firebaseUser?.uid && String(organizerId) === firebaseUser.uid) ||
+        (profile?.id &&
+          (String(organizerId) === String(profile.id) ||
+            String(organizerId) === `dev_uid_${profile.id}`)))
+  );
   const isFinishedOrCancelled = eventStatus === 'FIN' || eventStatus === 'CAN';
   const isDraft = !published;
   const isDisabled = isFinishedOrCancelled || isDraft || loading;

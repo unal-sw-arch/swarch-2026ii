@@ -287,7 +287,7 @@ export function AppLayout({ children }: { children?: React.ReactNode }): React.J
       </header>
 
       {/* Main Content Area */}
-      <main id="main-content" className={`flex-1 ${location.pathname === '/' ? '' : 'pt-20'}`}>
+      <main id="main-content" className={`flex-1 ${location.pathname === '/' ? '' : 'pt-24'}`}>
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}

@@ -151,6 +151,43 @@
   border-color: rgba(0, 213, 146, 0.45);
 }
 
+/* HeroUI Google Button */
+.heroui-btn-google {
+  background-color: #FFFFFF;
+  color: #1F2937;
+  border: 1px solid #E5E7EB;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.heroui-btn-google:hover {
+  background-color: #F9FAFB;
+  border-color: #00D592;
+  box-shadow: 0 4px 14px 0 rgba(0, 213, 146, 0.15);
+  transform: translateY(-1px);
+}
+
+.heroui-btn-google:active {
+  transform: scale(0.98);
+}
+
+.dark .heroui-btn-google {
+  background-color: #111A24;
+  color: #F3F4F6;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.4);
+}
+
+.dark .heroui-btn-google:hover {
+  background-color: #172331;
+  border-color: rgba(0, 213, 146, 0.5);
+  box-shadow: 0 4px 20px -2px rgba(0, 213, 146, 0.2);
+  transform: translateY(-1px);
+}
+
+.dark .heroui-btn-google:active {
+  transform: scale(0.98);
+}
+
 /* HeroUI Mint Chips */
 .heroui-chip {
   display: inline-flex;

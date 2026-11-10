@@ -71,7 +71,7 @@ export function SystemUsersPage(): React.JSX.Element {
     setModalOpen(true);
   };
 
-  const handleFormSubmit = async (id: number, payload: UserUpdatePayload) => {
+  const handleFormSubmit = async (id: number | string, payload: UserUpdatePayload) => {
     if (!token) return;
     setSaving(true);
     try {
