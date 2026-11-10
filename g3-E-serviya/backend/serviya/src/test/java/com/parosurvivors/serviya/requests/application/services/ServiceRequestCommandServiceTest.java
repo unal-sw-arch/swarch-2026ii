@@ -9,10 +9,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.parosurvivors.serviya.notifications.application.ports.input.NotificationServicePort;
-import com.parosurvivors.serviya.profiles.application.ports.output.AddressPersistencePort;
-import com.parosurvivors.serviya.profiles.application.ports.output.UserProfilePersistencePort;
-import com.parosurvivors.serviya.profiles.domain.Address;
-import com.parosurvivors.serviya.profiles.domain.UserProfile;
+import com.parosurvivors.serviya.profiles.api.ProfileQueryApi;
+import com.parosurvivors.serviya.profiles.api.dto.AddressSnapshot;
+import com.parosurvivors.serviya.profiles.api.dto.ProfileSnapshot;
 import com.parosurvivors.serviya.requests.application.dto.command.CreateServiceRequestCommand;
 import com.parosurvivors.serviya.requests.application.mappers.ServiceRequestCommandMapper;
 import com.parosurvivors.serviya.requests.application.ports.input.RescheduleProposalServicePort;
@@ -20,14 +19,14 @@ import com.parosurvivors.serviya.requests.application.ports.output.ServiceReques
 import com.parosurvivors.serviya.requests.application.ports.output.ServiceRequestReadPort;
 import com.parosurvivors.serviya.requests.domain.RequestStatus;
 import com.parosurvivors.serviya.requests.domain.ServiceRequest;
-import com.parosurvivors.serviya.services.application.ports.output.ServiceAvailabilityPersistencePort;
-import com.parosurvivors.serviya.services.application.ports.output.ServicePersistencePort;
-import com.parosurvivors.serviya.services.domain.Service;
-import com.parosurvivors.serviya.services.domain.ServiceAvailability;
+import com.parosurvivors.serviya.services.api.ServiceQueryApi;
+import com.parosurvivors.serviya.services.api.dto.ServiceAvailabilitySnapshot;
+import com.parosurvivors.serviya.services.api.dto.ServiceSnapshot;
+import com.parosurvivors.serviya.shared.events.application.ChatEventPublisher;
 import com.parosurvivors.serviya.shared.events.application.ports.output.DomainEventPublisherPort;
 import com.parosurvivors.serviya.shared.exceptions.BusinessRuleException;
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
-import com.parosurvivors.serviya.shared.exceptions.UnauthorizedException;
+import com.parosurvivors.serviya.shared.exceptions.ForbiddenException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -49,11 +48,10 @@ class ServiceRequestCommandServiceTest {
     @Mock RescheduleProposalServicePort rescheduleProposalService;
     @Mock NotificationServicePort notificationServicePort;
     @Mock ServiceRequestCommandMapper commandMapper;
-    @Mock ServicePersistencePort servicePersistencePort;
-    @Mock ServiceAvailabilityPersistencePort serviceAvailabilityPersistencePort;
-    @Mock AddressPersistencePort addressPersistencePort;
-    @Mock UserProfilePersistencePort userProfilePersistencePort;
+    @Mock ServiceQueryApi serviceQueryApi;
+    @Mock ProfileQueryApi profileQueryApi;
     @Mock DomainEventPublisherPort eventPublisher;
+    @Mock ChatEventPublisher chatEventPublisher;
 
     @InjectMocks ServiceRequestCommandService service;
 
@@ -70,16 +68,16 @@ class ServiceRequestCommandServiceTest {
     @Test
     void createRequest_succeeds_withValidCommand() {
         CreateServiceRequestCommand command = createCommand();
-        Service domainService = existingService();
+        ServiceSnapshot domainService = existingService();
         ServiceRequest unmapped = ServiceRequest.builder().clientId(CLIENT_ID).serviceId(SERVICE_ID).build();
         ServiceRequest saved = pendingRequest();
 
-        when(servicePersistencePort.findById(SERVICE_ID)).thenReturn(Optional.of(domainService));
-        when(serviceAvailabilityPersistencePort.findByServiceId(SERVICE_ID)).thenReturn(List.of(
+        when(serviceQueryApi.findById(SERVICE_ID)).thenReturn(Optional.of(domainService));
+        when(serviceQueryApi.getAvailabilities(SERVICE_ID)).thenReturn(List.of(
                 availability(1, LocalTime.of(8, 0), LocalTime.of(18, 0))));
         when(commandMapper.toDomain(command)).thenReturn(unmapped);
         when(serviceRequestPersistencePort.save(any())).thenReturn(saved);
-        when(userProfilePersistencePort.findByUserId(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
+        when(profileQueryApi.findProfile(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
 
         ServiceRequest result = service.createRequest(command);
 
@@ -91,7 +89,7 @@ class ServiceRequestCommandServiceTest {
 
     @Test
     void createRequest_throws_whenServiceNotFound() {
-        when(servicePersistencePort.findById(SERVICE_ID)).thenReturn(Optional.empty());
+        when(serviceQueryApi.findById(SERVICE_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.createRequest(createCommand()))
                 .isInstanceOf(ResourceNotFoundException.class)
@@ -102,9 +100,9 @@ class ServiceRequestCommandServiceTest {
 
     @Test
     void createRequest_throws_whenServiceUnavailable() {
-        when(servicePersistencePort.findById(SERVICE_ID)).thenReturn(Optional.of(existingService()));
+        when(serviceQueryApi.findById(SERVICE_ID)).thenReturn(Optional.of(existingService()));
         // Martes (dayOfWeek=2 → index 2) pero disponibilidad es solo lunes (index 1)
-        when(serviceAvailabilityPersistencePort.findByServiceId(SERVICE_ID)).thenReturn(List.of(
+        when(serviceQueryApi.getAvailabilities(SERVICE_ID)).thenReturn(List.of(
                 availability(1, LocalTime.of(8, 0), LocalTime.of(18, 0))));
 
         CreateServiceRequestCommand command = new CreateServiceRequestCommand(
@@ -118,11 +116,11 @@ class ServiceRequestCommandServiceTest {
     @Test
     void createRequest_succeeds_whenNoAvailabilitiesConfigured() {
         ServiceRequest unmapped = ServiceRequest.builder().clientId(CLIENT_ID).serviceId(SERVICE_ID).build();
-        when(servicePersistencePort.findById(SERVICE_ID)).thenReturn(Optional.of(existingService()));
-        when(serviceAvailabilityPersistencePort.findByServiceId(SERVICE_ID)).thenReturn(Collections.emptyList());
+        when(serviceQueryApi.findById(SERVICE_ID)).thenReturn(Optional.of(existingService()));
+        when(serviceQueryApi.getAvailabilities(SERVICE_ID)).thenReturn(Collections.emptyList());
         when(commandMapper.toDomain(createCommand())).thenReturn(unmapped);
         when(serviceRequestPersistencePort.save(any())).thenReturn(pendingRequest());
-        when(userProfilePersistencePort.findByUserId(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
+        when(profileQueryApi.findProfile(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
 
         service.createRequest(createCommand());
 
@@ -131,22 +129,23 @@ class ServiceRequestCommandServiceTest {
 
     @Test
     void createRequest_throws_whenAddressOutsideRadius() {
-        Service svc = existingService();
-        svc.setOperationRadiusKm(new BigDecimal("5.0"));
-        when(servicePersistencePort.findById(SERVICE_ID)).thenReturn(Optional.of(svc));
-        when(serviceAvailabilityPersistencePort.findByServiceId(SERVICE_ID)).thenReturn(Collections.emptyList());
+        ServiceSnapshot svc = existingService(new BigDecimal("5.0"));
+        when(serviceQueryApi.findById(SERVICE_ID)).thenReturn(Optional.of(svc));
+        when(serviceQueryApi.getAvailabilities(SERVICE_ID)).thenReturn(Collections.emptyList());
 
-        Address clientAddress = Address.builder().id(ADDRESS_ID)
-                .latitude(new BigDecimal("10.0")).longitude(new BigDecimal("-75.0")).build();
-        when(addressPersistencePort.findById(ADDRESS_ID)).thenReturn(Optional.of(clientAddress));
+        AddressSnapshot clientAddress = new AddressSnapshot(
+                ADDRESS_ID, CLIENT_ID, null, null,
+                new BigDecimal("10.0"), new BigDecimal("-75.0"), null);
+        when(profileQueryApi.findAddress(ADDRESS_ID)).thenReturn(Optional.of(clientAddress));
 
-        UserProfile offererProfile = UserProfile.builder().userId(OFFERER_ID).primaryAddressId(50L).build();
-        when(userProfilePersistencePort.findByUserId(OFFERER_ID)).thenReturn(Optional.of(offererProfile));
+        ProfileSnapshot offererProfile = profile(OFFERER_ID, null, 50L);
+        when(profileQueryApi.findProfile(OFFERER_ID)).thenReturn(Optional.of(offererProfile));
 
         // Offerer address far away (different city)
-        Address offererAddress = Address.builder().id(50L)
-                .latitude(new BigDecimal("0.0")).longitude(new BigDecimal("0.0")).build();
-        when(addressPersistencePort.findById(50L)).thenReturn(Optional.of(offererAddress));
+        AddressSnapshot offererAddress = new AddressSnapshot(
+                50L, OFFERER_ID, null, null,
+                new BigDecimal("0.0"), new BigDecimal("0.0"), null);
+        when(profileQueryApi.findAddress(50L)).thenReturn(Optional.of(offererAddress));
 
         assertThatThrownBy(() -> service.createRequest(createCommand()))
                 .isInstanceOf(BusinessRuleException.class)
@@ -159,7 +158,7 @@ class ServiceRequestCommandServiceTest {
 
     @Test
     void checkServiceAvailability_returnsTrue_whenNoAvailabilities() {
-        when(serviceAvailabilityPersistencePort.findByServiceId(SERVICE_ID)).thenReturn(Collections.emptyList());
+        when(serviceQueryApi.getAvailabilities(SERVICE_ID)).thenReturn(Collections.emptyList());
 
         boolean result = service.checkServiceAvailability(SERVICE_ID, LocalDateTime.of(2026, 8, 1, 14, 0));
 
@@ -168,7 +167,7 @@ class ServiceRequestCommandServiceTest {
 
     @Test
     void checkServiceAvailability_returnsTrue_whenWithinWindow() {
-        when(serviceAvailabilityPersistencePort.findByServiceId(SERVICE_ID)).thenReturn(List.of(
+        when(serviceQueryApi.getAvailabilities(SERVICE_ID)).thenReturn(List.of(
                 availability(1, LocalTime.of(8, 0), LocalTime.of(18, 0))));
         // lunes 14:00 — dentro de la ventana
         boolean result = service.checkServiceAvailability(SERVICE_ID, LocalDateTime.of(2026, 8, 3, 14, 0));
@@ -178,7 +177,7 @@ class ServiceRequestCommandServiceTest {
 
     @Test
     void checkServiceAvailability_throws_whenOutsideWindow() {
-        when(serviceAvailabilityPersistencePort.findByServiceId(SERVICE_ID)).thenReturn(List.of(
+        when(serviceQueryApi.getAvailabilities(SERVICE_ID)).thenReturn(List.of(
                 availability(1, LocalTime.of(8, 0), LocalTime.of(18, 0))));
         // lunes 20:00 — fuera de la ventana
         assertThatThrownBy(() ->
@@ -188,9 +187,8 @@ class ServiceRequestCommandServiceTest {
 
     @Test
     void checkServiceAvailability_ignoresInactiveAvailability() {
-        ServiceAvailability inactive = availability(1, LocalTime.of(8, 0), LocalTime.of(18, 0));
-        inactive.setActive(false);
-        when(serviceAvailabilityPersistencePort.findByServiceId(SERVICE_ID)).thenReturn(List.of(inactive));
+        ServiceAvailabilitySnapshot inactive = availability(1, LocalTime.of(8, 0), LocalTime.of(18, 0), false);
+        when(serviceQueryApi.getAvailabilities(SERVICE_ID)).thenReturn(List.of(inactive));
 
         assertThatThrownBy(() ->
                 service.checkServiceAvailability(SERVICE_ID, LocalDateTime.of(2026, 8, 3, 14, 0)))
@@ -203,31 +201,29 @@ class ServiceRequestCommandServiceTest {
 
     @Test
     void checkWithinRadius_returnsTrue_whenNoRadiusSet() {
-        Service svc = existingService();
-        svc.setOperationRadiusKm(null);
-        when(servicePersistencePort.findById(SERVICE_ID)).thenReturn(Optional.of(svc));
+        ServiceSnapshot svc = existingService(null);
+        when(serviceQueryApi.findById(SERVICE_ID)).thenReturn(Optional.of(svc));
 
         assertThat(service.checkWithinRadius(SERVICE_ID, ADDRESS_ID)).isTrue();
     }
 
     @Test
     void checkWithinRadius_returnsTrue_whenRadiusIsZero() {
-        Service svc = existingService();
-        svc.setOperationRadiusKm(BigDecimal.ZERO);
-        when(servicePersistencePort.findById(SERVICE_ID)).thenReturn(Optional.of(svc));
+        ServiceSnapshot svc = existingService(BigDecimal.ZERO);
+        when(serviceQueryApi.findById(SERVICE_ID)).thenReturn(Optional.of(svc));
 
         assertThat(service.checkWithinRadius(SERVICE_ID, ADDRESS_ID)).isTrue();
     }
 
     @Test
     void checkWithinRadius_throws_whenOffererHasNoAddress() {
-        Service svc = existingService();
-        svc.setOperationRadiusKm(new BigDecimal("10.0"));
-        when(servicePersistencePort.findById(SERVICE_ID)).thenReturn(Optional.of(svc));
-        when(addressPersistencePort.findById(ADDRESS_ID)).thenReturn(Optional.of(
-                Address.builder().id(ADDRESS_ID).latitude(BigDecimal.ZERO).longitude(BigDecimal.ZERO).build()));
-        when(userProfilePersistencePort.findByUserId(OFFERER_ID)).thenReturn(
-                Optional.of(UserProfile.builder().userId(OFFERER_ID).primaryAddressId(null).build()));
+        ServiceSnapshot svc = existingService(new BigDecimal("10.0"));
+        when(serviceQueryApi.findById(SERVICE_ID)).thenReturn(Optional.of(svc));
+        when(profileQueryApi.findAddress(ADDRESS_ID)).thenReturn(Optional.of(
+                new AddressSnapshot(ADDRESS_ID, CLIENT_ID, null, null,
+                        BigDecimal.ZERO, BigDecimal.ZERO, null)));
+        when(profileQueryApi.findProfile(OFFERER_ID)).thenReturn(
+                Optional.of(profile(OFFERER_ID, null, null)));
 
         assertThatThrownBy(() -> service.checkWithinRadius(SERVICE_ID, ADDRESS_ID))
                 .isInstanceOf(BusinessRuleException.class)
@@ -242,7 +238,7 @@ class ServiceRequestCommandServiceTest {
     void acceptRequest_succeeds_whenOffererOwnsRequest() {
         ServiceRequest request = pendingRequest();
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
-        when(userProfilePersistencePort.findByUserId(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
+        when(profileQueryApi.findProfile(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
 
         service.acceptRequest(REQUEST_ID, OFFERER_ID);
 
@@ -257,7 +253,7 @@ class ServiceRequestCommandServiceTest {
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
 
         assertThatThrownBy(() -> service.acceptRequest(REQUEST_ID, CLIENT_ID))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
 
         verify(serviceRequestPersistencePort, never()).update(any());
     }
@@ -278,7 +274,7 @@ class ServiceRequestCommandServiceTest {
     void rejectRequest_succeeds_whenOffererOwnsRequest() {
         ServiceRequest request = pendingRequest();
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
-        when(userProfilePersistencePort.findByUserId(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
+        when(profileQueryApi.findProfile(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
 
         service.rejectRequest(REQUEST_ID, OFFERER_ID);
 
@@ -293,7 +289,7 @@ class ServiceRequestCommandServiceTest {
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
 
         assertThatThrownBy(() -> service.rejectRequest(REQUEST_ID, CLIENT_ID))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
     }
 
     // =====================================================
@@ -332,7 +328,7 @@ class ServiceRequestCommandServiceTest {
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
 
         assertThatThrownBy(() -> service.cancelRequest(REQUEST_ID, 999L))
-                .isInstanceOf(UnauthorizedException.class)
+                .isInstanceOf(ForbiddenException.class)
                 .hasMessageContaining("no participa");
     }
 
@@ -344,7 +340,7 @@ class ServiceRequestCommandServiceTest {
     void markAsPresumablyCompleted_succeeds() {
         ServiceRequest request = acceptedRequest();
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
-        when(userProfilePersistencePort.findByUserId(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
+        when(profileQueryApi.findProfile(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
 
         service.markAsPresumablyCompleted(REQUEST_ID, OFFERER_ID);
 
@@ -359,7 +355,7 @@ class ServiceRequestCommandServiceTest {
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
 
         assertThatThrownBy(() -> service.markAsPresumablyCompleted(REQUEST_ID, CLIENT_ID))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
     }
 
     // =====================================================
@@ -370,7 +366,7 @@ class ServiceRequestCommandServiceTest {
     void confirmCompletion_succeeds() {
         ServiceRequest request = presumablyCompletedRequest();
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
-        when(userProfilePersistencePort.findByUserId(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
+        when(profileQueryApi.findProfile(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
 
         service.confirmCompletion(REQUEST_ID, CLIENT_ID);
 
@@ -384,7 +380,7 @@ class ServiceRequestCommandServiceTest {
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
 
         assertThatThrownBy(() -> service.confirmCompletion(REQUEST_ID, OFFERER_ID))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
     }
 
     // =====================================================
@@ -513,7 +509,7 @@ class ServiceRequestCommandServiceTest {
 
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
         when(serviceRequestPersistencePort.save(any())).thenReturn(replacement);
-        when(userProfilePersistencePort.findByUserId(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
+        when(profileQueryApi.findProfile(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
 
         ServiceRequest result = service.rescheduleRequest(REQUEST_ID, newDate, CLIENT_ID);
 
@@ -531,7 +527,7 @@ class ServiceRequestCommandServiceTest {
 
         assertThatThrownBy(() -> service.rescheduleRequest(
                 REQUEST_ID, LocalDateTime.of(2026, 9, 1, 10, 0), OFFERER_ID))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
     }
 
     @Test
@@ -579,49 +575,58 @@ class ServiceRequestCommandServiceTest {
         return request;
     }
 
-    private Service existingService() {
-        return Service.builder()
-                .id(SERVICE_ID)
-                .offererId(OFFERER_ID)
-                .title("Plomeria")
-                .priceHourly(new BigDecimal("25.00"))
-                .operationRadiusKm(null)
-                .active(true)
-                .build();
+    private ServiceSnapshot existingService() {
+        return existingService(null);
     }
 
-    private ServiceAvailability availability(int weekDay, LocalTime start, LocalTime end) {
-        return ServiceAvailability.builder()
-                .id((long) weekDay)
-                .serviceId(SERVICE_ID)
-                .weekDay((byte) weekDay)
-                .startTime(start)
-                .endTime(end)
-                .isActive(true)
-                .build();
+    private ServiceSnapshot existingService(BigDecimal operationRadiusKm) {
+        return new ServiceSnapshot(
+                SERVICE_ID,
+                OFFERER_ID,
+                "Plomeria",
+                null,
+                List.of(),
+                new BigDecimal("25.00"),
+                null,
+                null,
+                true,
+                operationRadiusKm,
+                null,
+                null,
+                null);
     }
 
-    private Address clientAddress() {
-        return Address.builder()
-                .id(ADDRESS_ID)
-                .latitude(new BigDecimal("-75.5700"))
-                .longitude(new BigDecimal("6.2442"))
-                .build();
+    private ServiceAvailabilitySnapshot availability(int weekDay, LocalTime start, LocalTime end) {
+        return availability(weekDay, start, end, true);
     }
 
-    private UserProfile clientProfile() {
-        return UserProfile.builder()
-                .userId(CLIENT_ID)
-                .fullName("Juan Perez")
-                .primaryAddressId(ADDRESS_ID)
-                .build();
+    private ServiceAvailabilitySnapshot availability(int weekDay, LocalTime start, LocalTime end, boolean active) {
+        return new ServiceAvailabilitySnapshot(
+                (long) weekDay,
+                SERVICE_ID,
+                weekDay,
+                start,
+                end,
+                active);
     }
 
-    private UserProfile offererProfile() {
-        return UserProfile.builder()
-                .userId(OFFERER_ID)
-                .fullName("Maria Garcia")
-                .primaryAddressId(50L)
-                .build();
+    private AddressSnapshot clientAddress() {
+        return new AddressSnapshot(
+                ADDRESS_ID, CLIENT_ID, null, null,
+                new BigDecimal("-75.5700"), new BigDecimal("6.2442"), null);
+    }
+
+    private ProfileSnapshot clientProfile() {
+        return profile(CLIENT_ID, "Juan Perez", ADDRESS_ID);
+    }
+
+    private ProfileSnapshot offererProfile() {
+        return profile(OFFERER_ID, "Maria Garcia", 50L);
+    }
+
+    private ProfileSnapshot profile(Long userId, String fullName, Long primaryAddressId) {
+        return new ProfileSnapshot(
+                null, userId, fullName, null, null, null,
+                primaryAddressId, null, null, null, null);
     }
 }

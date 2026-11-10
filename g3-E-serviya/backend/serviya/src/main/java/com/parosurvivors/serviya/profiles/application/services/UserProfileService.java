@@ -6,6 +6,7 @@ import com.parosurvivors.serviya.profiles.application.ports.input.UserProfileSer
 import com.parosurvivors.serviya.profiles.application.ports.output.AddressPersistencePort;
 import com.parosurvivors.serviya.profiles.application.ports.output.UserProfilePersistencePort;
 import com.parosurvivors.serviya.profiles.domain.UserProfile;
+import com.parosurvivors.serviya.shared.events.application.ChatEventPublisher;
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
 import com.parosurvivors.serviya.shared.textfilter.application.ports.output.WordFilterPort;
 import java.time.LocalDateTime;
@@ -28,6 +29,7 @@ public class UserProfileService implements UserProfileServicePort {
     private final AddressPersistencePort addressPersistencePort;
     /** Filtro de palabras (RNF-006) para los textos libres del perfil (nombre, descripcion). */
     private final WordFilterPort wordFilterPort;
+    private final ChatEventPublisher chatEventPublisher;
 
     @Override
     public UserProfile createProfile(CreateUserProfileCommand command) {
@@ -71,7 +73,10 @@ public class UserProfileService implements UserProfileServicePort {
                 command.photoUrl(),
                 wordFilterPort.filter(command.description()));
 
-        return userProfilePersistencePort.save(profile);
+        UserProfile saved = userProfilePersistencePort.save(profile);
+        chatEventPublisher.userUpdated(
+                saved.getUserId(), saved.getFullName(), saved.getProfilePhotoUrl());
+        return saved;
     }
 
     @Override

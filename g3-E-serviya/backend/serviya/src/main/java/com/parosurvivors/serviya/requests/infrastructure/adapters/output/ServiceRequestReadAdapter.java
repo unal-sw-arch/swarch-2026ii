@@ -60,6 +60,11 @@ public class ServiceRequestReadAdapter implements ServiceRequestReadPort {
     }
 
     @Override
+    public long countByStatus(RequestStatus status) {
+        return repository.countByStatus(status);
+    }
+
+    @Override
     public long countByClientIdAndStatusIn(Long clientId, List<RequestStatus> statuses) {
         return repository.countByClientIdAndStatusIn(clientId, statuses);
     }

@@ -1,7 +1,6 @@
 package com.parosurvivors.serviya.metrics.application.ports.input;
 
 import com.parosurvivors.serviya.metrics.domain.ClientMetrics;
-import com.parosurvivors.serviya.requests.domain.RequestStatus;
 
 /**
  * Puerto de entrada de ClientMetricsService. Consulta (devuelve dominio; el resumen lo arma el
@@ -29,7 +28,7 @@ public interface ClientMetricsServicePort {
     void applyClientFeedbackReverted(Long clientId, Integer rating, boolean hasComment, int positiveTags, int negativeTags);
 
     /** Incrementa el contador del nuevo estado de la solicitud del cliente (accepted/completed/cancelled/rescheduled/not_provided). */
-    void applyRequestStatusChanged(Long clientId, RequestStatus newStatus);
+    void applyRequestStatusChanged(Long clientId, String newStatus);
 
     /** Solicitud original enviada por el cliente (evento de creación, no reprogramaciones). */
     void incrementRequestsSent(Long clientId);

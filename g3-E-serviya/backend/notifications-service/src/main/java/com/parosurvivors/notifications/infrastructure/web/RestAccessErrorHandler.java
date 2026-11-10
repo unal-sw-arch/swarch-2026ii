@@ -28,19 +28,21 @@ public class RestAccessErrorHandler implements AuthenticationEntryPoint, AccessD
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
             AuthenticationException authException) throws IOException {
-        write(request, response, HttpStatus.UNAUTHORIZED, "Se requiere autenticacion");
+        write(request, response, HttpStatus.UNAUTHORIZED, "TOKEN_MISSING", "Se requiere autenticacion");
     }
 
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
             AccessDeniedException accessDeniedException) throws IOException {
-        write(request, response, HttpStatus.FORBIDDEN, "No tienes permiso para acceder a este recurso");
+        write(request, response, HttpStatus.FORBIDDEN, "FORBIDDEN", "No tienes permiso para acceder a este recurso");
     }
 
     private void write(HttpServletRequest request, HttpServletResponse response, HttpStatus status,
-            String message) throws IOException {
-        ErrorResponse body = new ErrorResponse(status.value(), status.getReasonPhrase(), message,
-                request.getRequestURI(), LocalDateTime.now());
+            String code, String message) throws IOException {
+        String existing = request.getHeader("X-Request-Id");
+        String correlationId = (existing != null && !existing.isBlank()) ? existing : java.util.UUID.randomUUID().toString();
+        ErrorResponse body = new ErrorResponse(status.value(), status.getReasonPhrase(), code, message,
+                correlationId, request.getRequestURI(), LocalDateTime.now());
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");

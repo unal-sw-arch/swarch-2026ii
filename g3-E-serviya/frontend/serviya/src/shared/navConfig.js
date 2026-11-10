@@ -18,6 +18,7 @@ export const CLIENT_NAV = [
             { label: 'Agenda', to: '/schedule', icon: 'calendar' },
             { label: 'Historial', to: '/history', icon: 'history' },
             { label: 'Reprogramaciones', to: '/reschedules', icon: 'reschedule' },
+            { label: 'Mensajes', to: '/messages', icon: 'chat' },
         ],
     },
     {
@@ -46,6 +47,7 @@ export const OFFERER_NAV = [
             { label: 'Agenda', to: '/offerer/schedule', icon: 'calendar' },
             { label: 'Reprogramaciones', to: '/offerer/reschedules', icon: 'reschedule' },
             { label: 'Historial', to: '/offerer/history', icon: 'history' },
+            { label: 'Mensajes', to: '/messages', icon: 'chat' },
         ],
     },
     {

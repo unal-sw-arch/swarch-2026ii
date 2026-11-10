@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { clearToken } from '../../../../shared/api';
+import { authApi } from '../../../../shared/api';
 import { useSidebarOpen, sidebarStore } from '../../../../shared/hooks/useSidebar';
 import './AdminSidebar.css';
 
@@ -15,9 +15,9 @@ export function AdminSidebar() {
     const navigate = useNavigate();
     const open = useSidebarOpen();
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
         sidebarStore.close();
-        clearToken();          // invalida la sesión: elimina el JWT de localStorage
+        await authApi.logout();   // revoca el refresh en el backend + limpia la cookie y el JWT local
         navigate('/login');
     };
 

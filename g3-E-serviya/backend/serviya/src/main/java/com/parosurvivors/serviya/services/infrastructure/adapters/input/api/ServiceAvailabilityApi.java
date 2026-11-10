@@ -44,10 +44,4 @@ public interface ServiceAvailabilityApi {
         @ApiResponse(responseCode = "404", description = "Servicio no encontrado")
     })
     ResponseEntity<List<ServiceAvailabilityResponse>> getByServiceId(Long serviceId);
-
-    @Operation(summary = "Aplicar la plantilla general del oferente al servicio")
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Plantilla aplicada exitosamente")
-    })
-    ResponseEntity<Void> applyGeneralTemplate(Long serviceId);
 }

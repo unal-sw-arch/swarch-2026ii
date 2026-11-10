@@ -1,0 +1,122 @@
+spring:
+  application:
+    name: chat-service
+  # Los repositorios JPA no son de Redis: se excluye el escaneo de repositorios Redis.
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+      # El chat define a mano sus dos conexiones Redis (coord y pubsub) y no usa Redis reactivo.
+      - org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration
+  jackson:
+    # Contrato REST/WS/eventos del chat en snake_case (guía §8 y §9).
+    property-naming-strategy: SNAKE_CASE
+  datasource:
+    url: ${CHAT_DB_URL:jdbc:mysql://localhost:3309/chat_db?useUnicode=true&connectionCollation=utf8mb4_unicode_ci&serverTimezone=UTC}
+    username: ${CHAT_DB_USER:chat}
+    password: ${CHAT_DB_PASSWORD:}
+  jpa:
+    hibernate:
+      # El esquema lo gobierna Flyway. Hibernate solo VALIDA que las entidades casen con él.
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # ES256 + JWKS (DP-03): el chat solo tiene la clave PÚBLICA y no puede emitir tokens.
+          # El default de Spring es RS256 → se fija ES256 explícitamente.
+          # Lee el JWKS DIRECTO del monolito (emisor) por la red interna: el JWKS no se expone en el
+          # gateway (P3.3, es privado). Igual que notifications-service.
+          jwk-set-uri: ${JWT_JWKS_URL:http://backend:8080/.well-known/jwks.json}
+          jws-algorithms: ES256
+  # redis-coord (instancia A): tickets WS y rate limiting. Usuario ACL `chat`, solo claves chat:* (infra/redis).
+  data:
+    redis:
+      host: ${REDIS_COORD_HOST:localhost}
+      port: ${REDIS_COORD_PORT:6379}
+      username: ${CHAT_REDIS_COORD_USER:chat}
+      password: ${CHAT_REDIS_COORD_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_COORD_SSL:false}
+      timeout: 300ms
+      connect-timeout: 500ms
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:chat}
+    password: ${RABBITMQ_PASSWORD:}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    publisher-confirm-type: correlated
+    listener:
+      simple:
+        default-requeue-rejected: false
+        prefetch: 10
+        retry:
+          enabled: true
+          max-attempts: 4
+          initial-interval: 1s
+          multiplier: 2
+          max-interval: 10s
+
+server:
+  port: ${CHAT_PORT:8000}
+  error:
+    include-stacktrace: never
+    include-message: never
+  forward-headers-strategy: native
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  health:
+    # Redis es opcional para estar "vivo": su caída degrada (tickets 503, limitador en memoria) pero no tumba el servicio.
+    redis:
+      enabled: false
+
+serviya:
+  chat:
+    # Redis Pub/Sub PROPIO del chat (instancia C): difusión de mensajes entre instancias.
+    pubsub:
+      host: ${CHAT_PUBSUB_HOST:localhost}
+      port: ${CHAT_PUBSUB_PORT:6380}
+    # Orígenes permitidos en el handshake WebSocket (mismos que el CORS del gateway).
+    allowed-ws-origins: ${ALLOWED_WS_ORIGINS:http://localhost:5173,http://localhost:8081}
+    message:
+      max-length: 2000
+    # Anti-spam por usuario (RNF-CHAT-12): p. ej. 20 mensajes cada 10 s.
+    rate-limit:
+      max-messages: ${CHAT_RATE_LIMIT_MAX:20}
+      window-seconds: ${CHAT_RATE_LIMIT_WINDOW_SECONDS:10}
+    outbox:
+      relay-enabled: ${CHAT_OUTBOX_RELAY_ENABLED:true}
+      poll-interval-ms: 1000
+      batch-size: 100
+      confirm-timeout-ms: 5000
+    # Estados de la solicitud que pasan la conversación a solo lectura (RequestStatus.isTerminal() del monolito).
+    terminal-request-statuses: REJECTED,CANCELLED,COMPLETED,RESCHEDULED,NOT_PROVIDED
+  security:
+    jwt:
+      issuer: ${JWT_ISSUER:https://auth.serviya.local}
+      audience: ${JWT_AUDIENCE:marketplace-api}
+
+# Logs estructurados (RNF-CHAT-17). Vacío = formato de texto (desarrollo); LOG_STRUCTURED_FORMAT=ecs → JSON con el
+# correlationId del MDC. El contenido de los mensajes NUNCA se registra (RNF-CHAT-13).
+logging:
+  structured:
+    format:
+      console: ${LOG_STRUCTURED_FORMAT:}

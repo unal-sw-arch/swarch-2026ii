@@ -1,16 +1,16 @@
 package com.parosurvivors.serviya.admin.infrastructure.adapters.input.api;
 
-import com.parosurvivors.serviya.users.application.dto.query.SearchUsersQuery;
 import com.parosurvivors.serviya.admin.infrastructure.dto.form.BanUserForm;
 import com.parosurvivors.serviya.admin.infrastructure.dto.form.GrantRoleForm;
 import com.parosurvivors.serviya.admin.infrastructure.dto.form.CreateUserByAdminForm;
 import com.parosurvivors.serviya.admin.infrastructure.dto.response.AdminFeedbackSearchResponse;
+import com.parosurvivors.serviya.admin.infrastructure.dto.response.AdminRequestDetailResponse;
+import com.parosurvivors.serviya.admin.infrastructure.dto.response.RoleResponse;
 import com.parosurvivors.serviya.admin.infrastructure.dto.response.UserAdminDetailResponse;
 import com.parosurvivors.serviya.admin.infrastructure.dto.form.UpdateUserByAdminForm;
 import com.parosurvivors.serviya.admin.infrastructure.dto.response.UserRoleAssignmentResponse;
 import com.parosurvivors.serviya.admin.infrastructure.dto.response.UserSummaryResponse;
-import com.parosurvivors.serviya.requests.infrastructure.dto.response.AdminRequestDetailResponse;
-import com.parosurvivors.serviya.users.infrastructure.dto.response.RoleResponse;
+import com.parosurvivors.serviya.users.api.dto.UserSearchCriteria;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -31,7 +31,7 @@ public interface AdminApi {
 
     @Operation(summary = "Buscar usuarios con filtros", description = "RF-068.")
     @ApiResponse(responseCode = "200", description = "Pagina de usuarios")
-    ResponseEntity<Page<UserSummaryResponse>> searchUsers(SearchUsersQuery filters, Pageable pageable);
+    ResponseEntity<Page<UserSummaryResponse>> searchUsers(UserSearchCriteria filters, Pageable pageable);
 
     @Operation(summary = "Detalle de un usuario para el panel admin", description = "RF-081.")
     @ApiResponse(responseCode = "200", description = "Detalle del usuario")

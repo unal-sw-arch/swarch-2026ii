@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Icon } from '../Icon/Icon';
-import { clearToken } from '../../api';
+import { authApi } from '../../api';
 import { useSidebarOpen, sidebarStore } from '../../hooks/useSidebar';
 
 /**
@@ -16,9 +16,9 @@ export function Sidebar({ sections = [] }) {
     const navigate = useNavigate();
     const open = useSidebarOpen();
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
         sidebarStore.close();
-        clearToken();          // invalida la sesión: elimina el JWT de localStorage
+        await authApi.logout();   // revoca el refresh en el backend + limpia la cookie y el JWT local
         navigate('/login');
     };
 

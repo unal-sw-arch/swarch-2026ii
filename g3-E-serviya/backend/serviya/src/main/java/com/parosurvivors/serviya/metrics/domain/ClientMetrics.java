@@ -46,13 +46,6 @@ public class ClientMetrics {
     private Integer totalRescheduledRequests = 0;
     @Builder.Default
     private Integer totalNotProvidedRequests = 0;
-    /**
-     * Solicitudes activas (en estados no terminales). Es un valor de SOLO LECTURA calculado por
-     * consulta a service_requests en tiempo de lectura; NO se persiste en client_metrics (a
-     * diferencia de los contadores acumulados de arriba).
-     */
-    @Builder.Default
-    private Integer activeRequests = 0;
     private LocalDateTime updatedAt;
 
     // =====================================================

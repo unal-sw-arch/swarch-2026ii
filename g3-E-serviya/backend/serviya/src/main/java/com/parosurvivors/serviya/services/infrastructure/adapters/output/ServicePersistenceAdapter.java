@@ -11,6 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -33,6 +34,16 @@ public class ServicePersistenceAdapter implements ServicePersistencePort {
     public Optional<Service> findById(Long id) {
         return repository.findById(id)
                 .map(mapper::toDomain);
+    }
+
+    @Override
+    public List<Service> findByIds(Collection<Long> serviceIds) {
+        if (serviceIds == null || serviceIds.isEmpty()) {
+            return List.of();
+        }
+        return repository.findAllById(serviceIds).stream()
+                .map(mapper::toDomain)
+                .toList();
     }
 
     @Override

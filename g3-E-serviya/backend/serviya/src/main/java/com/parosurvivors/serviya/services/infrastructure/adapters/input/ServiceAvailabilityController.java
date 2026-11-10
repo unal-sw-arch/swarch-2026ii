@@ -19,7 +19,6 @@ import com.parosurvivors.serviya.services.infrastructure.dto.form.CreateServiceA
 import com.parosurvivors.serviya.services.infrastructure.dto.form.UpdateServiceAvailabilityForm;
 import com.parosurvivors.serviya.services.infrastructure.dto.response.ServiceAvailabilityResponse;
 import com.parosurvivors.serviya.services.infrastructure.mappers.ServiceAvailabilityWebMapper;
-import com.parosurvivors.serviya.shared.security.CurrentUser;
 
 import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
@@ -58,16 +57,8 @@ public class ServiceAvailabilityController implements ServiceAvailabilityApi{
         return ResponseEntity.ok(response);
     }
 
-    @Override
     @GetMapping("/service/{id}")
     public ResponseEntity<List<ServiceAvailabilityResponse>> getByServiceId(@Parameter(description = "ID del servicio")@PathVariable Long id) {
         return ResponseEntity.ok(mapper.toResponses(serviceAvailabilityService.getByServiceId(id)));
-    }
-
-    @Override
-    @PostMapping("/service/{serviceId}/apply-template")
-    public ResponseEntity<Void> applyGeneralTemplate(@PathVariable Long serviceId) {
-        serviceAvailabilityService.applyGeneralTemplate(serviceId, CurrentUser.id());
-        return ResponseEntity.ok().build();
     }
 }

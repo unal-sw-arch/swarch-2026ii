@@ -1,9 +1,8 @@
 package com.parosurvivors.serviya.admin.application.services;
 
+import com.parosurvivors.serviya.shared.contract.Roles;
 import com.parosurvivors.serviya.shared.exceptions.InvalidStateException;
-import com.parosurvivors.serviya.users.application.ports.input.UserQueryServicePort;
-import com.parosurvivors.serviya.users.application.ports.input.UserRoleServicePort;
-import com.parosurvivors.serviya.users.domain.RoleName;
+import com.parosurvivors.serviya.users.api.UserQueryApi;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -23,8 +22,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class AdminActionGuard {
 
-    private final UserRoleServicePort userRoleServicePort;
-    private final UserQueryServicePort userQueryServicePort;
+    private final UserQueryApi userQueryApi;
 
     /** Rechaza que un admin ejecute una accion destructiva sobre su propia cuenta. */
     public void requireNotSelf(Long adminId, Long targetUserId) {
@@ -39,10 +37,10 @@ public class AdminActionGuard {
      * tiene el rol ADMIN, la accion no puede provocar lockout y este guard no hace nada.
      */
     public void requireAnotherActiveAdmin(Long targetUserId) {
-        if (!userRoleServicePort.hasRole(targetUserId, RoleName.ADMIN.name())) {
+        if (!userQueryApi.hasRole(targetUserId, Roles.ADMIN)) {
             return;
         }
-        boolean anotherActiveAdmin = userRoleServicePort.findUserIdsByRole(RoleName.ADMIN).stream()
+        boolean anotherActiveAdmin = userQueryApi.findUserIdsByRole(Roles.ADMIN).stream()
                 .filter(id -> !id.equals(targetUserId))
                 .anyMatch(this::isActiveUser);
         if (!anotherActiveAdmin) {
@@ -52,6 +50,8 @@ public class AdminActionGuard {
     }
 
     private boolean isActiveUser(Long userId) {
-        return userQueryServicePort.getUserById(userId).isActive();
+        return userQueryApi.findById(userId)
+                .map(user -> !user.banned() && !user.deleted())
+                .orElse(false);
     }
 }

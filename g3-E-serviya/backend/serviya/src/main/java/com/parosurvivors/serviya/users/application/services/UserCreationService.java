@@ -1,12 +1,8 @@
 package com.parosurvivors.serviya.users.application.services;
 
-import com.parosurvivors.serviya.profiles.application.dto.command.CreateAddressCommand;
-import com.parosurvivors.serviya.profiles.application.dto.command.CreateUserProfileCommand;
-import com.parosurvivors.serviya.profiles.application.ports.input.AddressServicePort;
-import com.parosurvivors.serviya.profiles.application.ports.input.OffererProfileServicePort;
-import com.parosurvivors.serviya.profiles.application.ports.input.UserProfileServicePort;
-import com.parosurvivors.serviya.profiles.domain.Address;
-import com.parosurvivors.serviya.profiles.domain.ProfileType;
+import com.parosurvivors.serviya.profiles.api.ProfileCommandApi;
+import com.parosurvivors.serviya.profiles.api.dto.AddressSnapshot;
+import com.parosurvivors.serviya.shared.events.application.ChatEventPublisher;
 import com.parosurvivors.serviya.shared.exceptions.InvalidStateException;
 import com.parosurvivors.serviya.users.application.dto.command.CreateUserAccountCommand;
 import com.parosurvivors.serviya.users.application.ports.input.ConsentServicePort;
@@ -36,10 +32,9 @@ public class UserCreationService implements UserCreationServicePort {
     private final UserServicePort userServicePort;
     private final UserRoleServicePort userRoleServicePort;
     private final ConsentServicePort consentServicePort;
-    private final UserProfileServicePort userProfileServicePort;
-    private final OffererProfileServicePort offererProfileServicePort;
-    /** Direccion principal opcional capturada en el registro (queda en "Mis direcciones"). */
-    private final AddressServicePort addressServicePort;
+    /** Perfil y direccion: contrato publico de profiles. */
+    private final ProfileCommandApi profileCommandApi;
+    private final ChatEventPublisher chatEventPublisher;
 
     @Override
     @Transactional
@@ -59,17 +54,17 @@ public class UserCreationService implements UserCreationServicePort {
         userRoleServicePort.assignRole(user.getId(), roleName);
 
         if (roleName == RoleName.OFFERER) {
-            offererProfileServicePort.createOffererProfile(user.getId());
+            profileCommandApi.createOffererProfile(user.getId());
         }
 
         // Perfil personal (document/phone se cifran al persistir).
-        userProfileServicePort.createProfile(new CreateUserProfileCommand(
+        profileCommandApi.createProfile(new com.parosurvivors.serviya.profiles.api.dto.CreateProfileCommand(
                 user.getId(),
                 command.fullName(),
                 nullToEmpty(command.documentType()),
                 nullToEmpty(command.documentNumber()),
                 nullToEmpty(command.phone()),
-                ProfileType.NATURAL));
+                "NATURAL"));
 
         // RF-004: registro del consentimiento aceptado.
         consentServicePort.createConsent(user.getId(), true);
@@ -78,16 +73,18 @@ public class UserCreationService implements UserCreationServicePort {
         // principal, de modo que el usuario entra con su direccion ya cargada en "Mis direcciones".
         // Va dentro de la misma transaccion: si falla, no queda ni cuenta ni direccion a medias.
         if (command.hasAddress()) {
-            Address address = addressServicePort.createAddress(new CreateAddressCommand(
-                    user.getId(),
-                    command.addressLine(),
-                    command.city(),
-                    command.latitude(),
-                    command.longitude()));
-            userProfileServicePort.updateMainAddress(user.getId(), address.getId());
+            AddressSnapshot address = profileCommandApi.createAddress(
+                    new com.parosurvivors.serviya.profiles.api.dto.CreateAddressCommand(
+                            user.getId(),
+                            command.addressLine(),
+                            command.city(),
+                            command.latitude(),
+                            command.longitude()));
+            profileCommandApi.updateMainAddress(user.getId(), address.id());
         }
 
         user.setRoles(List.of(roleName));
+        chatEventPublisher.userRegistered(user.getId(), command.fullName(), null, roleName.name());
         return user;
     }
 

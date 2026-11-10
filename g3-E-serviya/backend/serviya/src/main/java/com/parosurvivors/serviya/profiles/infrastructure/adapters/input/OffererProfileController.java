@@ -1,11 +1,8 @@
 package com.parosurvivors.serviya.profiles.infrastructure.adapters.input;
 
 import com.parosurvivors.serviya.profiles.application.ports.input.OffererProfileServicePort;
-import com.parosurvivors.serviya.profiles.application.ports.input.OffererPublicProfileServicePort;
 import com.parosurvivors.serviya.profiles.infrastructure.adapters.input.api.OffererProfileApi;
 import com.parosurvivors.serviya.profiles.infrastructure.dto.form.UpdateOffererProfileForm;
-import com.parosurvivors.serviya.profiles.infrastructure.dto.response.OffererProfileSummaryResponse;
-import com.parosurvivors.serviya.profiles.infrastructure.dto.response.OffererPublicProfileDetailResponse;
 import com.parosurvivors.serviya.profiles.infrastructure.dto.response.OffererPublicProfileResponse;
 import com.parosurvivors.serviya.profiles.infrastructure.mappers.OffererProfileWebMapper;
 import com.parosurvivors.serviya.shared.security.CurrentUser;
@@ -28,8 +25,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class OffererProfileController implements OffererProfileApi {
 
     private final OffererProfileServicePort offererProfileService;
-    /** RF-027: el agregado publico vive en su propio servicio para no crear un ciclo con el marketplace. */
-    private final OffererPublicProfileServicePort offererPublicProfileService;
     private final OffererProfileWebMapper mapper;
 
     @Override
@@ -42,22 +37,6 @@ public class OffererProfileController implements OffererProfileApi {
     @GetMapping("/{id}")
     public ResponseEntity<OffererPublicProfileResponse> getPublicProfile(@PathVariable Long id) {
         return ResponseEntity.ok(mapper.toResponse(offererProfileService.getPublicProfile(id)));
-    }
-
-    /**
-     * RF-027. Endpoint PUBLICO (SecurityConfig lo abre para GET /api/v1/offerers/**): lo consultan
-     * clientes, administradores y visitantes sin sesion. Funciona igual con o sin JWT.
-     */
-    @Override
-    @GetMapping("/{id}/public-profile")
-    public ResponseEntity<OffererPublicProfileDetailResponse> getPublicProfileDetail(@PathVariable Long id) {
-        return ResponseEntity.ok(mapper.toResponse(offererPublicProfileService.getPublicProfileDetail(id)));
-    }
-
-    @Override
-    @GetMapping("/{id}/summary")
-    public ResponseEntity<OffererProfileSummaryResponse> getProfileSummary(@PathVariable Long id) {
-        return ResponseEntity.ok(mapper.toResponse(offererProfileService.getProfileSummary(id)));
     }
 
     @Override

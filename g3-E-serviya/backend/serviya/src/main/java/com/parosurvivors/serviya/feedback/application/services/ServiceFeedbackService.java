@@ -10,15 +10,15 @@ import com.parosurvivors.serviya.feedback.application.ports.output.ServiceFeedba
 import com.parosurvivors.serviya.feedback.domain.ServiceFeedback;
 import com.parosurvivors.serviya.feedback.domain.ServiceFeedbackTagCatalog;
 import com.parosurvivors.serviya.feedback.domain.TagSentiment;
-import com.parosurvivors.serviya.requests.application.ports.output.ServiceRequestReadPort;
-import com.parosurvivors.serviya.requests.domain.ServiceRequest;
+import com.parosurvivors.serviya.requests.api.RequestLookupApi;
+import com.parosurvivors.serviya.requests.api.dto.RequestSnapshot;
 import com.parosurvivors.serviya.shared.events.application.ports.output.DomainEventPublisherPort;
 import com.parosurvivors.serviya.shared.events.domain.ServiceFeedbackRevertedEvent;
 import com.parosurvivors.serviya.shared.events.domain.ServiceFeedbackSubmittedEvent;
 import com.parosurvivors.serviya.shared.events.domain.TagRef;
 import com.parosurvivors.serviya.shared.exceptions.InvalidStateException;
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
-import com.parosurvivors.serviya.shared.exceptions.UnauthorizedException;
+import com.parosurvivors.serviya.shared.exceptions.ForbiddenException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -45,23 +45,23 @@ public class ServiceFeedbackService implements ServiceFeedbackServicePort {
     private final ServiceFeedbackPersistencePort serviceFeedbackPersistencePort;
     private final ServiceFeedbackTagPersistencePort serviceFeedbackTagPersistencePort;
     private final ServiceFeedbackTagCatalogPersistencePort serviceFeedbackTagCatalogPersistencePort;
-    private final ServiceRequestReadPort serviceRequestReadPort;
+    private final RequestLookupApi requestLookupApi;
     private final ServiceFeedbackCommandMapper commandMapper;
     private final DomainEventPublisherPort eventPublisher;
 
     @Override
     @Transactional
     public void submitServiceFeedback(SubmitServiceFeedbackCommand command) {
-        ServiceRequest request = serviceRequestReadPort.findById(command.requestId())
+        RequestSnapshot request = requestLookupApi.findById(command.requestId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Solicitud no encontrada: " + command.requestId()));
-        if (!request.getClientId().equals(command.clientId())) {
-            throw new UnauthorizedException("El feedback solo lo puede dejar el cliente de la solicitud");
+        if (!request.clientId().equals(command.clientId())) {
+            throw new ForbiddenException("El feedback solo lo puede dejar el cliente de la solicitud");
         }
         // Ventana de calificación: desde 'presuntamente prestada' en adelante (no solo 'completada').
         if (!(request.isPresumablyCompleted() || request.isCompleted())) {
             throw new InvalidStateException(
-                    "Solo se puede calificar una solicitud prestada; estado actual: " + request.getStatus());
+                    "Solo se puede calificar una solicitud prestada; estado actual: " + request.status());
         }
         if (serviceFeedbackPersistencePort.findByRequestId(command.requestId()).isPresent()) {
             throw new InvalidStateException(
@@ -69,7 +69,7 @@ public class ServiceFeedbackService implements ServiceFeedbackServicePort {
         }
 
         ServiceFeedback feedback = commandMapper.toFeedback(command);
-        feedback.setServiceId(request.getServiceId());
+        feedback.setServiceId(request.serviceId());
         feedback.setCreatedAt(LocalDateTime.now());
         ServiceFeedback saved = serviceFeedbackPersistencePort.save(feedback);
 
@@ -79,10 +79,10 @@ public class ServiceFeedbackService implements ServiceFeedbackServicePort {
         }
 
         eventPublisher.publish(new ServiceFeedbackSubmittedEvent(
-                request.getId(),
-                request.getServiceId(),
-                request.getOffererId(),
-                request.getClientId(),
+                request.id(),
+                request.serviceId(),
+                request.offererId(),
+                request.clientId(),
                 saved.getRating(),
                 saved.hasComment(),
                 resolveTagRefs(tagIds)));
@@ -102,8 +102,8 @@ public class ServiceFeedbackService implements ServiceFeedbackServicePort {
         serviceFeedbackPersistencePort.deleteById(feedback.getId());
 
         // El oferente objetivo no vive en el feedback; se lee de la solicitud para el evento de reverso.
-        Long offererId = serviceRequestReadPort.findById(requestId)
-                .map(ServiceRequest::getOffererId)
+        Long offererId = requestLookupApi.findById(requestId)
+                .map(RequestSnapshot::offererId)
                 .orElse(null);
 
         eventPublisher.publish(new ServiceFeedbackRevertedEvent(
@@ -198,7 +198,8 @@ public class ServiceFeedbackService implements ServiceFeedbackServicePort {
         Map<Long, TagSentiment> sentimentByTag = serviceFeedbackTagCatalogPersistencePort.findAll().stream()
                 .collect(Collectors.toMap(ServiceFeedbackTagCatalog::getId, ServiceFeedbackTagCatalog::getSentiment));
         return tagIds.stream()
-                .map(tagId -> new TagRef(tagId, sentimentByTag.get(tagId)))
+                .map(tagId -> new TagRef(tagId,
+                        sentimentByTag.get(tagId) != null && sentimentByTag.get(tagId).isPositive()))
                 .toList();
     }
 }

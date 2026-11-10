@@ -149,7 +149,7 @@ public class RequestMaintenanceService implements RequestMaintenanceServicePort 
                 request.getClientId(),
                 request.getOffererId(),
                 request.getServiceId(),
-                previous,
-                request.getStatus()));
+                previous != null ? previous.name() : null,
+                request.getStatus() != null ? request.getStatus().name() : null));
     }
 }

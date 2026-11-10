@@ -1,7 +1,8 @@
 package com.parosurvivors.serviya.users.application.services;
 
-import com.parosurvivors.serviya.notifications.application.ports.input.NotificationServicePort;
-import com.parosurvivors.serviya.notifications.domain.ChannelName;
+import com.parosurvivors.serviya.notifications.api.Channel;
+import com.parosurvivors.serviya.notifications.api.NotificationCommand;
+import com.parosurvivors.serviya.notifications.api.NotificationCommandApi;
 import com.parosurvivors.serviya.shared.exceptions.InvalidStateException;
 import com.parosurvivors.serviya.shared.exceptions.UnauthorizedException;
 import com.parosurvivors.serviya.users.application.dto.command.ConfirmPasswordResetCommand;
@@ -14,6 +15,8 @@ import com.parosurvivors.serviya.users.application.dto.result.IssuedResetToken;
 import com.parosurvivors.serviya.users.application.dto.result.IssuedToken;
 import com.parosurvivors.serviya.users.application.dto.result.TokenValidationResult;
 import com.parosurvivors.serviya.users.application.ports.input.PasswordResetTokenServicePort;
+import com.parosurvivors.serviya.users.application.ports.input.SessionRevocationServicePort;
+import com.parosurvivors.serviya.users.application.ports.input.TokenSessionServicePort;
 import com.parosurvivors.serviya.users.application.ports.input.UserAuthenticationServicePort;
 import com.parosurvivors.serviya.users.application.ports.input.UserCreationServicePort;
 import com.parosurvivors.serviya.users.application.ports.input.UserRoleServicePort;
@@ -50,26 +53,40 @@ public class UserAuthenticationService implements UserAuthenticationServicePort 
     private final PasswordResetTokenServicePort passwordResetTokenServicePort;
     private final UserReadPort userReadPort;
     private final UserPersistencePort userPersistencePort;
-    private final NotificationServicePort notificationServicePort;
+    private final NotificationCommandApi notificationCommandApi;
     private final UserRoleServicePort userRoleServicePort;
     private final PasswordEncoder passwordEncoder;
     private final TokenProviderPort tokenProvider;
+    private final TokenSessionServicePort tokenSessionService;
     private final ResetLinkPort resetLinkPort;
+    /** Cierre total de sesión (familias de refresh + min_iat) al confirmar el reset de contraseña (P2.5). */
+    private final SessionRevocationServicePort sessionRevocationService;
+    private final com.parosurvivors.serviya.shared.audit.SecurityAuditServicePort auditService;
 
     @Override
     public AuthResult login(LoginCommand command) {
         // Mensaje generico para no revelar si el email existe.
         User user = userReadPort.findByEmail(command.email())
-                .orElseThrow(() -> new UnauthorizedException("Invalid email or password"));
+                .orElseThrow(() -> {
+                    auditService.record(com.parosurvivors.serviya.shared.audit.AuditEventType.LOGIN_FAILURE,
+                            null, false, "unknown email");
+                    return new UnauthorizedException("Invalid email or password");
+                });
 
         if (!passwordEncoder.matches(command.password(), user.getPasswordHash())) {
+            auditService.record(com.parosurvivors.serviya.shared.audit.AuditEventType.LOGIN_FAILURE,
+                    user.getId(), false, "bad password");
             throw new UnauthorizedException("Invalid email or password");
         }
         // RF-001 / RNF-007: cuentas baneadas o eliminadas no pueden iniciar sesion.
         if (user.isBanned()) {
+            auditService.record(com.parosurvivors.serviya.shared.audit.AuditEventType.LOGIN_FAILURE,
+                    user.getId(), false, "banned");
             throw new UnauthorizedException("Account is banned");
         }
         if (user.isDeleted()) {
+            auditService.record(com.parosurvivors.serviya.shared.audit.AuditEventType.LOGIN_FAILURE,
+                    user.getId(), false, "deleted");
             throw new UnauthorizedException("Account no longer exists");
         }
 
@@ -77,7 +94,10 @@ public class UserAuthenticationService implements UserAuthenticationServicePort 
                 .map(Role::getName)
                 .toList();
 
-        return toAuthResult(user.getId(), roles);
+        // Abre una sesión nueva: access en el cuerpo + refresh (cookie) en una familia nueva (Fase 2).
+        AuthResult result = tokenSessionService.startSession(user.getId(), roles);
+        auditService.record(com.parosurvivors.serviya.shared.audit.AuditEventType.LOGIN_SUCCESS, user.getId());
+        return result;
     }
 
     @Override
@@ -101,16 +121,16 @@ public class UserAuthenticationService implements UserAuthenticationServicePort 
 
         User created = userCreationServicePort.createUserAccount(accountCommand);
         // Bienvenida al registro por doble canal (interno + email).
-        notificationServicePort.notify(
+        notificationCommandApi.notify(new NotificationCommand(
                 created.getId(),
                 "welcome",
                 "¡Bienvenido a ServiYa!",
                 "Tu cuenta fue creada correctamente. Completa tu perfil y empieza a usar ServiYa.",
                 "USER",
                 created.getId(),
-                Set.of(ChannelName.INTERNAL, ChannelName.EMAIL),
-                Map.of());
-        return toAuthResult(created.getId(), created.getRoles());
+                Set.of(Channel.INTERNAL, Channel.EMAIL),
+                Map.of()));
+        return tokenSessionService.startSession(created.getId(), created.getRoles());
     }
 
     /**
@@ -131,15 +151,15 @@ public class UserAuthenticationService implements UserAuthenticationServicePort 
                 .toList();
 
         // Aviso de rol recién adquirido por el propio usuario (canal interno).
-        notificationServicePort.notify(
+        notificationCommandApi.notify(new NotificationCommand(
                 userId,
                 "role_acquired",
                 "Nuevo rol activado",
                 "Ahora tienes el rol " + roleName + " activo en tu cuenta de ServiYa.",
                 "USER",
                 userId,
-                null,
-                Map.of());
+                Set.of(Channel.INTERNAL),
+                Map.of()));
 
         return toAuthResult(userId, roles);
     }
@@ -202,8 +222,14 @@ public class UserAuthenticationService implements UserAuthenticationServicePort 
         user.changePassword(passwordEncoder.encode(command.newPassword()));
         userPersistencePort.update(user);
 
+        // Resetear la contraseña cierra la sesión en todos los dispositivos (P2.5): revoca las familias de
+        // refresh y escribe min_iat. Si el reset lo hizo un atacante, igualmente expulsa al titular; si lo
+        // hizo el titular, cierra cualquier sesión que el atacante tuviera abierta.
+        sessionRevocationService.revokeAllSessions(user.getId());
+        auditService.record(com.parosurvivors.serviya.shared.audit.AuditEventType.PASSWORD_RESET, user.getId());
+
         // Aviso de contención: si el cambio no lo hizo el titular, este correo es su señal de alarma.
-        notificationServicePort.notify(
+        notificationCommandApi.notify(new NotificationCommand(
                 user.getId(),
                 "password_changed",
                 "Tu contraseña fue actualizada",
@@ -211,8 +237,8 @@ public class UserAuthenticationService implements UserAuthenticationServicePort 
                         + "restablecela de inmediato y contacta con soporte.",
                 "USER",
                 user.getId(),
-                Set.of(ChannelName.INTERNAL, ChannelName.EMAIL),
-                Map.of());
+                Set.of(Channel.INTERNAL, Channel.EMAIL),
+                Map.of()));
     }
 
     /** Emite el token, arma el enlace (URL de configuración del backend) y encola el correo. */
@@ -223,7 +249,7 @@ public class UserAuthenticationService implements UserAuthenticationServicePort 
 
         // Solo EMAIL: el usuario no puede iniciar sesión, así que una notificación interna no le llegaría.
         // El enlace viaja en protectedData, que NO se persiste — el token nunca toca la tabla notifications.
-        notificationServicePort.notify(
+        notificationCommandApi.notify(new NotificationCommand(
                 user.getId(),
                 "password_reset",
                 "Restablece tu contraseña",
@@ -232,8 +258,8 @@ public class UserAuthenticationService implements UserAuthenticationServicePort 
                         + "Si no lo solicitaste, ignora este correo: tu contraseña no cambiará.",
                 "USER",
                 user.getId(),
-                Set.of(ChannelName.EMAIL),
-                Map.of("actionUrl", resetLink, "actionLabel", "Restablecer mi contraseña"));
+                Set.of(Channel.EMAIL),
+                Map.of("actionUrl", resetLink, "actionLabel", "Restablecer mi contraseña")));
     }
 
     /** El registro público solo permite roles CLIENT u OFFERER; ADMIN nunca por esta vía. */
@@ -249,8 +275,12 @@ public class UserAuthenticationService implements UserAuthenticationServicePort 
         }
     }
 
+    /**
+     * Reemite solo el access token (sin refresh): lo usa {@code acquireRole}, que deja intacta la cookie
+     * de refresh (la familia actual sigue; el refresh releerá los roles nuevos en su próxima rotación).
+     */
     private AuthResult toAuthResult(Long userId, List<RoleName> roles) {
         IssuedToken issued = tokenProvider.issue(userId, roles);
-        return new AuthResult(issued.token(), userId, roles, issued.expiresAt());
+        return new AuthResult(issued.token(), userId, roles, issued.expiresAt(), null, null);
     }
 }

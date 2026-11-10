@@ -7,9 +7,6 @@ import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
 public interface ClientMetricsPersistenceMapper {
-
-    // activeRequests no se persiste (no existe en la tabla): se calcula por consulta en la capa de servicio.
-    @Mapping(target = "activeRequests", ignore = true)
     ClientMetrics toDomain(ClientMetricsEntity entity);
 
     ClientMetricsEntity toEntity(ClientMetrics domain);

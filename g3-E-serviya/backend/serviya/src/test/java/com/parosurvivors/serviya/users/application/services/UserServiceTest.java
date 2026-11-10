@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
 import com.parosurvivors.serviya.users.application.dto.command.ChangePasswordCommand;
+import com.parosurvivors.serviya.users.application.ports.input.SessionRevocationServicePort;
 import com.parosurvivors.serviya.users.application.ports.output.UserPersistencePort;
 import com.parosurvivors.serviya.users.application.ports.output.UserReadPort;
 import com.parosurvivors.serviya.users.domain.User;
@@ -30,6 +31,8 @@ class UserServiceTest {
     @Mock UserReadPort userReadPort;
     @Mock UserPersistencePort userPersistencePort;
     @Mock PasswordEncoder passwordEncoder;
+    @Mock SessionRevocationServicePort sessionRevocationService;
+    @Mock com.parosurvivors.serviya.shared.audit.SecurityAuditServicePort auditService;
 
     @InjectMocks UserService service;
 
@@ -75,6 +78,19 @@ class UserServiceTest {
 
         assertThat(user.getPasswordHash()).isEqualTo(NEW_HASH);
         verify(userPersistencePort).update(user);
+        // Cambiar la contrasena cierra la sesion en todos los dispositivos (P2.5).
+        verify(sessionRevocationService).revokeAllSessions(USER_ID);
+    }
+
+    @Test
+    void changePassword_doesNotRevokeSessions_whenCurrentPasswordIncorrect() {
+        when(userReadPort.findById(USER_ID)).thenReturn(Optional.of(existingUser()));
+        when(passwordEncoder.matches(CURRENT_PASSWORD, CURRENT_HASH)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.changePassword(command()))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verify(sessionRevocationService, never()).revokeAllSessions(any());
     }
 
     @Test

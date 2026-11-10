@@ -1,7 +1,9 @@
 package com.parosurvivors.gateway;
 
+import com.parosurvivors.gateway.ratelimit.GatewayRateLimitProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 /**
  * API gateway de ServiYa (requisito de la fase de microservicios, ESTADO §7.0/§7.7). Es el ÚNICO punto de
@@ -11,6 +13,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * (Strangler Fig).
  */
 @SpringBootApplication
+@EnableConfigurationProperties(GatewayRateLimitProperties.class)
 public class ApiGatewayApplication {
 
     public static void main(String[] args) {

@@ -1,7 +1,7 @@
 package com.parosurvivors.serviya.admin.infrastructure.dto.response;
 
-import com.parosurvivors.serviya.metrics.infrastructure.dto.response.ClientMetricsResponse;
-import com.parosurvivors.serviya.metrics.infrastructure.dto.response.OffererMetricsResponse;
+import com.parosurvivors.serviya.admin.infrastructure.dto.response.ClientMetricsResponse;
+import com.parosurvivors.serviya.admin.infrastructure.dto.response.OffererMetricsResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;

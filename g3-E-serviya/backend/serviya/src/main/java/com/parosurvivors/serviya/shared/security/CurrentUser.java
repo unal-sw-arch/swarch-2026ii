@@ -3,12 +3,13 @@ package com.parosurvivors.serviya.shared.security;
 import com.parosurvivors.serviya.shared.exceptions.UnauthorizedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 /**
  * Utilidad para obtener el id del usuario autenticado desde el contexto de seguridad.
- * El principal lo coloca {@code JwtAuthenticationFilter} (es el userId del JWT). Los
- * controladores {@code /me} la usan para no confiar en ids del body (RNF / seccion C.1
- * de estructura-endpoints.md).
+ * Desde la Fase 4 el monolito es resource server: el principal es un {@link Jwt} y el userId es su
+ * {@code sub}. Se conserva el soporte de un principal {@code Long} directo para los tests de slice web
+ * ({@code addFilters=false}). Los controladores {@code /me} la usan para no confiar en ids del body.
  */
 public final class CurrentUser {
 
@@ -17,10 +18,21 @@ public final class CurrentUser {
 
     public static Long id() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             throw new UnauthorizedException("Authentication required");
         }
-        return userId;
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof Jwt jwt) {
+            try {
+                return Long.valueOf(jwt.getSubject());
+            } catch (NumberFormatException ex) {
+                throw new UnauthorizedException("Invalid token subject");
+            }
+        }
+        if (principal instanceof Long userId) {
+            return userId; // compat: tests de slice web con principal directo
+        }
+        throw new UnauthorizedException("Authentication required");
     }
 
     /**

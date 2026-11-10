@@ -10,7 +10,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.parosurvivors.serviya.notifications.application.ports.input.NotificationServicePort;
+import com.parosurvivors.serviya.notifications.api.Channel;
+import com.parosurvivors.serviya.notifications.api.NotificationCommand;
+import com.parosurvivors.serviya.notifications.api.NotificationCommandApi;
 import com.parosurvivors.serviya.shared.exceptions.InvalidStateException;
 import com.parosurvivors.serviya.shared.exceptions.UnauthorizedException;
 import com.parosurvivors.serviya.users.application.dto.command.LoginCommand;
@@ -19,6 +21,8 @@ import com.parosurvivors.serviya.users.application.dto.result.AuthResult;
 import com.parosurvivors.serviya.users.application.dto.result.IssuedToken;
 import com.parosurvivors.serviya.users.domain.RoleName;
 import com.parosurvivors.serviya.users.application.ports.input.PasswordResetTokenServicePort;
+import com.parosurvivors.serviya.users.application.ports.input.SessionRevocationServicePort;
+import com.parosurvivors.serviya.users.application.ports.input.TokenSessionServicePort;
 import com.parosurvivors.serviya.users.application.ports.input.UserCreationServicePort;
 import com.parosurvivors.serviya.users.application.ports.input.UserRoleServicePort;
 import com.parosurvivors.serviya.users.application.ports.input.UserServicePort;
@@ -32,7 +36,6 @@ import com.parosurvivors.serviya.users.application.dto.result.IssuedResetToken;
 import com.parosurvivors.serviya.users.application.dto.result.TokenValidationResult;
 import com.parosurvivors.serviya.users.domain.PasswordResetToken;
 import com.parosurvivors.serviya.users.domain.User;
-import com.parosurvivors.serviya.notifications.domain.ChannelName;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -57,11 +60,14 @@ class UserAuthenticationServiceTest {
     @Mock PasswordResetTokenServicePort passwordResetTokenServicePort;
     @Mock UserReadPort userReadPort;
     @Mock UserPersistencePort userPersistencePort;
-    @Mock NotificationServicePort notificationServicePort;
+    @Mock NotificationCommandApi notificationCommandApi;
     @Mock UserRoleServicePort userRoleServicePort;
     @Mock PasswordEncoder passwordEncoder;
     @Mock TokenProviderPort tokenProvider;
+    @Mock TokenSessionServicePort tokenSessionService;
     @Mock ResetLinkPort resetLinkPort;
+    @Mock SessionRevocationServicePort sessionRevocationService;
+    @Mock com.parosurvivors.serviya.shared.audit.SecurityAuditServicePort auditService;
 
     @InjectMocks UserAuthenticationService service;
 
@@ -76,13 +82,16 @@ class UserAuthenticationServiceTest {
         when(userReadPort.findByEmail("user@example.com")).thenReturn(Optional.of(activeUser()));
         when(passwordEncoder.matches("raw-password", "$2a$hash")).thenReturn(true);
         when(userRoleServicePort.getUserRoles(1L)).thenReturn(List.of());
-        when(tokenProvider.issue(anyLong(), anyList()))
-                .thenReturn(new IssuedToken("jwt-token", LocalDateTime.now().plusHours(1)));
+        when(tokenSessionService.startSession(eq(1L), anyList()))
+                .thenReturn(new AuthResult("jwt-token", 1L, List.of(),
+                        LocalDateTime.now().plusMinutes(15), "refresh-raw", LocalDateTime.now().plusDays(30)));
 
         AuthResult result = service.login(command);
 
         assertThat(result.token()).isEqualTo("jwt-token");
         assertThat(result.userId()).isEqualTo(1L);
+        // Login abre una sesión nueva (access + refresh), no emite el token directamente.
+        verify(tokenSessionService).startSession(eq(1L), anyList());
     }
 
     @Test
@@ -143,8 +152,9 @@ class UserAuthenticationServiceTest {
     void register_delegatesToCreation_forPublicRole() {
         User created = User.builder().id(5L).roles(List.of(RoleName.CLIENT)).build();
         when(userCreationServicePort.createUserAccount(any())).thenReturn(created);
-        when(tokenProvider.issue(anyLong(), anyList()))
-                .thenReturn(new IssuedToken("jwt", LocalDateTime.now().plusHours(1)));
+        when(tokenSessionService.startSession(eq(5L), anyList()))
+                .thenReturn(new AuthResult("jwt", 5L, List.of(RoleName.CLIENT),
+                        LocalDateTime.now().plusMinutes(15), "refresh-raw", LocalDateTime.now().plusDays(30)));
 
         AuthResult result = service.register(registerCommand("CLIENT"));
 
@@ -173,16 +183,13 @@ class UserAuthenticationServiceTest {
 
         service.requestPasswordReset(RESET_REQUEST);
 
-        ArgumentCaptor<Set<ChannelName>> channels = ArgumentCaptor.forClass(Set.class);
-        ArgumentCaptor<Map<String, String>> data = ArgumentCaptor.forClass(Map.class);
-        verify(notificationServicePort).notify(
-                eq(1L), eq("password_reset"), any(), any(), any(), any(),
-                channels.capture(), data.capture());
+        ArgumentCaptor<NotificationCommand> captor = ArgumentCaptor.forClass(NotificationCommand.class);
+        verify(notificationCommandApi).notify(captor.capture());
 
         // Solo EMAIL: el usuario no puede iniciar sesion, una notificacion interna no le llegaria.
-        assertThat(channels.getValue()).containsExactly(ChannelName.EMAIL);
+        assertThat(captor.getValue().channels()).containsExactly(Channel.EMAIL);
         // El enlace viaja en protectedData, que NO se persiste: el token nunca toca la tabla notifications.
-        assertThat(data.getValue().get("actionUrl")).contains("raw-token");
+        assertThat(captor.getValue().protectedData().get("actionUrl")).contains("raw-token");
     }
 
     @Test
@@ -193,7 +200,7 @@ class UserAuthenticationServiceTest {
         service.requestPasswordReset(RESET_REQUEST);
 
         verify(passwordResetTokenServicePort, never()).createToken(any());
-        verify(notificationServicePort, never()).notify(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(notificationCommandApi, never()).notify(any());
     }
 
     @Test
@@ -209,7 +216,7 @@ class UserAuthenticationServiceTest {
         service.requestPasswordReset(RESET_REQUEST);
 
         verify(passwordResetTokenServicePort, never()).createToken(any());
-        verify(notificationServicePort, never()).notify(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(notificationCommandApi, never()).notify(any());
     }
 
     // =====================================================
@@ -260,13 +267,14 @@ class UserAuthenticationServiceTest {
 
         service.confirmPasswordReset(RESET_CONFIRM);
 
+        // Resetear la contrasena cierra la sesion en todos los dispositivos (P2.5).
+        verify(sessionRevocationService).revokeAllSessions(1L);
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(userPersistencePort).update(saved.capture());
         // Se guarda el hash BCrypt, nunca la contrasena en claro.
         assertThat(saved.getValue().getPasswordHash()).isEqualTo("$2a$nuevo-hash");
         // Aviso de contencion: si el cambio no lo hizo el titular, este correo es su senal de alarma.
-        verify(notificationServicePort).notify(
-                eq(1L), eq("password_changed"), any(), any(), any(), any(), any(), any());
+        verify(notificationCommandApi).notify(any());
     }
 
     @Test

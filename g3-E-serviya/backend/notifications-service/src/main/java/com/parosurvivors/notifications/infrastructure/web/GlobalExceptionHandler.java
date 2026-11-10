@@ -15,22 +15,28 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
-        return build(HttpStatus.NOT_FOUND, ex.getMessage(), request);
+        return build(HttpStatus.NOT_FOUND, "NOT_FOUND", ex.getMessage(), request);
     }
 
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorized(UnauthorizedException ex, HttpServletRequest request) {
-        return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), request);
+        return build(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", ex.getMessage(), request);
     }
 
     /** Filtro inválido (p. ej. {@code status=FOO}): es un error del cliente, no un 500. */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleBadRequest(IllegalArgumentException ex, HttpServletRequest request) {
-        return build(HttpStatus.BAD_REQUEST, "Parametro invalido", request);
+        return build(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "Parametro invalido", request);
     }
 
-    private static ResponseEntity<ErrorResponse> build(HttpStatus status, String message, HttpServletRequest request) {
+    private static ResponseEntity<ErrorResponse> build(HttpStatus status, String code, String message,
+            HttpServletRequest request) {
         return ResponseEntity.status(status).body(new ErrorResponse(status.value(), status.getReasonPhrase(),
-                message, request.getRequestURI(), LocalDateTime.now()));
+                code, message, correlationId(request), request.getRequestURI(), LocalDateTime.now()));
+    }
+
+    static String correlationId(HttpServletRequest request) {
+        String existing = request.getHeader("X-Request-Id");
+        return (existing != null && !existing.isBlank()) ? existing : java.util.UUID.randomUUID().toString();
     }
 }

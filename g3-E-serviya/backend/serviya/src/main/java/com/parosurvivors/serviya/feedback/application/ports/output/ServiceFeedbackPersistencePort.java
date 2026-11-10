@@ -31,5 +31,8 @@ public interface ServiceFeedbackPersistencePort {
     /** Feedback de servicio por cliente con filtros de búsqueda y paginación. */
     Page<ServiceFeedback> findByClientIdAndFilters(Long clientId, String keyword, Integer ratingMin, Integer ratingMax, Pageable pageable);
 
+    /** Calificacion promedio de todos los feedback de servicio, o null si no hay datos. */
+    Double findAverageRating();
+
     void deleteById(Long id);
 }

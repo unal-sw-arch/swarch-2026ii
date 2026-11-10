@@ -3,6 +3,7 @@ package com.parosurvivors.serviya.shared.ratelimit;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 /**
  * Sujeto de una cuota (D-09), resuelto de forma estándar para filtros e interceptores: el usuario
@@ -17,11 +18,21 @@ public record RateLimitSubject(String type, String id) {
     public static final String TYPE_USER = "user";
     public static final String TYPE_IP = "ip";
 
-    /** Resuelve el sujeto: {@code user} si hay un principal autenticado (userId Long), si no {@code ip}. */
+    /**
+     * Resuelve el sujeto: {@code user} si hay un principal autenticado, si no {@code ip}. Tras la Fase 4 el
+     * principal es un {@link Jwt} (su {@code sub} es el userId); se mantiene el soporte de un {@code Long}
+     * directo (tests de slice web).
+     */
     public static RateLimitSubject of(HttpServletRequest request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated() && auth.getPrincipal() instanceof Long userId) {
-            return new RateLimitSubject(TYPE_USER, userId.toString());
+        if (auth != null && auth.isAuthenticated()) {
+            Object principal = auth.getPrincipal();
+            if (principal instanceof Jwt jwt && jwt.getSubject() != null) {
+                return new RateLimitSubject(TYPE_USER, jwt.getSubject());
+            }
+            if (principal instanceof Long userId) {
+                return new RateLimitSubject(TYPE_USER, userId.toString());
+            }
         }
         return new RateLimitSubject(TYPE_IP, request.getRemoteAddr());
     }

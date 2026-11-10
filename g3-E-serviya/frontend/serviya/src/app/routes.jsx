@@ -21,6 +21,7 @@ import {
     RequestDetailPage,
 } from "../modules/requests";
 import { NotificationsPage } from "../modules/notifications";
+import { MessagesPage } from "../modules/chat";
 import { MyReportsPage } from "../modules/reports";
 import { AdminDashboardPage, AdminUsersPage, AdminReportsPage, AdminFeedbackPage, AdminServicesPage } from "../modules/admin";
 
@@ -48,6 +49,9 @@ export const router = createBrowserRouter([
             // Account (shared by roles - requires authentication)
             { path: "profile", ...protectedPage(<ProfilePage />) },
             { path: "notifications", ...protectedPage(<NotificationsPage />) },
+            // Chat cliente–oferente (chat-service). Cada participante ve solo sus conversaciones.
+            { path: "messages", ...protectedPage(<MessagesPage />, ['CLIENT', 'OFFERER']) },
+            { path: "messages/:conversationId", ...protectedPage(<MessagesPage />, ['CLIENT', 'OFFERER']) },
             { path: "my-reports", ...protectedPage(<MyReportsPage />) },
 
             // Client (requires CLIENT role)

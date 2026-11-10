@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import {
     DashboardLayout, Avatar, Icon, Modal, ToastContainer, useToast,
-    CLIENT_NAV, OFFERER_NAV, requestApi, proposalApi, feedbackApi, getApiImageUrl,
+    CLIENT_NAV, OFFERER_NAV, requestApi, proposalApi, feedbackApi, getApiImageUrl, chatApi,
 } from '../../../../shared';
 import { ReviewModal } from '../../components/ReviewModal/ReviewModal';
 import { STATUS_MAP, formatDate, formatPrice, getInitials, categoryIcon } from '../../utils';
@@ -159,6 +159,23 @@ export function RequestDetailPage() {
             showToast(e.message || 'No se pudo completar la acción', 'danger');
         } finally {
             setActing(false);
+        }
+    };
+
+    // Chat de la solicitud: el chat-service lo crea al crearse la solicitud (puede tardar unos segundos).
+    const [openingChat, setOpeningChat] = useState(false);
+    const handleOpenChat = async () => {
+        setOpeningChat(true);
+        try {
+            const conversation = await chatApi.getConversationByRequest(id);
+            navigate(`/messages/${conversation.id}`, { state: { as: viewerAs } });
+        } catch (e) {
+            showToast(e.status === 404
+                ? 'El chat de esta solicitud aún no está listo. Intenta de nuevo en unos segundos.'
+                : e.status === 401 ? 'El chat no está disponible en este momento.'
+                    : (e.message || 'No se pudo abrir el chat'), 'danger');
+        } finally {
+            setOpeningChat(false);
         }
     };
 
@@ -353,6 +370,14 @@ export function RequestDetailPage() {
                                 )}
                             </div>
                         </div>
+                        <button
+                            className="btn btn-outline btn-sm btn-full"
+                            style={{ marginTop: '12px' }}
+                            disabled={openingChat}
+                            onClick={handleOpenChat}
+                        >
+                            <Icon name="chat" size={14} />{openingChat ? 'Abriendo chat...' : `Enviar mensaje al ${counterpartyLabel.toLowerCase()}`}
+                        </button>
                     </div>
 
                     <div className="card rd-card">

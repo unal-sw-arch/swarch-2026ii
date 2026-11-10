@@ -1,9 +1,8 @@
 package com.parosurvivors.serviya.requests.application.services;
 
-import com.parosurvivors.serviya.profiles.application.ports.output.AddressPersistencePort;
-import com.parosurvivors.serviya.profiles.application.ports.output.UserProfilePersistencePort;
-import com.parosurvivors.serviya.profiles.domain.Address;
-import com.parosurvivors.serviya.profiles.domain.UserProfile;
+import com.parosurvivors.serviya.profiles.api.ProfileQueryApi;
+import com.parosurvivors.serviya.profiles.api.dto.AddressSnapshot;
+import com.parosurvivors.serviya.profiles.api.dto.ProfileSnapshot;
 import com.parosurvivors.serviya.requests.application.dto.item.RequestHistoryItem;
 import com.parosurvivors.serviya.requests.application.dto.item.ServiceRequestSummaryItem;
 import com.parosurvivors.serviya.requests.application.dto.query.SearchServiceRequestsQuery;
@@ -13,11 +12,11 @@ import com.parosurvivors.serviya.requests.application.ports.input.ServiceRequest
 import com.parosurvivors.serviya.requests.application.ports.output.ServiceRequestReadPort;
 import com.parosurvivors.serviya.requests.domain.RequestStatus;
 import com.parosurvivors.serviya.requests.domain.ServiceRequest;
-import com.parosurvivors.serviya.services.application.ports.output.CategoryPersistencePort;
-import com.parosurvivors.serviya.services.application.ports.output.ServicePersistencePort;
-import com.parosurvivors.serviya.services.domain.Service;
+import com.parosurvivors.serviya.services.api.ServiceQueryApi;
+import com.parosurvivors.serviya.services.api.dto.CategorySnapshot;
+import com.parosurvivors.serviya.services.api.dto.ServiceSnapshot;
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
-import com.parosurvivors.serviya.shared.exceptions.UnauthorizedException;
+import com.parosurvivors.serviya.shared.exceptions.ForbiddenException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -30,8 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Servicio de lecturas de solicitudes (CQRS, módulo 4). Los listados paginados y filtrados van por el
  * {@link ServiceRequestReadPort} (query nativa enriquecida). El detalle NO usa query nativa: se
- * compone inyectando los puertos de servicio, categoría, perfiles y dirección, porque la dirección
- * (address_line) está cifrada y solo {@link AddressPersistencePort} la devuelve descifrada.
+ * compone con las APIs de catalog (services/profiles), porque la dirección (address_line) está
+ * cifrada y {@link ProfileQueryApi} la devuelve descifrada.
  * Ver documents/project-structure/estructura-servicios.docx.
  */
 @Component
@@ -39,10 +38,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class ServiceRequestQueryService implements ServiceRequestQueryServicePort {
 
     private final ServiceRequestReadPort serviceRequestReadPort;
-    private final ServicePersistencePort servicePersistencePort;
-    private final CategoryPersistencePort categoryPersistencePort;
-    private final UserProfilePersistencePort userProfilePersistencePort;
-    private final AddressPersistencePort addressPersistencePort;
+    private final ServiceQueryApi serviceQueryApi;
+    private final ProfileQueryApi profileQueryApi;
 
     /** Estados "activos" (no terminales) de una solicitud: aún en curso desde la óptica del cliente. */
     private static final List<RequestStatus> ACTIVE_STATUSES =
@@ -84,7 +81,7 @@ public class ServiceRequestQueryService implements ServiceRequestQueryServicePor
         ServiceRequest request = loadRequest(requestId);
         // Solo cliente u oferente ven el detalle; para el resto se oculta la existencia (403).
         if (!isParticipant(request, requesterId)) {
-            throw new UnauthorizedException("El usuario no participa en la solicitud");
+            throw new ForbiddenException("El usuario no participa en la solicitud");
         }
         Enrichment e = enrich(request);
         // Solo la contraparte: si consulta el cliente, la contraparte es el oferente, y viceversa.
@@ -124,7 +121,7 @@ public class ServiceRequestQueryService implements ServiceRequestQueryServicePor
         ServiceRequest request = loadRequest(requestId);
         // Solo el cliente/oferente participante o un admin pueden ver el historial (el admin hace bypass).
         if (!isAdmin && !isParticipant(request, requesterId)) {
-            throw new UnauthorizedException("El usuario no participa en la solicitud");
+            throw new ForbiddenException("El usuario no participa en la solicitud");
         }
         // Retrocede hasta la raíz por previousRequestId y luego recorre la cadena hacia adelante,
         // de modo que el historial quede en orden cronológico (original -> reprogramaciones sucesivas).
@@ -167,28 +164,28 @@ public class ServiceRequestQueryService implements ServiceRequestQueryServicePor
      * ausente deja su campo en null (no es un 404): el 404/403 solo lo decide la solicitud y la parte.
      */
     private Enrichment enrich(ServiceRequest request) {
-        Optional<Service> service = servicePersistencePort.findById(request.getServiceId());
-        String categoryName = service.map(Service::getCategoryId)
-                .flatMap(categoryPersistencePort::findById)
-                .map(c -> c.getName())
+        Optional<ServiceSnapshot> service = serviceQueryApi.findById(request.getServiceId());
+        String categoryName = service.map(ServiceSnapshot::categoryId)
+                .flatMap(serviceQueryApi::findCategory)
+                .map(CategorySnapshot::name)
                 .orElse(null);
-        UserProfile client = userProfilePersistencePort.findByUserId(request.getClientId()).orElse(null);
-        UserProfile offerer = userProfilePersistencePort.findByUserId(request.getOffererId()).orElse(null);
-        Address address = request.getAddressId() == null ? null
-                : addressPersistencePort.findById(request.getAddressId()).orElse(null);
+        ProfileSnapshot client = profileQueryApi.findProfile(request.getClientId()).orElse(null);
+        ProfileSnapshot offerer = profileQueryApi.findProfile(request.getOffererId()).orElse(null);
+        AddressSnapshot address = request.getAddressId() == null ? null
+                : profileQueryApi.findAddress(request.getAddressId()).orElse(null);
         return new Enrichment(
-                service.map(Service::getTitle).orElse(null),
+                service.map(ServiceSnapshot::title).orElse(null),
                 categoryName,
-                service.map(Service::getPriceHourly).orElse(null),
-                service.map(Service::getAverageDurationMinutes).orElse(null),
-                client == null ? null : client.getFullName(),
-                client == null ? null : client.getProfilePhotoUrl(),
-                offerer == null ? null : offerer.getFullName(),
-                offerer == null ? null : offerer.getProfilePhotoUrl(),
-                address == null ? null : address.getAddressLine(),
-                address == null ? null : address.getCity(),
-                address == null ? null : address.getLatitude(),
-                address == null ? null : address.getLongitude());
+                service.map(ServiceSnapshot::priceHourly).orElse(null),
+                service.map(ServiceSnapshot::averageDurationMinutes).orElse(null),
+                client == null ? null : client.fullName(),
+                client == null ? null : client.profilePhotoUrl(),
+                offerer == null ? null : offerer.fullName(),
+                offerer == null ? null : offerer.profilePhotoUrl(),
+                address == null ? null : address.addressLine(),
+                address == null ? null : address.city(),
+                address == null ? null : address.latitude(),
+                address == null ? null : address.longitude());
     }
 
     /** Datos enriquecidos comunes al detalle de parte y de admin. */

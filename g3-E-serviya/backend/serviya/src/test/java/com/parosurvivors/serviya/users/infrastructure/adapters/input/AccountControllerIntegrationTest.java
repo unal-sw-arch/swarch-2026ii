@@ -47,7 +47,7 @@ class AccountControllerIntegrationTest {
     @MockitoBean private UserWebMapper mapper;
     /** AccountController tambien consulta estos repositorios (GET /users/{id}); el slice web no los crea. */
     @MockitoBean private com.parosurvivors.serviya.users.infrastructure.repositories.UserRepository userRepository;
-    @MockitoBean private com.parosurvivors.serviya.profiles.infrastructure.repositories.UserProfileRepository userProfileRepository;
+    @MockitoBean private com.parosurvivors.serviya.profiles.api.ProfileQueryApi profileQueryApi;
 
     private static final Long USER_ID = 1L;
 

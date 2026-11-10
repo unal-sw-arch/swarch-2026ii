@@ -5,7 +5,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.parosurvivors.serviya.metrics.application.ports.input.OffererMetricsServicePort;
 import com.parosurvivors.serviya.profiles.application.dto.command.UpdateOffererProfileCommand;
 import com.parosurvivors.serviya.profiles.application.ports.output.OffererProfilePersistencePort;
 import com.parosurvivors.serviya.profiles.application.ports.output.UserProfilePersistencePort;
@@ -22,7 +21,6 @@ class OffererProfileServiceTest {
 
     @Mock OffererProfilePersistencePort offererProfilePersistencePort;
     @Mock UserProfilePersistencePort userProfilePersistencePort;
-    @Mock OffererMetricsServicePort offererMetricsService;
 
     @InjectMocks OffererProfileService service;
 

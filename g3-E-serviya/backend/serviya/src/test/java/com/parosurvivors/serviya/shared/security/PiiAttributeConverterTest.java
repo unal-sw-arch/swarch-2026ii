@@ -2,6 +2,8 @@ package com.parosurvivors.serviya.shared.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -9,7 +11,19 @@ import org.junit.jupiter.api.Test;
  */
 class PiiAttributeConverterTest {
 
+    private static final String TEST_KEY = "serviya-test-pii-key-for-unit-tests-32chars";
+
     private final PiiAttributeConverter converter = new PiiAttributeConverter();
+
+    @BeforeAll
+    static void setUpEncryptionKey() {
+        System.setProperty("ENCRYPTION_KEY", TEST_KEY);
+    }
+
+    @AfterAll
+    static void clearEncryptionKey() {
+        System.clearProperty("ENCRYPTION_KEY");
+    }
 
     @Test
     void encryptsAndDecryptsRoundTrip() {
