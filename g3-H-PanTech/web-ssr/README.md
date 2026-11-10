@@ -1,198 +1,172 @@
 # Web SSR — Panadería Express
 
-Aplicación web renderizada en el servidor con **Next.js 14 (App Router)** y
-**TypeScript**. Es el único componente que el navegador consume directamente:
-todas las llamadas al backend pasan por el **API Gateway**. Los tokens viven en
-cookies `httpOnly`; nunca se guardan en `localStorage` ni se imprimen en el HTML.
-
-| Campo | Valor |
-|---|---|
-| Framework | Next.js 14.2 · React 18.3 |
-| Lenguaje | TypeScript estricto |
-| Puerto | `3000` |
-| Backend | `API_GATEWAY_URL` (`http://api-gateway:8080` en Docker) |
-| Sesión | cookies `panaderia_access` y `panaderia_refresh` |
-
----
+Aplicación Next.js (App Router) con Server-Side Rendering para clientes y personal.
+No es una SPA: las páginas se renderizan en el servidor y las mutaciones usan Server
+Actions. El navegador nunca recibe el access token ni el refresh token; ambos viven
+en cookies httpOnly.
 
 ## 1. Rutas
 
-### Implementadas en este PR
+### Tienda del cliente
 
-| Ruta | Acceso | Permiso | Descripción |
-|---|---|---|---|
-| `/` | Público | — | Portada SSR con el resumen del servicio. |
-| `/login` | Público | — | Formulario de login; redirige según el rol. |
-| `/register` | Público | — | Registro público; siempre crea `cliente`. |
-| `/staff` | Personal | rol de personal | Panel del backoffice con permisos efectivos. |
-| `/forbidden` | Público | — | Página 403. |
-| `/health` | Público | — | Liveness de la Web SSR. |
+| Ruta | Descripción |
+|---|---|
+| `/` | Portada pública con estado del prototipo |
+| `/menu` | Menú renderizado en servidor, con precios y tiempos |
+| `/cart` | Carrito en cookie httpOnly; el total se calcula en servidor |
+| `/checkout` | Confirmación del pedido y notas |
+| `/checkout/payment?orderId=…` | Pago simulado con idempotencia |
+| `/orders` | Pedidos propios |
+| `/orders/[id]` | Seguimiento con polling cada 4 s |
+| `/reservations` | Crear, listar y cancelar reservas propias |
 
-### Preparadas para las siguientes fases
+### Backoffice
 
-El middleware ya conoce estas rutas y sus permisos, aunque las páginas se
-implementan en las fases 2 y 3 del plan:
-
-| Ruta | Quién | Permiso |
+| Ruta | Permiso requerido | Descripción |
 |---|---|---|
-| `/cart`, `/checkout` | Cliente | `orders:create_own` |
-| `/orders`, `/orders/[id]` | Cliente | `orders:read_own` |
-| `/reservations` | Cliente | `reservations:manage_own` |
-| `/staff/orders` | Mesero, supervisor, admin | `orders:create`, `orders:charge` |
-| `/staff/reservations` | Mesero, supervisor, admin | `reservations:manage_all` |
-| `/staff/history` | Supervisor, admin | `history:read_all` |
-| `/staff/products` | Admin | `products:manage` |
-| `/staff/users` | Admin / supervisor | `users:manage`, `users:manage_operational` |
-| `/staff/roles` | Admin | `roles:manage` |
-| `/staff/reports` | Supervisor, admin | `reports:read` |
-| `/staff/kitchen` | Personal autorizado | `kitchen:read` |
-
----
-
-## 2. Flujo de autenticación
-
-```text
-Navegador ──POST /api/auth/login──▶ Web SSR (route handler)
-                                      │
-                                      ├─POST /auth/login──▶ API Gateway ──▶ Identity
-                                      │
-                                      ◀── access + refresh ────────────────
-                                      │
-                                      ├─ Set-Cookie httpOnly (access, refresh)
-                                      ◀── { user } ────────────────────────
-Navegador ──GET /staff──▶ middleware ── valida cookie / refresca ──▶ página SSR
-```
-
-- El **route handler** del login/registro/refresh guarda los tokens en cookies
-  `httpOnly`, `sameSite=lax` y `secure` cuando `COOKIE_SECURE=true`.
-- El **middleware** decodifica el JWT solo para decidir navegación y permisos;
-  si el access token expiró, intenta `/auth/refresh` contra el Gateway y rota
-  las cookies. Si no hay sesión válida, redirige a `/login?next=...`.
-- Las **páginas de servidor** vuelven a leer la sesión (`requireSession`,
-  `requireStaff`, `requirePermission`) y `lib/api.ts` adjunta el Bearer al
-  llamar al Gateway.
-- El backend siempre revalida permisos: ocultar un botón en la UI no es una
-  medida de seguridad.
-
-### Cookies
-
-| Cookie | Contenido | Flags |
-|---|---|---|
-| `panaderia_access` | JWT de acceso (15 min) | `httpOnly`, `sameSite=lax`, `path=/`, `secure` en producción |
-| `panaderia_refresh` | Refresh token opaco (7 días) | iguales |
-
-Nombres configurables con `JWT_COOKIE_NAME` y `JWT_REFRESH_COOKIE_NAME`.
+| `/staff` | Personal | Panel filtrado por permisos efectivos |
+| `/staff/orders` | `orders:create` | Pedido de mostrador, cobro y filtros |
+| `/staff/reservations` | `reservations:manage_all` | Confirmar/cancelar reservas |
+| `/staff/history` | `history:read_all` | Historial paginado y línea de tiempo |
+| `/staff/cancel` | `orders:read_all` | Cancelar pedidos aún no pagados |
+| `/staff/products` | `products:manage` | Crear productos |
+| `/staff/products/[id]` | `products:manage` | Editar o retirar producto |
+| `/staff/users` | `users:manage_operational` | Crear/desactivar cuentas y asignar roles |
+| `/staff/roles` | `roles:manage` | Matriz de permisos y auditoría |
+| `/staff/reports` | `reports:read` | Ventas, tiempos y exportación CSV/PDF |
+| `/staff/kitchen` | `kitchen:read` | Cola de cocina de respaldo (solo lectura) |
 
 ### Route handlers propios
 
-| Ruta | Función |
+| Ruta | Uso |
 |---|---|
-| `POST /api/auth/login` | Proxy al Gateway, setea cookies. |
-| `POST /api/auth/register` | Proxy al registro público, setea cookies. |
-| `POST /api/auth/refresh` | Rota tokens usando la cookie de refresh. |
-| `POST /api/auth/logout` | Revoca en el Gateway y limpia cookies siempre. |
-| `GET /health` | `{"status":"ok"}`. |
+| `POST /api/auth/login` | Login contra Identity Service y cookies httpOnly |
+| `POST /api/auth/register` | Registro público (siempre rol `cliente`) |
+| `POST /api/auth/refresh` | Renovación de tokens y cookies |
+| `POST /api/auth/logout` | Limpieza de cookies |
+| `GET /api/orders/[id]/status` | Proxy autenticado para polling del pedido |
+| `GET /api/queue` | Proxy autenticado de la cola de cocina |
+| `POST /api/reports/export` | Proxy autenticado de exportación a RustFS |
 
-Ningún route handler devuelve el access o refresh token al navegador.
+## 2. Autenticación y sesión
 
----
+1. El formulario de login envía las credenciales al route handler.
+2. El handler llama a `POST /auth/login` del API Gateway y guarda
+   `access_token`/`refresh_token` en cookies `httpOnly`, `SameSite=Lax` y `Secure`
+   según `COOKIE_SECURE`.
+3. `middleware.ts` valida la vigencia del access token y, si expiró, intenta
+   refrescar contra el Gateway antes de continuar.
+4. `lib/session.ts` decodifica el payload del JWT solo para leer claims de
+   presentación (`sub`, `email`, `roles`, `permissions`, `level`). La firma la valida
+   el Gateway; esta decodificación no sustituye la autorización del backend.
+5. Cada Server Action y cada fetch a servicios usa `lib/api.ts`, que lee el access
+   token de la cookie y añade `Authorization: Bearer …`.
 
-## 3. Estructura
+### Reglas de acceso en middleware
+
+- Rutas públicas: `/`, `/menu`, `/login`, `/register`, `/forbidden`, `/health`.
+- `/checkout*`, `/orders*` y `/reservations*`: sesión autenticada con el permiso
+  correspondiente (`orders:create_own`, `orders:read_own` o `read_all`, etc.).
+- `/staff*`: además de sesión, exige el permiso del módulo. El panel `/staff`
+  filtra los módulos visibles, pero el middleware y el backend vuelven a validar.
+- `/api/*` y assets estáticos no pasan por las reglas de páginas.
+
+## 3. Carrito y totales
+
+- `lib/cart.ts` guarda `{ product_id: quantity }` en una cookie httpOnly.
+- El carrito nunca envía precios ni totales al backend.
+- `lib/actions.ts` construye el pedido solo con `product_id` y `quantity`.
+- Order Service recalcula el total con el catálogo y rechaza montos manipulados.
+- El pago usa `Idempotency-Key` para que reintentar no duplique el cobro.
+
+## 4. Server Actions
+
+| Acción | Efecto |
+|---|---|
+| `addToCart`, `updateCartLine`, `removeCartLine` | Mutan la cookie del carrito |
+| `createOrder` | Crea pedido propio y redirige al pago |
+| `createStaffOrder` | Crea pedido de mostrador con varios ítems |
+| `payOrder` | Paga el total calculado por el servidor |
+| `cancelOrder` | Cancela un pedido pendiente (supervisor/admin) |
+| `createReservation`, `changeReservationStatus` | Reservas propias o del turno |
+| `createProduct`, `updateProduct`, `deleteProduct` | Catálogo |
+| `createUser`, `updateUser`, `assignRole`, `removeRole` | Cuentas y roles |
+
+Los errores de API se redirigen a la misma pantalla con `?error=…`; los éxitos usan
+`?ok=…`. Las páginas muestran ambos con `components/Alert.tsx`.
+
+## 5. Estructura
 
 ```text
 web-ssr/
 ├── app/
-│   ├── (auth)/login/page.tsx       # login SSR
-│   ├── (auth)/register/page.tsx    # registro SSR
-│   ├── (staff)/staff/page.tsx      # backoffice protegido
-│   ├── api/auth/*/route.ts         # cookies + proxy al Gateway
-│   ├── forbidden/page.tsx          # 403
-│   ├── health/route.ts             # liveness
-│   ├── globals.css
+│   ├── (auth)/login, register
+│   ├── (shop)/menu, cart, checkout, orders, reservations
+│   ├── (staff)/staff/...          # backoffice completo
+│   ├── api/auth, api/orders, api/queue, api/reports
 │   ├── layout.tsx
 │   └── page.tsx
-├── components/
-│   ├── LoginForm.tsx
-│   ├── RegisterForm.tsx
-│   ├── NavBar.tsx
-│   └── LogoutButton.tsx
+├── components/                    # NavBar, formularios, tablas, polling, KDS
 ├── lib/
-│   ├── api.ts          # cliente del Gateway con Bearer desde la cookie
-│   ├── auth.ts         # requireSession / requireStaff / requirePermission
-│   ├── cookies.ts      # nombres y flags de cookies
-│   ├── permissions.ts  # can() / canAny() / isStaff()
-│   ├── session.ts      # decodificación del JWT y reglas de rutas
-│   └── types.ts
-├── middleware.ts       # protección de rutas y refresh transparente
-├── tests/e2e/          # Playwright
-└── playwright.config.ts
+│   ├── actions.ts                 # Server Actions
+│   ├── api.ts                     # Cliente del Gateway con cookie httpOnly
+│   ├── auth.ts                    # requireSession/requireStaff/requirePermission
+│   ├── cart.ts                    # Carrito en cookie
+│   ├── cookies.ts                 # Nombres y opciones de cookies
+│   ├── format.ts                  # Moneda, fechas y etiquetas
+│   ├── permissions.ts             # can(), isStaff()
+│   ├── session.ts                 # Claims, expiración y reglas de acceso
+│   └── types.ts                   # DTOs compartidos
+├── middleware.ts
+├── tests/e2e/                     # Playwright
+└── README.md
 ```
 
----
+## 6. Variables de entorno
 
-## 4. Variables de entorno
+| Variable | Uso |
+|---|---|
+| `PORT` | Puerto del servidor Next.js (3000) |
+| `API_GATEWAY_URL` | URL interna del Gateway (`http://api-gateway:8080` en compose) |
+| `JWT_COOKIE_NAME` | Nombre de la cookie de access token |
+| `JWT_REFRESH_COOKIE_NAME` | Nombre de la cookie de refresh token |
+| `COOKIE_SECURE` | `true` en HTTPS; `false` en local |
+| `NEXT_PUBLIC_APP_NAME` | Nombre visible |
+| `NEXT_PUBLIC_POLL_INTERVAL_MS` | Intervalo de polling del cliente |
 
-| Variable | Por defecto | Uso |
-|---|---|---|
-| `API_GATEWAY_URL` | `http://localhost:8080` | URL interna del API Gateway |
-| `JWT_COOKIE_NAME` | `panaderia_access` | Nombre de la cookie de acceso |
-| `JWT_REFRESH_COOKIE_NAME` | `panaderia_refresh` | Nombre de la cookie de refresh |
-| `COOKIE_SECURE` | `false` | `true` solo con HTTPS |
-| `NEXT_PUBLIC_APP_NAME` | `Panadería Express` | Nombre visible |
-| `NEXT_PUBLIC_POLL_INTERVAL_MS` | `4000` | Polling de seguimiento (fases siguientes) |
-| `E2E_BASE_URL` | `http://localhost:3000` | Base de Playwright |
-| `E2E_CLIENT_EMAIL` / `E2E_CLIENT_PASSWORD` | `cliente@demo.com` / `Demo1234!` | Credenciales E2E |
-| `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD` | `admin@demo.com` / `Demo1234!` | Credenciales E2E |
+Ver `.env.example` para los valores locales.
 
-Copia `.env.example` como `.env.local` para desarrollo.
-
----
-
-## 5. Desarrollo y pruebas
+## 7. Desarrollo y pruebas
 
 ```bash
-npm install
+cd web-ssr
+npm ci
 npm run dev          # http://localhost:3000
-npm run typecheck    # TypeScript estricto
-npm run build        # build de producción
-npm run start        # sirve el build
+npm run typecheck
+npm run build
+npm run test:e2e     # requiere el stack P2 arriba
 ```
 
-Las pruebas E2E requieren el stack levantado (Gateway + Identity + Web SSR) y
-los usuarios demo sembrados:
+Las pruebas Playwright cubren login, registro, tienda, reservas y denegaciones de
+rutas. Para ejecutarlas se necesita el Gateway y los servicios levantados; el detalle
+del stack está en `../docs/equipo/demo.md`.
 
-```bash
-npx playwright install chromium   # una vez
-npm run test:e2e
-```
+## 8. Seguridad
 
-Qué cubren:
+- Tokens solo en cookies httpOnly; nunca en `localStorage` ni en el HTML.
+- CSRF mitigado con `SameSite=Lax` y Server Actions de Next.js.
+- El middleware oculta rutas, pero la autorización real está en Gateway y servicios.
+- No se confía en precios, totales, IDs de cliente ni roles enviados por el navegador.
+- El cliente solo puede crear pedidos `para_llevar`; el personal crea pedidos de
+  mostrador.
+- El backoffice muestra solo módulos permitidos; el backend responde `403` si se
+  intenta una operación sin permiso.
 
-- Login de cliente y de admin, redirección por rol.
-- Cookies `httpOnly`, `sameSite=lax`, sin tokens en `localStorage`.
-- Credenciales inválidas y registro público como `cliente`.
-- Logout y limpieza de cookies.
-- SSR real: el HTML inicial contiene la portada.
-- `/staff` sin sesión redirige a login; cliente autenticado recibe **403**.
-- `/health` responde `{"status":"ok"}`.
+## 9. Alcance
 
----
+Implementado: tienda, carrito, checkout, pago simulado, seguimiento, reservas,
+backoffice de pedidos, reservas, historial, cancelaciones, catálogo, cuentas, roles,
+auditoría, reportes, exportación y vista web de cocina.
 
-## 6. Reglas de seguridad
-
-- Solo se llama al **API Gateway**; nunca a Identity, Order, Kitchen o Reporting
-  directamente desde el navegador.
-- Los tokens no se exponen en el HTML ni en `localStorage`.
-- El middleware y las páginas de servidor comprueban sesión y permisos.
-- El logout limpia las cookies aunque el Gateway no responda.
-- `secure` se activa en producción con `COOKIE_SECURE=true`.
-- La UI oculta acciones sin permiso, pero el backend es la autoridad final.
-
----
-
-## 7. Alcance del primer PR
-
-Incluye el shell SSR, login, registro, middleware, cliente del Gateway, `/staff`
-informativo y pruebas E2E. **No** incluye todavía la tienda del cliente ni los
-módulos completos del backoffice (pedidos, productos, usuarios, roles, reportes
-y KDS), que se implementan en las fases 2 y 3 del plan de trabajo.
+El KDS/POS Flutter sigue siendo el cliente principal de cocina para cambiar estados
+y confirmar entregas; `/staff/kitchen` es una vista de respaldo de solo lectura.

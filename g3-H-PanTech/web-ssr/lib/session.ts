@@ -79,6 +79,7 @@ const ACCESS_RULES: Array<{ prefix: string; rule: AccessRule }> = [
   { prefix: '/staff/orders', rule: { anyOf: ['orders:create', 'orders:charge'] } },
   { prefix: '/staff/reservations', rule: { anyOf: ['reservations:manage_all'] } },
   { prefix: '/staff/history', rule: { anyOf: ['history:read_all'] } },
+  { prefix: '/staff/cancel', rule: { anyOf: ['orders:read_all'] } },
   { prefix: '/staff/products', rule: { anyOf: ['products:manage'] } },
   { prefix: '/staff/users', rule: { anyOf: ['users:manage', 'users:manage_operational'] } },
   { prefix: '/staff/roles', rule: { anyOf: ['roles:manage'] } },

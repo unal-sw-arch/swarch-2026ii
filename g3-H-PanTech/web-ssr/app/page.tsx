@@ -18,11 +18,11 @@ export default function HomePage() {
           <div className="hero-actions">
             {session ? (
               <>
-                <Link className="button" href={isStaff(session) ? '/staff' : '/'}>
+                <Link className="button" href={isStaff(session) ? '/staff' : '/menu'}>
                   {isStaff(session) ? 'Ir al backoffice' : 'Ver el menú'}
                 </Link>
-                <Link className="button button-secondary" href="/">
-                  Mi cuenta
+                <Link className="button button-secondary" href="/orders">
+                  Mis pedidos
                 </Link>
               </>
             ) : (
@@ -46,9 +46,10 @@ export default function HomePage() {
             <code> httpOnly</code>. El token nunca llega a <code>localStorage</code>.
           </p>
           <ul>
-            <li>Login y registro público</li>
-            <li>Roles, permisos y jerarquía</li>
-            <li>Rutas protegidas por middleware</li>
+            <li>Login, registro y refresh con cookies httpOnly</li>
+            <li>Menú, carrito, pago simulado y seguimiento</li>
+            <li>Backoffice con roles, permisos y auditoría</li>
+            <li>Cocina, historial y reportes en el mismo flujo</li>
           </ul>
         </div>
       </section>
@@ -72,9 +73,9 @@ export default function HomePage() {
       </section>
 
       <section className="notice">
-        <strong>Estado del prototipo:</strong> este primer entregable incluye Identity Service,
-        login, registro y las rutas protegidas. La tienda y el backoffice llegan en las
-        siguientes fases del plan.
+        <strong>Estado del prototipo:</strong> la tienda, el pago simulado, el seguimiento, las
+        reservas y todos los módulos del backoffice ya están integrados. El KDS/POS de escritorio
+        sigue siendo el cliente principal de cocina; esta web ofrece una vista de respaldo.
       </section>
     </main>
   );

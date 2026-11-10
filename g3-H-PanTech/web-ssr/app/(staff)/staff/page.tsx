@@ -3,10 +3,12 @@ import { requireStaff } from '@/lib/auth';
 import { can } from '@/lib/permissions';
 
 export const metadata = { title: 'Backoffice' };
+export const dynamic = 'force-dynamic';
 
 type Tile = {
   title: string;
   description: string;
+  href: string;
   permission?: string;
 };
 
@@ -14,47 +16,62 @@ const TILES: Tile[] = [
   {
     title: 'Pedidos de mostrador',
     description: 'Crear pedidos, cobrar y confirmar pagos.',
+    href: '/staff/orders',
     permission: 'orders:create',
   },
   {
     title: 'Reservas',
-    description: 'Gestionar las reservas del turno.',
+    description: 'Confirmar o cancelar las reservas del turno.',
+    href: '/staff/reservations',
     permission: 'reservations:manage_all',
   },
   {
     title: 'Historial general',
-    description: 'Consultar pedidos y cancelaciones de todo el negocio.',
+    description: 'Consultar pedidos pagados y su línea de tiempo.',
+    href: '/staff/history',
     permission: 'history:read_all',
+  },
+  {
+    title: 'Cancelaciones',
+    description: 'Cancelar pedidos que aún no han sido pagados.',
+    href: '/staff/cancel',
+    permission: 'orders:read_all',
   },
   {
     title: 'Productos',
     description: 'Crear, editar y retirar productos del catálogo.',
+    href: '/staff/products',
     permission: 'products:manage',
   },
   {
     title: 'Cuentas de empleados',
-    description: 'Crear cuentas operativas y desactivarlas.',
+    description: 'Crear cuentas operativas, desactivarlas y asignar roles.',
+    href: '/staff/users',
     permission: 'users:manage_operational',
   },
   {
     title: 'Roles y permisos',
-    description: 'Consultar la matriz y asignar roles.',
+    description: 'Consultar la matriz de autorización y asignar roles.',
+    href: '/staff/roles',
     permission: 'roles:manage',
   },
   {
     title: 'Reportes',
-    description: 'Ver y exportar reportes del negocio.',
+    description: 'Ver ventas, tiempos y exportar CSV/PDF.',
+    href: '/staff/reports',
     permission: 'reports:read',
   },
   {
     title: 'Cocina (KDS)',
-    description: 'Consultar la cola de preparación.',
+    description: 'Vista web de solo lectura de la cola priorizada.',
+    href: '/staff/kitchen',
     permission: 'kitchen:read',
   },
 ];
 
 export default function StaffPage() {
   const session = requireStaff();
+  const visible = TILES.filter((tile) => !tile.permission || can(session, tile.permission));
 
   return (
     <main>
@@ -94,23 +111,20 @@ export default function StaffPage() {
       <section style={{ marginTop: '1.5rem' }} aria-labelledby="modules-title">
         <h2 id="modules-title">Módulos del backoffice</h2>
         <p className="muted">
-          Solo ves los módulos para los que tienes permiso. La implementación completa llega en
-          las siguientes fases del plan; en este PR quedan las rutas preparadas.
+          Solo ves los módulos para los que tienes permiso. Las operaciones se validan nuevamente
+          en el API Gateway y en cada servicio.
         </p>
 
         <div className="staff-grid">
-          {TILES.map((tile) => {
-            const allowed = !tile.permission || can(session, tile.permission);
-            if (!allowed) return null;
-
-            return (
-              <article className="staff-tile" key={tile.title}>
-                <h3>{tile.title}</h3>
-                <p>{tile.description}</p>
-                <span className="badge">Próxima fase</span>
-              </article>
-            );
-          })}
+          {visible.map((tile) => (
+            <article className="staff-tile" key={tile.title}>
+              <h3>{tile.title}</h3>
+              <p>{tile.description}</p>
+              <Link className="button button-secondary" href={tile.href}>
+                Abrir módulo
+              </Link>
+            </article>
+          ))}
         </div>
       </section>
 
