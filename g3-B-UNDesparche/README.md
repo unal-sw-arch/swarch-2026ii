@@ -61,6 +61,11 @@ Departamento de Ingeniería de Sistemas e Industrial\
         -   [Descripción de las capas](#descripción-de-las-capas)
         -   [Organización de módulos por capa](#organización-de-módulos-por-capa)
         -   [Reglas de dependencia](#reglas-de-dependencia)
+    -   [Estructura de descomposición (Decomposition Structure)](#estructura-de-descomposición-decomposition-structure)
+        -   [Diagrama de descomposición](#diagrama-de-descomposición)
+        -   [Descripción de subsistemas y módulos](#descripción-de-subsistemas-y-módulos)
+        -   [Responsabilidades de los módulos](#responsabilidades-de-los-módulos)
+        -   [Dependencias entre módulos](#dependencias-entre-módulos)
 -   [Guía de Despliegue y Ejecución](#guía-de-despliegue-y-ejecución)
     -   [Requisitos previos](#requisitos-previos)
     -   [Configuración de variables de entorno](#configuración-de-variables-de-entorno)
@@ -790,6 +795,58 @@ Las dependencias definidas en la descomposición se interpretan en la estructura
 - Equipment Inventory Engine → `EventsDB`, porque rompería el encapsulamiento de datos de cada servicio.
 - Event Lifecycle Engine → Brevo directamente, porque el envío de correos pertenece exclusivamente a Background Notification Engine.
 - User Profile & Status Engine → Equipment Inventory Engine para modificar disponibilidad, porque invertiría la dependencia definida y podría producir un ciclo con Reservation Logic.
+
+---
+### Estructura de descomposición (Decomposition Structure)
+
+#### Diagrama de descomposición
+
+![Descomposition diagram](images/diagrama_descomposition.png)
+
+#### Descripción de subsistemas y módulos
+
+Se clasificó el sistema en 3 grandes categorías:
+
+**Categoría Front-End & Gateway (Lo que “ve” el usuario final):**
+- **Presentation Subsystem:** Encapsular la capa de presentación del sistema, ofreciendo las interfaces gráficas mediante las cuales los usuarios interactúan con la plataforma.
+- **Web Client App Module:** Módulo frontend web con una arquitectura de Server-Side Rendering (SSR).
+- **Mobile Client App Module:** Módulo cliente nativo/móvil para garantizar el acceso multiplataforma desde móviles.
+- **API & Gateway Subsystem:** Actúa como el punto de entrada unificado para todos los clientes del sistema.
+- **API Routing & Auth Middleware Module:** Orquesta el tráfico entrante de la aplicación.
+
+**Categoría Core Business Logic (Lo que hace el negocio: Reglas esenciales, entidades universitarias y lógica del dominio):**
+- **User Management Subsystem:** Subsistema responsable del dominio de usuarios de la universidad, administrando credenciales, roles y estados de acceso a la plataforma.
+- **User Profile & Status Engine Module:** Encargado del apartado de usuarios y su vinculación a la base de datos.
+- **Inventory Subsystem:** Subsistema encargado de la gestión física de implementos recreativos/deportivos y control de préstamos y reservas.
+- **Equipment Inventory Engine Module:** Módulo de inventarios conectado a la base relacional InventoryDB y al Firebase Storage.
+- **Reservation Logic Module:** Módulo de lógica temporal y reglas de negocio para préstamos.
+- **Event Management Subsystem:** Administra el ciclo de vida de los eventos del campus, así como su representación geográfica.
+- **Event Lifecycle Engine Module:** Módulo principal de gestión de eventos.
+- **Campus Map Integration Module:** Módulo de visualización geoespacial.
+
+**Categoría Support & Integration Services (Procesos asíncronos e integraciones externas):**
+- **Asynchronous & Notification Subsystem:** Subsistema encargado del procesamiento en segundo plano y desacoplado para el envío masivo de notificaciones y alertas por correo.
+- **Message Queue Adapter Module:** Módulo adaptador de mensajería asíncrona.
+- **Background Notification Engine Module:** Servicio en segundo plano para la cola de notificaciones.
+
+#### Responsabilidades de los módulos
+
+- **Presentation Subsystem:**
+  - **Web Client App Module:** Renderizar las vistas principales del catálogo de implementos, mapa de eventos e interfaz de reservas. Gestionar el estado de la sesión activa en el navegador y autenticación.
+  - **Mobile Client App Module:** Proveer la interfaz nativa/móvil e integrar la SDK del cliente para la autenticación en dispositivos móviles.
+- **API & Gateway Subsystem:**
+  - **API Routing & Auth Middleware Module:** Recibir y balancear el tráfico proveniente de los clientes web y validar tokens de autenticación e identidad.
+- **User Management Subsystem:**
+  - **User Profile & Status Engine Module:** Validar el registro e inicio de sesión exclusivo de usuarios con correo institucional, administrar la asignación y revocación de roles, y persistir y consultar la información de perfiles en la base de datos.
+- **Inventory Subsystem:**
+  - **Equipment Inventory Engine Module:** Permitir el registro, actualización, consulta y eliminación de implementos, subir y vincular las imágenes correspondientes y filtrar los implementos por categoría.
+  - **Reservation Logic Module:** Procesar la reserva de un implemento disponible, activar temporizador y validar que a un usuario no se le asigne un elemento reservado o prestado.
+- **Event Management Subsystem:**
+  - **Event Lifecycle Engine Module:** Permitir la creación, modificación y cancelación de los eventos; gestionar el estado de publicación.
+  - **Campus Map Integration Module:** Estructurar y procesar las coordenadas geográficas de los eventos dentro del campus.
+- **Asynchronous & Notification Subsystem:**
+  - **Message Queue Adapter Module:** Recibir de forma asíncrona (vía AMQP) las publicaciones de eventos generados y almacenarlas en cola para garantizar el orden y entrega duradera de las tareas de notificación pendientes.
+
 
 ---
 
