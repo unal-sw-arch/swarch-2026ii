@@ -11,18 +11,7 @@
 | Yeison Camilo Aparicio Aponte |
 | Axel Gómez Moreno |
 
-### Reparto de trabajo del Prototipo 2
-
-| Integrante | Rol principal | Componentes | Plan |
-|---|---|---|---|
-| Jaime Darley Angulo Tenorio | Plataforma, integración y entrega | `docker-compose.p2.yml`, `infrastructure/`, `scripts/`, CI, documentación y PR final | [Plan](docs/equipo/jaime-angulo.md) |
-| Diego Fernando Waitoto Quintero | Identidad y experiencia web | `identity-service/`, `web-ssr/` | [Plan](docs/equipo/diego-waitoto.md) |
-| Yeison Camilo Aparicio Aponte | Pedidos, asincronía y reportes | `order-service/`, `worker/`, `reporting-service/` | [Plan](docs/equipo/yeison-aparicio.md) |
-| Axel Gómez Moreno | Borde, cocina y cliente de escritorio | `api-gateway/`, `kitchen-service/`, `kds-pos/` | [Plan](docs/equipo/axel-gomez.md) |
-
-Cada persona trabaja en su rama personal y abre un PR hacia `g3-H/Pantech-P2`. Jaime revisa, integra y abre el PR final hacia `main`. Los planes incluyen fases, tareas, entregables, contratos y criterios de aceptación. Cada plan lista además **los archivos que esa persona crea y modifica**, y **quién más puede tocar cada archivo compartido** (`docker-compose.p2.yml`, `.env.p2.example`, `infrastructure/`, `docs/` y `README.md`).
-
-Los contratos técnicos que todos deben respetar —puertos, JWT, eventos, encabezados, errores y estados— están en [`docs/equipo/contratos.md`](docs/equipo/contratos.md). El guion de demostración, las cuentas demo y el troubleshooting están en [`docs/equipo/demo.md`](docs/equipo/demo.md); las decisiones de integración de Gateway/Kitchen/KDS están en [`docs/equipo/axel-notas-integracion.md`](docs/equipo/axel-notas-integracion.md). Cada pull request ejecuta el workflow `.github/workflows/ci-p2.yml`, que valida el compose, el JSON de infraestructura, la sintaxis de los scripts, y las suites de Python, Node, Go, Kotlin, .NET y Flutter.
+Los contratos técnicos del Prototipo 2 —puertos, autenticación, eventos, encabezados y errores— están en [`docs/equipo/contratos.md`](docs/equipo/contratos.md). El guion de demostración, las cuentas de prueba y la solución de problemas están en [`docs/equipo/demo.md`](docs/equipo/demo.md). El workflow `.github/workflows/ci-p2.yml` valida la configuración de Compose y ejecuta las pruebas de los componentes.
 
 ## 2. Sistema de software
 
@@ -38,14 +27,13 @@ Los contratos técnicos que todos deben respetar —puertos, JWT, eventos, encab
 
 Panadería Express resuelve el problema de la atención en una panadería con dos tipos de cliente: quien pide un café y un pan de vitrina y quiere salir rápido (**para llevar**), y quien se sienta a pedir un desayuno preparado que toma tiempo (**consumo en sitio**). Como los productos tienen tiempos de preparación muy distintos, atender en estricto orden de llegada (FIFO) deja esperando de más a los pedidos rápidos. El sistema organiza la cola de cocina según los tiempos estimados de preparación.
 
-**Usuario final:** en el Prototipo 1 el empleado de la panadería es el único usuario: el cliente no interactúa con el sistema, pide verbalmente y el empleado registra el pedido. Hay cuatro roles dentro de la misma aplicación web:
+**Usuario final:** en el Prototipo 1 solo el empleado usa el sistema: el cliente pide verbalmente y el empleado registra el pedido. La aplicación ofrece cinco vistas seleccionables en la misma Web App; esos perfiles de navegación no son cuentas autenticadas ni permisos individuales:
 
 - **Mesero:** crea pedidos (para llevar o en mesa), consulta el menú y gestiona las reservas.
 - **Cocinero:** ve la cola de cocina en orden de prioridad y cambia el estado de las comandas.
 - **Despachador:** confirma la entrega y retira la orden.
 - **Productos (administración del catálogo):** mantiene el CRUD de productos y sus minutos de preparación base.
-
-Además de las vistas por rol, la Web App incluye una vista **Historial** para consultar los tiempos de las comandas (Requerimiento 9).
+- **Historial:** consulta los tiempos y las transiciones de estado de las comandas (Requerimiento 9).
 
 > **Prototipo 2 (implementado):** se rediseña la arquitectura para cumplir los diez requisitos no funcionales del documento del proyecto. El sistema pasa de una SPA con dos servicios a **dos componentes de presentación** (Web SSR y KDS/POS), **cuatro servicios de lógica** (Identity, Order, Kitchen y Reporting), un **API Gateway**, un **broker de eventos**, un **worker asíncrono** y **cuatro almacenes de datos** (PostgreSQL, MongoDB, Redis y RustFS). Se agrega el rol `cliente`, los empleados pasan a tener cuentas personales multi-rol y la jerarquía es `admin` > `supervisor` > operativos. El cliente se registra, consulta el menú, **reserva una mesa**, crea pedidos **para llevar**, paga de forma simulada y sigue el estado de sus pedidos. También consulta y cancela sus propias reservas. El personal conserva las vistas de cocina, despacho, catálogo e historial; el cliente no accede a ellas.
 
@@ -66,7 +54,7 @@ El Prototipo 1 es el flujo básico funcional: un empleado registra un pedido, se
 
 > El detalle de la implementación de cada requerimiento está en la tabla de trazabilidad.
 
-Para la cola de cocina se usa una regla sencilla basada en los tiempos estimados de preparación (los productos más rápidos se atienden primero). El algoritmo de priorización más completo, las alertas de espera, la pantalla de despacho avanzada, la actualización en tiempo real con WebSocket y las métricas quedan para los siguientes prototipos.
+En el Prototipo 1, la cola de cocina se prioriza con una regla sencilla basada en los tiempos estimados (los productos más rápidos se atienden primero). La priorización avanzada descrita más adelante corresponde al Prototipo 2. Las alertas de espera, la actualización en tiempo real con WebSocket y otras métricas quedan fuera del alcance implementado.
 
 #### Alcance del Prototipo 2 (implementado)
 
@@ -121,11 +109,11 @@ Estos son los diez requisitos del documento del proyecto y la forma en que Panad
 | 5 | Al menos un componente de comunicación/orquestación | **API Gateway** (Go) para el tráfico HTTP y **RabbitMQ** para los eventos de dominio. |
 | 6 | Al menos cuatro componentes de datos, con relacional y NoSQL | **PostgreSQL** (relacional), **MongoDB** (documental), **Redis** (clave-valor) y **RustFS** (objetos). |
 | 7 | Al menos un componente de procesos asíncronos | **Worker** (Python + Celery) que consume eventos de RabbitMQ y ejecuta tareas diferidas. |
-| 8 | Conectores basados en HTTP | HTTPS/REST en el borde y HTTP/REST entre servicios; el cliente consulta por polling. |
+| 8 | Conectores basados en HTTP | HTTP/REST en el Compose local y HTTP/REST entre servicios; el cliente consulta por polling. HTTPS requiere terminación TLS externa. |
 | 9 | Al menos cuatro lenguajes de propósito general | **TypeScript** (Web SSR), **Dart** (KDS/POS), **Go** (Gateway y Kitchen), **Kotlin** (Identity), **Python** (Order y Worker) y **C#** (Reporting). |
 | 10 | Despliegue orientado a contenedores | Docker Compose, volúmenes persistentes, healthchecks y red interna. |
 
-> Nota sobre el requisito 6: PostgreSQL cubre la base relacional; MongoDB y Redis cubren NoSQL (documental y clave-valor). RustFS es el cuarto componente de datos, de tipo almacenamiento de objetos. Si el profesor exige que los cuatro sean bases de datos, se puede sustituir RustFS por un motor de búsqueda o analítico (por ejemplo OpenSearch o ClickHouse) sin cambiar el resto de la arquitectura.
+> **Criterio adoptado para el requisito 6:** Panadería Express considera **RustFS como su cuarto componente de datos**, especializado en almacenamiento de objetos compatibles con S3 para comprobantes, imágenes y exportaciones. Los cuatro componentes son PostgreSQL (relacional), MongoDB (NoSQL documental), Redis (NoSQL clave-valor) y RustFS (objetos). RustFS complementa las bases de datos; no se presenta como un motor de base de datos.
 
 **Correspondencia entre el Prototipo 1 y el Prototipo 2**
 
@@ -221,7 +209,7 @@ auth.audit_log             (id, user_id, action, entity, entity_id, created_at)
 9. **Integración:** el contrato Worker→Kitchen→Worker está corregido y cubierto por pruebas; el smoke test E2E está en `scripts/smoke_test.py` y el guion de demo en `docs/equipo/demo.md`.
 10. **Entrega:** README, contratos, notas de integración y las cuatro vistas arquitectónicas actualizados.
 
-> La verificación automatizada completa depende de Docker, Go, Flutter y .NET. El workflow `.github/workflows/ci-p2.yml` ejecuta cada suite cuando esas herramientas están disponibles; el estado de lo validado localmente está en `docs/equipo/demo.md`.
+> La ejecución de todas las suites requiere los SDK correspondientes (Docker, Go, Flutter y .NET, entre otros). El workflow `.github/workflows/ci-p2.yml` automatiza las validaciones de los componentes.
 
 #### Trazabilidad requerimiento → implementación
 
@@ -229,7 +217,7 @@ auth.audit_log             (id, user_id, action, entity, entity_id, created_at)
 
 | N.º | Vistas (frontend) | Servicio y ruta (backend) | Lógica / persistencia |
 |---|---|---|---|
-| 1 | `frontend/src/views/MeseroView.tsx` | Order Manager — `POST /orders` | Valida productos y `table_number`; guarda en `orders`/`order_items` (PostgreSQL) y encola en cocina. |
+| 1 | `frontend/src/views/MeseroView.tsx` | Order Manager — `POST /orders` | Valida productos y `table_number`; guarda el pedido y sus ítems en PostgreSQL y envía la comanda al Queue Scheduler, que mantiene en Redis la cola, el detalle operativo y el estado actual. |
 | 2 | `frontend/src/views/MeseroView.tsx` | Order Manager — `GET/POST/PUT/DELETE /reservations` | Tabla `reservations` (PostgreSQL). |
 | 3 | `frontend/src/views/MeseroView.tsx` | Order Manager — `GET /menu`, `GET /products` | `Product.category ∈ {vitrina, preparado}`. |
 | 4 | `MeseroView.tsx`, `CocineroView.tsx`, `DespachadorView.tsx` | Order Manager — `GET /menu`; Queue Scheduler — `GET /queue`, `GET /dispatch` | `prep_minutes` por producto y `estimated_minutes` por comanda. |
@@ -267,11 +255,11 @@ auth.audit_log             (id, user_id, action, entity, entity_id, created_at)
 
 ![Vista C&C - Prototipo 2](docs/Vista%20CyC%20P2.png)
 
-La vista C&C del Prototipo 2 muestra dos actores externos, dos componentes de presentación, un API Gateway, cuatro servicios de lógica, un worker asíncrono, un broker de eventos y cuatro almacenes de datos. La comunicación del cliente y del personal pasa siempre por el **API Gateway**; el cliente nunca habla directamente con Kitchen Service ni con los almacenes.
+La vista C&C del Prototipo 2 muestra dos actores externos, dos componentes de presentación, un API Gateway, cuatro servicios de lógica, un worker asíncrono, un broker de eventos y cuatro componentes de datos. Los actores usan la Web SSR o el KDS/POS; estas presentaciones se comunican con el **API Gateway**. Los clientes no acceden directamente a Kitchen Service ni a los almacenes.
 
 **Elementos:** `Cliente`, `Empleado`, `Web SSR`, `KDS/POS`, `API Gateway`, `Identity Service`, `Order Service`, `Kitchen Service`, `Reporting Service`, `Worker`, `RabbitMQ`, `PostgreSQL`, `MongoDB`, `Redis` y `RustFS`.
 
-**Relaciones:** los actores usan las presentaciones; las presentaciones llaman al Gateway por HTTPS/REST; el Gateway enruta a los servicios por HTTP/REST; los servicios persisten en sus almacenes por SQL, MongoDB, Redis o S3; Order y Kitchen publican eventos en RabbitMQ; el Worker consume esos eventos y actualiza read models, encola pedidos y genera comprobantes. El detalle completo está en las secciones **Elementos arquitectónicos** y **Conectores**. Los estilos y patrones se describen en **Estilos arquitectónicos y patrones**.
+**Relaciones:** los actores usan las presentaciones; las presentaciones llaman al Gateway por HTTP/REST en el Compose local; el Gateway enruta a los servicios por HTTP/REST; los servicios persisten en sus almacenes por SQL, MongoDB, Redis o S3; Order y Kitchen publican eventos en RabbitMQ; el Worker consume esos eventos y actualiza read models, encola pedidos y genera comprobantes. El detalle completo está en las secciones **Elementos arquitectónicos** y **Conectores**. Los estilos y patrones se describen en **Estilos arquitectónicos y patrones**.
 
 #### Vista de despliegue — Prototipo 1
 
@@ -281,11 +269,11 @@ La vista C&C del Prototipo 2 muestra dos actores externos, dos componentes de pr
 
 ![Vista de despliegue - Prototipo 2](docs/tiers_despliegue%20P2.png)
 
-El despliegue del Prototipo 2 usa **12 contenedores** sobre Docker Compose y un **cliente de escritorio KDS/POS** que no se containeriza. Los contenedores comparten la red interna `panaderia-net`; solo `web-ssr` (:3000) y `api-gateway` (:8080) se publican al exterior. PostgreSQL, MongoDB, Redis, RustFS y RabbitMQ quedan en la red interna.
+El despliegue del Prototipo 2 usa **12 contenedores** sobre Docker Compose y un **cliente de escritorio KDS/POS** que no se containeriza. Los contenedores comparten la red interna `panaderia-net`. `web-ssr` (:3000) y `api-gateway` (:8080) son las entradas de usuario; también se publican RabbitMQ (:15672) y RustFS (:9000 para S3 y :9001 para la consola). Los servicios de lógica y las bases de datos no se publican. El Compose local usa HTTP sin TLS; HTTPS requiere terminación TLS externa.
 
 **Elementos:** un host Docker, la red `panaderia-net`, 12 contenedores, siete volúmenes persistentes y dos clientes externos (navegador y KDS/POS de escritorio).
 
-**Relaciones:** el navegador accede a `web-ssr` y al Gateway; el KDS/POS accede al Gateway; `web-ssr` accede al Gateway por la red interna; el Gateway enruta a los servicios de lógica; los servicios acceden a los almacenes y a RabbitMQ; los volúmenes se montan en PostgreSQL, MongoDB, Redis, RustFS y RabbitMQ.
+**Relaciones:** el navegador accede a `web-ssr`; el KDS/POS accede al Gateway; `web-ssr` accede al Gateway por la red interna; el Gateway enruta a los servicios de lógica; los servicios acceden a los almacenes y a RabbitMQ; RustFS publica el endpoint S3 para descargas firmadas; los volúmenes se montan en PostgreSQL, MongoDB, Redis, RustFS y RabbitMQ.
 
 | Contenedor | Puerto | Función |
 |---|---:|---|
@@ -302,7 +290,7 @@ El despliegue del Prototipo 2 usa **12 contenedores** sobre Docker Compose y un 
 | `redis` | 6379 | Caché, sesión y cola priorizada. |
 | `rustfs` | 9000 / 9001 | Objetos: comprobantes, imágenes y exportaciones. |
 
-**Patrones de despliegue:** instancia de servicio por contenedor, configuración externalizada por variables de entorno, healthchecks, volúmenes persistentes (`postgres_data`, `mongo_data`, `redis_data`, `rustfs_data`, `rabbitmq_data`), red interna y exposición únicamente del borde. El KDS/POS se distribuye como aplicación de escritorio y se conecta al Gateway por HTTPS.
+**Patrones de despliegue:** instancia de servicio por contenedor, configuración externalizada por variables de entorno, healthchecks, volúmenes persistentes (`postgres_data`, `mongo_data`, `redis_data`, `rustfs_data`, `rabbitmq_data`), red interna y APIs de lógica no expuestas. El KDS/POS se distribuye como aplicación de escritorio y se conecta al Gateway por HTTP en el Compose local.
 
 #### Vista de capas — Prototipo 2
 
@@ -383,7 +371,7 @@ El cliente crea, consulta y cancela sus propias reservas. La reserva queda asoci
 - **Event-driven / pub-sub:** Order Service publica `order.paid` y eventos de reserva; Kitchen Service publica `order.ready`; el Worker consume los eventos. RabbitMQ desacopla a productores y consumidores.
 - **Procesamiento asíncrono:** el Worker ejecuta tareas que no deben bloquear la petición del usuario: encolar pedidos pagados, actualizar read models, generar comprobantes y enviar notificaciones simuladas.
 - **CQRS ligero:** PostgreSQL es la fuente de verdad transaccional; MongoDB mantiene read models denormalizados para menú, historial y reportes. La consistencia es eventual.
-- **REST sobre HTTP:** los servicios exponen recursos con JSON; el borde usa HTTPS y la red interna HTTP.
+- **REST sobre HTTP:** los servicios exponen recursos con JSON; el Compose local usa HTTP y requiere terminación TLS externa si se publica por HTTPS.
 - **Polling:** el cliente consulta el estado de sus pedidos cada cierto tiempo. No se usa WebSocket/SSE en el Prototipo 2.
 - **Poliglotía:** TypeScript, Dart, Go, Kotlin, Python y C# en componentes distintos, justificados por la responsabilidad de cada uno.
 - **Despliegue en contenedores:** Docker Compose, volúmenes, healthchecks y configuración por variables de entorno.
@@ -429,11 +417,11 @@ El cliente crea, consulta y cancela sus propias reservas. La reserva queda asoci
 
 | N.º | Origen | Destino | Tipo de conector | Descripción |
 |---:|---|---|---|---|
-| 1 | Cliente | Web SSR | HTTPS | Navegación y acciones del cliente. |
-| 2 | Empleado | Web SSR | HTTPS | Backoffice del personal. |
+| 1 | Cliente | Web SSR | HTTP (local) | Navegación y acciones del cliente. |
+| 2 | Empleado | Web SSR | HTTP (local) | Backoffice del personal. |
 | 3 | Empleado | KDS/POS | Interfaz local | Aplicación de escritorio para cocina y despacho. |
 | 4 | Web SSR | API Gateway | HTTP / REST | Llamadas del servidor Next.js y acciones del navegador. |
-| 5 | KDS/POS | API Gateway | HTTPS / REST | Cola, estados y confirmación de entregas. |
+| 5 | KDS/POS | API Gateway | HTTP / REST (local) | Cola, estados y confirmación de entregas. |
 | 6 | API Gateway | Identity Service | HTTP / REST | Registro, login, refresh y administración de cuentas. |
 | 7 | API Gateway | Order Service | HTTP / REST + JWT | Pedidos, reservas, pagos y menú. |
 | 8 | API Gateway | Kitchen Service | HTTP / REST + JWT | Cola, estados y ETA. |
@@ -481,7 +469,7 @@ El cliente crea, consulta y cancela sus propias reservas. La reserva queda asoci
 | 5 | Al menos un componente de comunicación/orquestación | `api-gateway` (HTTP) y `rabbitmq` (eventos). |
 | 6 | Al menos cuatro componentes de datos, con relacional y NoSQL | PostgreSQL (relacional), MongoDB (documental), Redis (clave-valor) y RustFS (objetos). |
 | 7 | Al menos un componente de procesos asíncronos | `worker` con Celery consumiendo RabbitMQ. |
-| 8 | Conectores basados en HTTP | HTTPS/REST en el borde y HTTP/REST entre servicios. |
+| 8 | Conectores basados en HTTP | HTTP/REST en el Compose local y entre servicios; HTTPS requiere terminación TLS externa. |
 | 9 | Al menos cuatro lenguajes de propósito general | TypeScript, Dart, Go, Kotlin, Python y C#. |
 | 10 | Despliegue orientado a contenedores | Docker Compose, healthchecks, volúmenes y red interna. |
 
@@ -520,12 +508,7 @@ g3-H-PanTech/
 │   ├── secuencia_cliente_reserva.puml
 │   └── equipo/
 │       ├── contratos.md       # puertos, JWT, eventos y encabezados
-│       ├── demo.md            # guion de demostración y troubleshooting
-│       ├── axel-notas-integracion.md
-│       ├── jaime-angulo.md
-│       ├── diego-waitoto.md
-│       ├── yeison-aparicio.md
-│       └── axel-gomez.md
+│       └── demo.md            # guion de demostración y troubleshooting
 ├── scripts/                   # smoke_test.py, seed_demo.py, wait_for_services.ps1
 ├── .github/workflows/         # CI P2 (compose, Python, Node, Go, Kotlin, .NET, Flutter)
 ├── web-ssr/                   # Next.js + TypeScript
@@ -545,7 +528,7 @@ g3-H-PanTech/
 
 ### Instrucciones para desplegar el sistema localmente
 
-#### Prototipo 1 (legado)
+#### Prototipo 1 (versión anterior implementada)
 
 **Requisitos previos**
 
@@ -689,11 +672,11 @@ g3-H-PanTech/
 ### Limitaciones conocidas
 
 - **El Prototipo 2 está implementado como prototipo académico.** No es un sistema listo para producción: el pago es simulado, no hay pasarela real, la consistencia entre PostgreSQL y MongoDB es eventual y el KDS/POS es un cliente de escritorio que se distribuye aparte.
-- **La verificación completa requiere SDKs externos.** En el entorno de integración no había daemon de Docker ni Go/Flutter/.NET, por lo que el smoke test y las suites de esos lenguajes quedan para CI o para una máquina con las herramientas instaladas. El detalle está en `docs/equipo/demo.md`.
+- **Las pruebas requieren sus herramientas de desarrollo.** Para ejecutar todas las suites se necesitan Docker y los SDK de los lenguajes utilizados; el workflow `.github/workflows/ci-p2.yml` define las validaciones automatizadas.
 - **El diseño de 6 contenedores quedó superado.** El documento del Prototipo 2 exige dos presentaciones, SSR, cuatro servicios de lógica, cuatro almacenes de datos, un componente de orquestación, uno asíncrono y al menos cuatro lenguajes. Por eso el objetivo es de 13 componentes (12 contenedores permanentes + KDS/POS de escritorio). El compose agrega dos jobs efímeros que no cuentan como componentes: `rabbitmq-init` importa las definiciones después de crear el vhost y `rustfs-perms` prepara el volumen de objetos. Los buckets se crean aparte con `rustfs-init`.
 - **El KDS/POS no es un contenedor.** Es una aplicación de escritorio Flutter que se conecta al API Gateway. El despliegue containerizado cubre los servicios y los almacenes del sistema; el cliente se distribuye como artefacto de escritorio.
 - **MinIO se reemplazó por RustFS.** MinIO dejó de publicar imágenes oficiales en Docker Hub y Quay en 2026, por lo que el compose no puede arrancar con `minio/minio`. RustFS es compatible con la API de S3 y mantiene las mismas operaciones; solo cambian el nombre del servicio y las variables (`S3_*`). El compose además usa un job efímero `rustfs-perms` para ajustar los permisos del volumen antes de arrancar RustFS.
-- **El detalle de la comanda no se persiste en PostgreSQL en el Prototipo 1.** El Queue Scheduler mantiene el detalle y el estado actual en Redis; las comandas entregadas salen de las pantallas y se conservan en Redis con un TTL (1 hora por defecto, configurable con `DELIVERED_TTL_SECONDS`). El historial de estados sí se persiste en `order_status_events`. En el Prototipo 2, PostgreSQL será la fuente de verdad y MongoDB los read models.
+- **Persistencia de comandas en el Prototipo 1.** El Queue Scheduler mantiene en Redis el detalle y el estado actual de las comandas; las entregadas se conservan allí con un TTL (una hora por defecto, configurable con `DELIVERED_TTL_SECONDS`). El historial de transiciones sí se persiste en `order_status_events`. En el Prototipo 2, PostgreSQL es la fuente de verdad y MongoDB contiene read models.
 - **La cola priorizada del Prototipo 1 vive en un `ZSET` de Redis** con `score` = tiempo estimado; el desempate por hora de llegada se resuelve al construir la vista de cocina. El Prototipo 2 agrega aging, capacidad y ETA en Kitchen Service.
 - **El pago es simulado.** No se integra una pasarela real; el total se calcula en el servidor y el pedido se encola solo después de confirmar el pago.
 - **Se mantiene polling.** No se usa WebSocket/SSE en el Prototipo 2.
