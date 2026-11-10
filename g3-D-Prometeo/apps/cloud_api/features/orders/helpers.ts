@@ -277,3 +277,36 @@ export function parseSplitAccounts(value: unknown): SplitAccountInput[] | undefi
 }
 
 export const paymentMethods = new Set(['cash', 'transfer', 'card']);
+
+// --- Metrics write bridge ---------------------------------------------------
+// Sales metrics now live in MongoDB (via the metrics gateway), so they can no
+// longer ride inside the order's D1 batch. These helpers run AFTER the D1 batch
+// commits: D1 stays the transactional source of truth for the order, and the
+// metric write is a separate, idempotent step keyed by the coordinator's
+// idempotency-key so retries never double-count. If the gateway is unreachable,
+// the order still succeeds; metrics can be resynced with a rebuild.
+
+import { metricsClient, type MetricOperation, type MetricSnapshot }
+  from '../../infrastructure/metrics/client';
+
+/**
+ * Resolves the mutation id used to dedupe metric writes. Under the coordinator
+ * every mutation carries an `idempotency-key` header; outside it (e.g. tests)
+ * we fall back to a random id so each call is treated as distinct.
+ */
+export function mutationId(c: import('hono').Context<CloudEnvironment>): string {
+  return c.req.header('idempotency-key') ?? crypto.randomUUID();
+}
+
+/** Applies incremental metric operations after the order's D1 batch commits. */
+export async function applyMetrics(c: import('hono').Context<CloudEnvironment>,
+  operations: MetricOperation[]): Promise<void> {
+  if (operations.length === 0) return;
+  await metricsClient(c.env).apply(mutationId(c), operations);
+}
+
+/** Replaces all metric collections with a snapshot recomputed from D1 orders. */
+export async function rebuildMetrics(c: import('hono').Context<CloudEnvironment>,
+  snapshot: MetricSnapshot): Promise<void> {
+  await metricsClient(c.env).rebuild(mutationId(c), snapshot);
+}

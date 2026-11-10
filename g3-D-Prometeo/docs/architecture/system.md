@@ -18,7 +18,9 @@ Las peticiones `POST`, `PUT`, `PATCH` y `DELETE` autenticadas atraviesan el `Res
 
 ## Persistencia
 
-D1 es la única fuente de verdad. `database/d1/migrations` define su evolución. Los precios se almacenan como pesos enteros, no como centavos.
+D1 es la fuente de verdad transaccional (usuarios, sesiones, catálogo, salones, órdenes, idempotencia y versiones de recursos). `database/d1/migrations` define su evolución. Los precios se almacenan como pesos enteros, no como centavos.
+
+Las **métricas de ventas acumuladas** son la excepción: su dueño es MongoDB, al que el Worker accede por HTTP mediante el `metrics-gateway` (`services/metrics_gateway/`), ya que los Workers no abren TCP crudo. Es un store de solo lectura/escritura de proyecciones; las órdenes que las originan siguen en D1, y el tiempo real del dashboard se mantiene con el bump de `resource_versions('dashboard')` en D1. Solo aplica en desarrollo local.
 
 ## Clientes
 

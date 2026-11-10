@@ -14,6 +14,14 @@ Datos mínimos para entornos de desarrollo. Los catálogos reales se cargan con 
 | cashier  | `caja.test`    | `CajaTest123456`  |
 | manager  | `gerente.test` | `GerenteTest1234` |
 
-Los usuarios no administradores quedan asignados al salón de prueba `9001`. También se conservan `cloud.admin` y `cloud.waiter` del fixture original.
+Los usuarios no administradores quedan asignados a los cuatro salones (`9001` Salón Principal, `9002` Terraza, `9003` Salón Familiar, `9004` Barra). También se conservan `cloud.admin` y `cloud.waiter` del fixture original.
+
+## Catálogo de ejemplo
+
+`development.sql` carga un restaurante de ejemplo para desarrollo:
+
+- **4 salones** con entre 5 y 10 mesas cada uno (`P-*`, `T-*`, `F-*`, `B-*`).
+- **Menú Principal** (primario en los cuatro salones) con categorías: Hamburguesas, Salchipapas, Papas, Bebidas y Adiciones (especial).
+- **16 productos** (15 activos + 1 inactivo para pruebas de visibilidad), con sus ingredientes. Precios en pesos enteros.
 
 > Solo para desarrollo local. No usar estas credenciales en entornos reales.

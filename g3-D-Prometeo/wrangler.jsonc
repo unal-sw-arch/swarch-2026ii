@@ -7,7 +7,10 @@
     "ENVIRONMENT": "production",
     // Comma-separated browser origins allowed via CORS. Defaults in code to the
     // local dev clients (http://localhost:8080, http://localhost:8081).
-    "ALLOWED_ORIGINS": "http://localhost:8080,http://localhost:8081"
+    "ALLOWED_ORIGINS": "http://localhost:8080,http://localhost:8081",
+    // Base URL of the local metrics gateway (HTTP <-> MongoDB). Overridden by
+    // docker-compose for local dev; harmless placeholder otherwise.
+    "METRICS_GATEWAY_URL": ""
   },
   "durable_objects": {
     "bindings": [

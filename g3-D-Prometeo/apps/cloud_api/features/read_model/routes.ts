@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono';
 import { canAccessHall, requireAdmin, requireSession } from '../auth/session';
 import { readCachedCatalog } from '../catalog/cache';
 import { readHalls, readLayout } from './repository';
+import { metricsClient } from '../../infrastructure/metrics/client';
 import type { CloudEnvironment } from '../../types';
 
 const routes = new Hono<CloudEnvironment>();
@@ -14,9 +15,11 @@ routes.use('/menus/*', requireAdmin);
 routes.get('/bootstrap', async (c) => {
   const session = c.get('session');
   const isAdmin = session.user.role === 'admin';
+  // Admins see per-hall sales totals, which now live in MongoDB.
+  const hallTotals = isAdmin ? await metricsClient(c.env).hallTotals() : [];
   const [cachedCatalog, halls] = await Promise.all([
     isAdmin ? readCachedCatalog(c.env.DB, c.req.url) : Promise.resolve(null),
-    readHalls(c.env.DB, isAdmin ? undefined : session.user.id),
+    readHalls(c.env.DB, isAdmin ? undefined : session.user.id, hallTotals),
   ]);
   if (cachedCatalog) catalogHeaders(c, cachedCatalog.status, cachedCatalog.version);
   return c.json({
@@ -53,10 +56,13 @@ routes.get('/menus/:menuId', async (c) => {
 
 routes.get('/halls', async (c) => {
   const session = c.get('session');
+  const isAdmin = session.user.role === 'admin';
+  const hallTotals = isAdmin ? await metricsClient(c.env).hallTotals() : [];
   return c.json({
     halls: await readHalls(
       c.env.DB,
-      session.user.role === 'admin' ? undefined : session.user.id,
+      isAdmin ? undefined : session.user.id,
+      hallTotals,
     ),
   });
 });

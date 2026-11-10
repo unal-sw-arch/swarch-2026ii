@@ -5,6 +5,7 @@ import type {
   MenuRow,
   ProductRow,
 } from '../../types';
+import type { HallTotals } from '../../infrastructure/metrics/client';
 
 type IdRelation = { ownerId: number; valueId: number };
 type IngredientCategoryRow = { id: number; name: string };
@@ -137,7 +138,8 @@ export async function readCatalog(database: D1Database, onlyMenuId?: number) {
   };
 }
 
-export async function readHalls(database: D1Database, employeeId?: number) {
+export async function readHalls(database: D1Database, employeeId?: number,
+  hallTotals: HallTotals[] = []) {
   if (employeeId !== undefined) {
     return rows<{
       id: number;
@@ -153,23 +155,30 @@ export async function readHalls(database: D1Database, employeeId?: number) {
        ORDER BY h.name COLLATE NOCASE, h.id`,
     ).bind(employeeId));
   }
-  return rows<{
-    id: number;
-    name: string;
-    tableCount: number;
-    orderCount: number;
-    totalSales: number;
-    averageSale: number;
-  }>(database.prepare(
-    `SELECT h.id, h.name,
-            (SELECT COUNT(*) FROM hall_tables ht WHERE ht.hall_id = h.id) AS tableCount,
-            COALESCE(metrics.order_count, 0) AS orderCount,
-            COALESCE(metrics.total_sales, 0) AS totalSales,
-            CASE WHEN COALESCE(metrics.order_count, 0) = 0 THEN 0
-              ELSE ROUND(metrics.total_sales * 1.0 / metrics.order_count) END AS averageSale
-     FROM hall h LEFT JOIN hall_sales_totals metrics ON metrics.hall_id = h.id
-     ORDER BY h.name COLLATE NOCASE, h.id`,
-  ));
+  // Sales totals now live in MongoDB, so the caller fetches them and passes
+  // them in; we read the relational hall data from D1 and merge per hall.
+  const halls = await rows<{ id: number; name: string; tableCount: number }>(
+    database.prepare(
+      `SELECT h.id, h.name,
+              (SELECT COUNT(*) FROM hall_tables ht WHERE ht.hall_id = h.id) AS tableCount
+       FROM hall h
+       ORDER BY h.name COLLATE NOCASE, h.id`,
+    ),
+  );
+  const totalsByHall = new Map(hallTotals.map((total) => [total.hallId, total]));
+  return halls.map((hall) => {
+    const metrics = totalsByHall.get(hall.id);
+    const orderCount = Number(metrics?.orderCount ?? 0);
+    const totalSales = Number(metrics?.totalSales ?? 0);
+    return {
+      id: hall.id,
+      name: hall.name,
+      tableCount: hall.tableCount,
+      orderCount,
+      totalSales,
+      averageSale: orderCount === 0 ? 0 : Math.round(totalSales / orderCount),
+    };
+  });
 }
 
 export async function readLayout(database: D1Database, hallId: number) {
