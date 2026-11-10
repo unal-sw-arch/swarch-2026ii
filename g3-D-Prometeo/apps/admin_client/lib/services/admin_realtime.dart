@@ -72,7 +72,10 @@ class AdminRealtimeService {
         endpoint.toString(),
         headers: {HttpHeaders.authorizationHeader: 'Bearer $token'},
       ).timeout(const Duration(seconds: 10));
-      if (_closed) return socket.close();
+      if (_closed) {
+        unawaited(socket.close());
+        return;
+      }
       _socket = socket;
       _attempt = 0;
       socket.listen(

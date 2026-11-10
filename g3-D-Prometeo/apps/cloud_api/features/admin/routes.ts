@@ -5,6 +5,7 @@ import { readLayout } from '../read_model/repository';
 import { bogotaMetricKeys, billedOrderMetricOperations, rebuildMetricSnapshot,
   statusMetricChange } from './sales_metrics';
 import { metricsClient } from '../../infrastructure/metrics/client';
+import { enqueueJob } from '../async_jobs/repository';
 import { generatedId, jsonObject, positiveId, rows } from '../../shared/http';
 import type { CloudEnvironment } from '../../types';
 import {
@@ -128,10 +129,9 @@ routes.delete('/halls/:hallId/orders/:orderId', async (c) => {
        VALUES (?, ?, 'Pedidos', ?, ?)`,
     ).bind(session.user.id, hallId, `Eliminó el pedido ${orderId}`, now),
   ]);
-  await metricsClient(c.env).apply(metricMutationId(c), [
-    statusMetricChange(hallId, order.status, -1),
-    ...salesChanges,
-  ]);
+  await enqueueJob(c.env.DB, 'metrics.apply', metricMutationId(c), {
+    operations: [statusMetricChange(hallId, order.status, -1), ...salesChanges],
+  });
   return c.json({ deleted: true, orderId, status: order.status });
 });
 
@@ -214,11 +214,12 @@ routes.delete('/halls/:hallId/orders', async (c) => {
       now),
   ]);
   // Bulk delete can't cheaply reverse individual contributions, so after D1
-  // commits we recompute the whole snapshot from the surviving orders and push
-  // it to the gateway, replacing every metric collection wholesale.
-  await metricsClient(c.env).rebuild(
-    metricMutationId(c), await rebuildMetricSnapshot(c.env.DB),
-  );
+  // commits we recompute the whole snapshot from the surviving orders and hand
+  // it off to the async job processor, which replaces every metric collection
+  // wholesale in the background.
+  await enqueueJob(c.env.DB, 'metrics.rebuild', metricMutationId(c), {
+    snapshot: await rebuildMetricSnapshot(c.env.DB),
+  });
   return c.json({ deletedCount, statuses });
 });
 
