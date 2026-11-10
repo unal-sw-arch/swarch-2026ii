@@ -5,6 +5,9 @@ export type CloudBindings = {
   // Comma-separated list of browser origins allowed via CORS. When unset the
   // Worker falls back to the local development clients (ports 8080/8081).
   ALLOWED_ORIGINS?: string;
+  // Base URL of the metrics gateway (HTTP <-> MongoDB). Local dev only; set by
+  // docker-compose. When unset, metric reads/writes are skipped gracefully.
+  METRICS_GATEWAY_URL?: string;
 };
 
 export type AuthenticatedSession = {
