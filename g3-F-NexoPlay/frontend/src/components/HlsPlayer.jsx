@@ -11,9 +11,35 @@ const supported = Hls.isSupported() || nativeHls();
 
 // HLS player: hls.js where supported (MSE), native playback on Safari/iOS.
 // Render with key={src} so a new source starts from a fresh loading state.
-export default function HlsPlayer({ src, poster }) {
+// onPlaybackStart fires once when playback actually starts, and again only
+// after the video ended and is replayed (never per HLS segment).
+export default function HlsPlayer({ src, poster, onPlaybackStart }) {
   const videoRef = useRef(null);
   const [status, setStatus] = useState(supported ? "loading" : "error"); // loading | ready | error
+  const onStartRef = useRef(onPlaybackStart);
+
+  useEffect(() => {
+    onStartRef.current = onPlaybackStart;
+  }, [onPlaybackStart]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    let counted = false;
+    const onPlaying = () => {
+      if (counted) return;
+      counted = true;
+      onStartRef.current?.();
+    };
+    const onEnded = () => {
+      counted = false;
+    };
+    video.addEventListener("playing", onPlaying);
+    video.addEventListener("ended", onEnded);
+    return () => {
+      video.removeEventListener("playing", onPlaying);
+      video.removeEventListener("ended", onEnded);
+    };
+  }, [src]);
 
   useEffect(() => {
     const video = videoRef.current;

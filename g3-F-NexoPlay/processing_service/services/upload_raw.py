@@ -14,6 +14,8 @@ from starlette.concurrency import run_in_threadpool
 from shared.dto.video_metadata import VideoMetadata
 from shared.services.blob_storage import BlobStorageService
 from shared.services.video_metadata_service import VideoMetadataService
+from shared.services.embedding_notifications import EmbeddingNotificationService
+from shared.services.embeddings_client import EmbeddingsClient
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,15 @@ class UploadRawService:
     def __init__(self) -> None:
         self._metadata_service = VideoMetadataService()
         self.blob_storage = BlobStorageService()
+        self.embeddings = EmbeddingsClient()
+
+    def notify_embeddings(self, video_id):
+        # Metadata and outbox were committed together. HTTP failure never rolls
+        # them back; a separate dispatcher recovers this exact snapshot.
+        try:
+            EmbeddingNotificationService().deliver_one(self.embeddings, video_id)
+        except SQLAlchemyError:
+            logger.exception("Embedding delivery remains pending for video %s", video_id)
 
     async def upload(self, raw_metadata: str, video: UploadFile, owner_id: UUID) -> dict:
         try:
@@ -67,6 +78,7 @@ class UploadRawService:
                 detail="Video metadata storage is temporarily unavailable.",
             ) from error
 
+        await run_in_threadpool(self.notify_embeddings, video_id)
         extension = PurePosixPath(filename).suffix.lower()
         object_key = f"videos/{video_id}/original/source{extension}"
         try:
@@ -113,6 +125,7 @@ class UploadRawService:
     async def _delete_metadata(self, video_id: UUID) -> None:
         try:
             await run_in_threadpool(self._metadata_service.delete, video_id)
+            await run_in_threadpool(self.notify_embeddings, video_id)
         except SQLAlchemyError:
             logger.exception("Could not clean up metadata for video %s", video_id)
 

@@ -5,6 +5,7 @@ from sqlalchemy import delete, select
 from shared.services.database import SessionLocal
 from shared.services.processing_jobs import ProcessingJob, VideoHLSRecord, VideoVariant
 from shared.services.video_metadata_service import VideoMetadataRecord
+from shared.services.embedding_notifications import EmbeddingNotificationService
 
 
 class VideoUploadInProgressError(RuntimeError):
@@ -52,4 +53,5 @@ class DeleteVideoService:
 
             for model in (VideoVariant, VideoHLSRecord, ProcessingJob):
                 session.execute(delete(model).where(model.video_id == video_id))
+            EmbeddingNotificationService.enqueue(session, video, invalidate=True)
             session.delete(video)

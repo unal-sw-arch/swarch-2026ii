@@ -1,6 +1,15 @@
 // Used only to decide which controls to display. The API verifies the token
 // signature and ownership independently before allowing a deletion.
 export function getSessionUserId(token) {
+  return getSession(token)?.userId ?? null;
+}
+
+// Display name from the token; null for tokens issued before names were added.
+export function getSessionName(token) {
+  return getSession(token)?.name ?? null;
+}
+
+function getSession(token) {
   if (!token) return null;
   try {
     const parts = token.split(".");
@@ -13,7 +22,8 @@ export function getSessionUserId(token) {
     ) {
       return null;
     }
-    return payload.sub;
+    const name = typeof payload.name === "string" && payload.name.trim() ? payload.name.trim() : null;
+    return { userId: payload.sub, name };
   } catch {
     return null;
   }

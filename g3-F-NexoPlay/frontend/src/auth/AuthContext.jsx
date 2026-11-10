@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { request } from "../api/client";
-import { getSessionUserId } from "./session";
+import { getSessionName, getSessionUserId } from "./session";
 import { AuthContext } from "./useAuth";
 
 export function AuthProvider({ children }) {
@@ -34,7 +34,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ token, userId: getSessionUserId(token), login, register, logout, setSession: save }}
+      value={{ token, userId: getSessionUserId(token), userName: getSessionName(token), login, register, logout, setSession: save }}
     >
       {children}
     </AuthContext.Provider>

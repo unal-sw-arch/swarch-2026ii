@@ -17,10 +17,14 @@ const {
 } = process.env;
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
+// `name` lets other services label user content (e.g. comments) without
+// querying the users database. It is display data, not used for authorization.
 const signToken = (user) =>
-  jwt.sign({ sub: user.id, role: user.role }, process.env.JWT_SECRET, {
-    expiresIn: "1h",
-  });
+  jwt.sign(
+    { sub: user.id, role: user.role, name: user.name },
+    process.env.JWT_SECRET,
+    { expiresIn: "1h" },
+  );
 
 // Steps 1-2: send the user to Google
 app.get("/auth/google", (req, res) => {

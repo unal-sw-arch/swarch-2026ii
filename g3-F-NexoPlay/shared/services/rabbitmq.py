@@ -4,6 +4,22 @@ import os
 import pika
 
 
+def connection_parameters() -> pika.ConnectionParameters:
+    return pika.ConnectionParameters(
+        host=os.getenv("RABBITMQ_HOST", "localhost"),
+        port=int(os.getenv("RABBITMQ_PORT", "5672")),
+        virtual_host=os.getenv("RABBITMQ_VHOST", "/"),
+        credentials=pika.PlainCredentials(
+            os.getenv("RABBITMQ_USER", "video_worker"),
+            os.getenv("RABBITMQ_PASSWORD", "local_video_password"),
+        ),
+        heartbeat=60,
+        blocked_connection_timeout=30,
+        socket_timeout=10,
+        stack_timeout=20,
+    )
+
+
 class RabbitMQService:
     EXCHANGE = "video.processing"
     QUEUE = "video.transcode"
@@ -15,20 +31,7 @@ class RabbitMQService:
         self.channel = None
 
     def connect(self) -> None:
-        parameters = pika.ConnectionParameters(
-            host=os.getenv("RABBITMQ_HOST", "localhost"),
-            port=int(os.getenv("RABBITMQ_PORT", "5672")),
-            virtual_host=os.getenv("RABBITMQ_VHOST", "/"),
-            credentials=pika.PlainCredentials(
-                os.getenv("RABBITMQ_USER", "video_worker"),
-                os.getenv("RABBITMQ_PASSWORD", "local_video_password"),
-            ),
-            heartbeat=60,
-            blocked_connection_timeout=30,
-            socket_timeout=10,
-            stack_timeout=20,
-        )
-        self.connection = pika.BlockingConnection(parameters)
+        self.connection = pika.BlockingConnection(connection_parameters())
         self.channel = self.connection.channel()
         self.channel.exchange_declare(exchange=self.EXCHANGE, exchange_type="direct", durable=True)
         self.channel.exchange_declare(

@@ -46,7 +46,7 @@ class VideoMetadataService:
 
     @staticmethod
     def initialize_schema() -> None:
-        from shared.services import processing_jobs  # noqa: F401
+        from shared.services import processing_jobs, embedding_notifications  # noqa: F401
 
         with engine.begin() as connection:
             if connection.dialect.name == "postgresql":
@@ -87,6 +87,8 @@ class VideoMetadataService:
         with SessionLocal.begin() as session:
             session.add(record)
             session.flush()
+            from shared.services.embedding_notifications import EmbeddingNotificationService
+            EmbeddingNotificationService.enqueue(session, record)
             return record.id
 
     @staticmethod
@@ -108,7 +110,27 @@ class VideoMetadataService:
 
     @staticmethod
     def delete(video_id: UUID) -> None:
+        from shared.services.embedding_notifications import EmbeddingNotificationService
         with SessionLocal.begin() as session:
-            record = session.get(VideoMetadataRecord, video_id)
+            from sqlalchemy import select
+            record = session.scalar(select(VideoMetadataRecord).where(
+                VideoMetadataRecord.id == video_id).with_for_update())
             if record is not None:
+                EmbeddingNotificationService.enqueue(session, record, invalidate=True)
                 session.delete(record)
+
+    @staticmethod
+    def update_metadata(video_id: UUID, owner_id: UUID, metadata: VideoMetadata) -> dict:
+        from sqlalchemy import select
+        from shared.services.embedding_notifications import EmbeddingNotificationService
+        with SessionLocal.begin() as session:
+            record = session.scalar(select(VideoMetadataRecord).where(
+                VideoMetadataRecord.id == video_id).with_for_update())
+            if record is None:
+                raise LookupError("Video not found.")
+            if record.owner_id != owner_id:
+                raise PermissionError("Only the owner can update this video.")
+            record.title, record.description, record.category = metadata.title, metadata.description, metadata.category
+            EmbeddingNotificationService.enqueue(session, record)
+            session.flush()
+            return VideoMetadataService.serialize(record)

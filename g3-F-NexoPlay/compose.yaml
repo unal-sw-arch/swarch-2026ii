@@ -28,12 +28,44 @@ x-processing-environment: &processing-environment
   FFMPEG_THREADS: ${FFMPEG_THREADS:-2}
   WORKER_HEALTH_PORT: ${WORKER_HEALTH_PORT:-8091}
 
+x-recommendation-environment: &recommendation-environment
+  <<: *metadata-db-environment
+  RECOMMENDATION_PORT: ${RECOMMENDATION_PORT:-8088}
+  NODE_ENV: ${NODE_ENV} 
+
+  QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+
+  VIDEO_COLLECTION: ${VIDEO_COLLECTION:-video_embeddings}
+  USER_COLLECTION: ${USER_COLLECTION:-user_embeddings}
+  EMBEDDING_MODEL_VERSION: ${EMBEDDING_MODEL_VERSION}
+  TEXT_TEMPLATE_VERSION: ${TEXT_TEMPLATE_VERSION:-video-text-v1}
+
+  DEFAULT_RECOMMENDATION_LIMIT: ${DEFAULT_RECOMMENDATION_LIMIT:-10}
+  MAX_RECOMMENDATION_LIMIT: ${MAX_RECOMMENDATION_LIMIT:-50}
+  CANDIDATE_MULTIPLIER: ${CANDIDATE_MULTIPLIER:-3}
+
+x-interactions-environment: &interactions-environment
+  <<: *metadata-db-environment
+  RABBITMQ_HOST: transcoding-broker
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_USER: ${RABBITMQ_USER:-video_worker}
+  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-local_video_password}
+  RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+  MONGODB_URI: mongodb://${INTERACTIONS_DB_USER:-interactions_user}:${INTERACTIONS_DB_PASSWORD:-local_interactions_password}@interactions-db:27017/?authSource=admin
+  MONGODB_DB: ${INTERACTIONS_DB_NAME:-interactions}
+
 x-processing-service: &processing-service
   restart: unless-stopped
   environment: *processing-environment
   networks:
     - internal
   init: true
+
+x-embeddings-delivery-environment: &embeddings-delivery-environment
+  EMBEDDINGS_URL: http://embeddings-service:8090
+  EMBEDDINGS_CONNECT_TIMEOUT_SECONDS: ${EMBEDDINGS_CONNECT_TIMEOUT_SECONDS:-5}
+  EMBEDDINGS_RESPONSE_TIMEOUT_SECONDS: ${EMBEDDINGS_RESPONSE_TIMEOUT_SECONDS:-60}
+  EMBEDDINGS_RETRY_SECONDS: ${EMBEDDINGS_RETRY_SECONDS:-2}
 
 services:
   metadataba-db:
@@ -155,7 +187,7 @@ services:
   processing-service:
     <<: *processing-service
     environment:
-      <<: *processing-environment
+      <<: [*processing-environment, *embeddings-delivery-environment]
       JWT_SECRET: ${JWT_SECRET}
     build:
       context: .
@@ -188,6 +220,20 @@ services:
       transcoding-broker:
         condition: service_healthy
     stop_grace_period: 30s
+
+  embeddings-dispatcher:
+    restart: unless-stopped
+    init: true
+    image: mvp1-processing-service:local
+    command: ["python", "-m", "processing_service.embeddings_dispatcher"]
+    environment:
+      <<: [*metadata-db-environment, *embeddings-delivery-environment]
+    depends_on:
+      processing-service:
+        condition: service_healthy
+    networks:
+      - internal
+    stop_grace_period: 75s
 
   encoder-worker:
     <<: *processing-service
@@ -261,6 +307,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       AUTH_URL: http://auth-service:8081
       PROCESSING_URL: http://processing-service:8086
+      RECOMMENDATION_URL: http://recommendation-service:${RECOMMENDATION_PORT:-8088}
+      INTERACTIONS_URL: http://interactions-service:8087
       FRONTEND_ORIGIN: http://localhost:${FRONTEND_HOST_PORT:-8080}
     networks:
       - internal
@@ -268,6 +316,8 @@ services:
     depends_on:
       - auth-service
       - processing-service
+      - recommendation-service
+      - interactions-service
 
   frontend:
     build:
@@ -283,6 +333,154 @@ services:
     depends_on:
       - api-gateway
 
+  recommendation-service:
+    build:
+      context: ./recommendation_service
+    container_name: recommendation-service
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *recommendation-environment
+    expose:
+      - "${RECOMMENDATION_PORT:-8088}"
+    depends_on:
+      - metadataba-db
+      - qdrant
+    networks:
+      - internal
+
+  embeddings-service:
+    build:
+      context: ./embeddings_service
+    restart: unless-stopped
+    init: true
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_TIMEOUT_SECONDS: ${QDRANT_TIMEOUT_SECONDS:-5}
+      EMBEDDING_MODEL_ROOT: /models
+      EMBEDDING_MODEL_KEY: ${EMBEDDING_MODEL_KEY:-}
+      EMBEDDING_CPU_THREADS: ${EMBEDDING_CPU_THREADS:-4}
+      EMBEDDING_MODEL_VERSION: ${EMBEDDING_MODEL_VERSION}
+      VIDEO_COLLECTION: ${VIDEO_COLLECTION:-video_embeddings}
+      USER_COLLECTION: ${USER_COLLECTION:-user_embeddings}
+      QDRANT_INIT_RETRY_SECONDS: ${QDRANT_INIT_RETRY_SECONDS:-5}
+      EMBEDDING_STATE_ROOT: /var/lib/embeddings
+      VIDEO_LOCK_TIMEOUT_SECONDS: ${VIDEO_LOCK_TIMEOUT_SECONDS:-5}
+      USER_LOCK_TIMEOUT_SECONDS: ${USER_LOCK_TIMEOUT_SECONDS:-5}
+    volumes:
+      - ./artifacts/embeddings/models:/models:ro
+      - embeddings_state:/var/lib/embeddings
+    expose:
+      - "8090"
+    depends_on:
+      qdrant:
+        condition: service_started
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=5)"]
+      interval: 15s
+      timeout: 6s
+      retries: 3
+      start_period: 60s
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${QDRANT_HOST_PORT:-6333}:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - internal
+      - host-access
+
+  interactions-db:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${INTERACTIONS_DB_USER:-interactions_user}
+      MONGO_INITDB_ROOT_PASSWORD: ${INTERACTIONS_DB_PASSWORD:-local_interactions_password}
+    ports:
+      - "127.0.0.1:${INTERACTIONS_DB_HOST_PORT:-27017}:27017"
+    volumes:
+      - interactions_data:/data/db
+    networks:
+      - internal
+      - host-access
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  interactions-service:
+    build:
+      context: .
+      dockerfile: interactions_service/Dockerfile
+    image: mvp1-interactions-service:local
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *interactions-environment
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "127.0.0.1:${INTERACTIONS_API_HOST_PORT:-8087}:8087"
+    networks:
+      - internal
+      - host-access
+    depends_on:
+      interactions-db:
+        condition: service_healthy
+      metadataba-db:
+        condition: service_healthy
+      transcoding-broker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8087/health', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 10
+      start_period: 15s
+
+  interaction-worker:
+    build:
+      context: .
+      dockerfile: interaction_worker/Dockerfile
+    image: mvp1-interaction-worker:local
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *interactions-environment
+      WORKER_HEALTH_PORT: "8092"
+      EMBEDDINGS_API_URL: ${EMBEDDINGS_API_URL:-http://embeddings-service:8090}
+      EMBEDDINGS_CONNECT_TIMEOUT_SECONDS: ${EMBEDDINGS_CONNECT_TIMEOUT_SECONDS:-5}
+      EMBEDDINGS_RESPONSE_TIMEOUT_SECONDS: ${EMBEDDINGS_RESPONSE_TIMEOUT_SECONDS:-60}
+      PROFILE_UPDATE_THRESHOLD: ${PROFILE_UPDATE_THRESHOLD:-10}
+      PROFILE_RETRY_SECONDS: ${PROFILE_RETRY_SECONDS:-2}
+      PROFILE_LEASE_SECONDS: ${PROFILE_LEASE_SECONDS:-120}
+      PROFILE_SWEEP_SECONDS: ${PROFILE_SWEEP_SECONDS:-1}
+    deploy:
+      replicas: ${INTERACTION_WORKER_REPLICAS:-1}
+    expose:
+      - "8092"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8092/health', timeout=5)"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      interactions-db:
+        condition: service_healthy
+      transcoding-broker:
+        condition: service_healthy
+    stop_grace_period: 75s
+
 volumes:
   metadataba_data:
     name: metadataba_data
@@ -294,6 +492,12 @@ volumes:
     name: redis_streaming_data
   users_data:
     name: users_data
+  qdrant_data:
+    name: qdrant_data
+  embeddings_state:
+    name: mvp1_embeddings_state
+  interactions_data:
+    name: interactions_data
 
 networks:
   internal:
