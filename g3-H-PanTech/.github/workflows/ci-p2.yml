@@ -1,0 +1,158 @@
+# CI del Prototipo 2 — equipo PanTech (3-H).
+#
+# Este archivo vive dentro de la carpeta del equipo. Si el repositorio raíz
+# centraliza los workflows, copiarlo a .github/workflows/ci-p2.yml y ajustar
+# `working-directory` a `g3-H-PanTech`.
+name: CI P2
+
+on:
+  pull_request:
+    paths:
+      - "g3-H-PanTech/**"
+      - ".github/workflows/ci-p2.yml"
+  push:
+    branches:
+      - "g3-H/**"
+    paths:
+      - "g3-H-PanTech/**"
+
+permissions:
+  contents: read
+
+env:
+  TEAM_DIR: g3-H-PanTech
+
+jobs:
+  compose-config:
+    name: Compose y contratos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar docker-compose.p2.yml
+        run: docker compose -f "$TEAM_DIR/docker-compose.p2.yml" --env-file "$TEAM_DIR/.env.p2.example" config --quiet
+      - name: Validar JSON de infraestructura
+        run: |
+          python -m json.tool "$TEAM_DIR/infrastructure/rabbitmq/definitions.json" > /dev/null
+          find "$TEAM_DIR/docs/equipo/propuestas-yeison/schemas" -name '*.json' -print0 | xargs -0 -n1 python -m json.tool > /dev/null
+      - name: Validar scripts de Python
+        run: python -m compileall -q "$TEAM_DIR/scripts"
+
+  order-service:
+    name: Order Service (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: g3-H-PanTech/order-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: g3-H-PanTech/order-service/requirements.txt
+      - run: pip install -r requirements.txt pytest
+      - run: python -m compileall -q app tests
+      - run: pytest -q
+
+  worker:
+    name: Worker (unittest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: g3-H-PanTech/worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: g3-H-PanTech/worker/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python -m compileall -q . tests
+      - run: python -m unittest discover -v
+
+  web-ssr:
+    name: Web SSR (typecheck + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: g3-H-PanTech/web-ssr
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      API_GATEWAY_URL: http://localhost:8080
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: g3-H-PanTech/web-ssr/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+
+  go-services:
+    name: Go (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api-gateway, kitchen-service]
+    defaults:
+      run:
+        working-directory: g3-H-PanTech/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: g3-H-PanTech/${{ matrix.service }}/go.mod
+          cache-dependency-path: g3-H-PanTech/${{ matrix.service }}/go.sum
+      - run: gofmt -l . | (! grep .)
+      - run: go vet ./...
+      - run: go test ./...
+
+  identity-service:
+    name: Identity Service (Gradle)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: g3-H-PanTech/identity-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v3
+      - run: gradle test --no-daemon
+
+  reporting-service:
+    name: Reporting Service (.NET)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: g3-H-PanTech/reporting-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - run: dotnet restore
+      - run: dotnet build --no-restore
+      - run: dotnet test --no-build
+
+  kds-pos:
+    name: KDS/POS (Flutter)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: g3-H-PanTech/kds-pos
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test

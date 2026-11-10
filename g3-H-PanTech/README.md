@@ -22,7 +22,7 @@
 
 Cada persona trabaja en su rama personal y abre un PR hacia `g3-H/Pantech-P2`. Jaime revisa, integra y abre el PR final hacia `main`. Los planes incluyen fases, tareas, entregables, contratos y criterios de aceptación. Cada plan lista además **los archivos que esa persona crea y modifica**, y **quién más puede tocar cada archivo compartido** (`docker-compose.p2.yml`, `.env.p2.example`, `infrastructure/`, `docs/` y `README.md`).
 
-Los contratos técnicos que todos deben respetar —puertos, JWT, eventos, encabezados, errores y estados— están en [`docs/equipo/contratos.md`](docs/equipo/contratos.md). Cada pull request ejecuta el workflow `.github/workflows/ci-p2.yml`, que valida el compose, el JSON de RabbitMQ, la sintaxis de los scripts de inicialización y la presencia de los planes y diagramas.
+Los contratos técnicos que todos deben respetar —puertos, JWT, eventos, encabezados, errores y estados— están en [`docs/equipo/contratos.md`](docs/equipo/contratos.md). El guion de demostración, las cuentas demo y el troubleshooting están en [`docs/equipo/demo.md`](docs/equipo/demo.md); las decisiones de integración de Gateway/Kitchen/KDS están en [`docs/equipo/axel-notas-integracion.md`](docs/equipo/axel-notas-integracion.md). Cada pull request ejecuta el workflow `.github/workflows/ci-p2.yml`, que valida el compose, el JSON de infraestructura, la sintaxis de los scripts, y las suites de Python, Node, Go, Kotlin, .NET y Flutter.
 
 ## 2. Sistema de software
 
@@ -47,7 +47,7 @@ Panadería Express resuelve el problema de la atención en una panadería con do
 
 Además de las vistas por rol, la Web App incluye una vista **Historial** para consultar los tiempos de las comandas (Requerimiento 9).
 
-> **Prototipo 2 (diseño objetivo):** se rediseña la arquitectura para cumplir los diez requisitos no funcionales del documento del proyecto. El sistema pasa de una SPA con dos servicios a **dos componentes de presentación** (Web SSR y KDS/POS), **cuatro servicios de lógica** (Identity, Order, Kitchen y Reporting), un **API Gateway**, un **broker de eventos**, un **worker asíncrono** y **cuatro almacenes de datos** (PostgreSQL, MongoDB, Redis y RustFS). Se agrega el rol `cliente`, los empleados pasan a tener cuentas personales multi-rol y la jerarquía es `admin` > `supervisor` > operativos. El cliente se registra, consulta el menú, **reserva una mesa**, crea pedidos **para llevar**, paga de forma simulada y sigue el estado de sus pedidos. También consulta y cancela sus propias reservas. El personal conserva las vistas de cocina, despacho, catálogo e historial; el cliente no accede a ellas.
+> **Prototipo 2 (implementado):** se rediseña la arquitectura para cumplir los diez requisitos no funcionales del documento del proyecto. El sistema pasa de una SPA con dos servicios a **dos componentes de presentación** (Web SSR y KDS/POS), **cuatro servicios de lógica** (Identity, Order, Kitchen y Reporting), un **API Gateway**, un **broker de eventos**, un **worker asíncrono** y **cuatro almacenes de datos** (PostgreSQL, MongoDB, Redis y RustFS). Se agrega el rol `cliente`, los empleados pasan a tener cuentas personales multi-rol y la jerarquía es `admin` > `supervisor` > operativos. El cliente se registra, consulta el menú, **reserva una mesa**, crea pedidos **para llevar**, paga de forma simulada y sigue el estado de sus pedidos. También consulta y cancela sus propias reservas. El personal conserva las vistas de cocina, despacho, catálogo e historial; el cliente no accede a ellas.
 
 #### Alcance del Prototipo 1
 
@@ -68,9 +68,9 @@ El Prototipo 1 es el flujo básico funcional: un empleado registra un pedido, se
 
 Para la cola de cocina se usa una regla sencilla basada en los tiempos estimados de preparación (los productos más rápidos se atienden primero). El algoritmo de priorización más completo, las alertas de espera, la pantalla de despacho avanzada, la actualización en tiempo real con WebSocket y las métricas quedan para los siguientes prototipos.
 
-#### Alcance del Prototipo 2 (diseño objetivo)
+#### Alcance del Prototipo 2 (implementado)
 
-El Prototipo 2 se enfoca en tres frentes funcionales: **autenticación, autorización y jerarquía de usuarios**, **autoservicio del cliente (reservas, pedidos y pago simulado)** y **priorización avanzada de la cola de cocina**. Además, recibe el Requerimiento 5, que no se implementó en el Prototipo 1. Los requerimientos funcionales se documentan como diseño objetivo; **aún no están implementados**.
+El Prototipo 2 se enfoca en tres frentes funcionales: **autenticación, autorización y jerarquía de usuarios**, **autoservicio del cliente (reservas, pedidos y pago simulado)** y **priorización avanzada de la cola de cocina**. Además, recibe el Requerimiento 5, que no se implementó en el Prototipo 1. Los requerimientos funcionales están implementados en los servicios y clientes de este repositorio; la verificación de punta a punta se hace con `scripts/smoke_test.py` y el flujo se describe en `docs/equipo/demo.md`.
 
 El documento del proyecto no impone las funciones: deja la completitud funcional al equipo. Lo que sí impone son los **diez requisitos no funcionales** de la sección siguiente, que son los que gobiernan este rediseño.
 
@@ -78,21 +78,21 @@ El documento del proyecto no impone las funciones: deja la completitud funcional
 
 | N.º | Requerimiento | Prioridad | Alcance | Estado |
 |---|---|---|---|---|
-| 10 | Registro, inicio de sesión y sesión de usuario | P2 | Implementar | Pendiente. Identity Service con usuarios, credenciales y JWT. El registro público crea usuarios con rol `cliente`; las cuentas de personal las crea un `admin`. |
-| 11 | Autorización por roles y protección de endpoints | P2 | Implementar | Pendiente. Roles `cliente`, `mesero`, `cocinero`, `despachador`, `supervisor` y `admin`; permisos por rol, cuentas multi-rol y validación de alcance. Historial como permiso de lectura. |
-| 12 | Priorización avanzada de la cola | P2 | Implementar | Pendiente. Kitchen Service con SJF, envejecimiento (aging), capacidad de cocina y ETA, manteniendo el desempate FIFO. |
-| 13 | Registro público y autenticación de clientes | P2 | Implementar | Pendiente. El formulario público solo crea el rol `cliente`; los roles de personal los asigna un `admin` (o un `supervisor` para cuentas operativas) o los datos semilla. |
-| 14 | Autoservicio del cliente: menú, pedido para llevar y pago | P2 | Implementar | Pendiente. El cliente arma su pedido y paga de forma simulada; el total se calcula en el servidor. |
-| 15 | Seguimiento del estado del pedido por parte del cliente | P2 | Implementar | Pendiente. El cliente consulta por polling el estado de sus propios pedidos a través del API Gateway y el Order Service. |
-| 16 | Historial de pedidos del cliente, limitado a sus propios pedidos | P2 | Implementar | Pendiente. El cliente solo ve sus pedidos; el personal autorizado ve el historial general a través de Reporting Service. |
-| 17 | Reservar mesa desde la cuenta del cliente | P2 | Implementar | Pendiente. El cliente crea, consulta y cancela sus propias reservas (fecha, hora, número de personas y notas); solo ve las suyas. La reserva guarda `customer_id` y un estado `pendiente`, `confirmada` o `cancelada`. |
-| 18 | Gestión de cuentas de empleados y jerarquía | P2 | Implementar | Pendiente. El `admin` crea, desactiva y asigna uno o varios roles a las cuentas del personal; el `supervisor` puede gestionar cuentas operativas si tiene el permiso. Las cuentas no se eliminan y toda asignación queda auditada. |
+| 10 | Registro, inicio de sesión y sesión de usuario | P2 | Implementar | Implementado. Identity Service con usuarios, credenciales y JWT. El registro público crea usuarios con rol `cliente`; las cuentas de personal las crea un `admin`. |
+| 11 | Autorización por roles y protección de endpoints | P2 | Implementar | Implementado. Roles `cliente`, `mesero`, `cocinero`, `despachador`, `supervisor` y `admin`; permisos por rol, cuentas multi-rol y validación de alcance. Historial como permiso de lectura. |
+| 12 | Priorización avanzada de la cola | P2 | Implementar | Implementado. Kitchen Service con SJF, envejecimiento (aging), capacidad de cocina y ETA, manteniendo el desempate FIFO. |
+| 13 | Registro público y autenticación de clientes | P2 | Implementar | Implementado. El formulario público solo crea el rol `cliente`; los roles de personal los asigna un `admin` (o un `supervisor` para cuentas operativas) o los datos semilla. |
+| 14 | Autoservicio del cliente: menú, pedido para llevar y pago | P2 | Implementar | Implementado. El cliente arma su pedido y paga de forma simulada; el total se calcula en el servidor. |
+| 15 | Seguimiento del estado del pedido por parte del cliente | P2 | Implementar | Implementado. El cliente consulta por polling el estado de sus propios pedidos a través del API Gateway y el Order Service. |
+| 16 | Historial de pedidos del cliente, limitado a sus propios pedidos | P2 | Implementar | Implementado. El cliente solo ve sus pedidos; el personal autorizado ve el historial general a través de Reporting Service. |
+| 17 | Reservar mesa desde la cuenta del cliente | P2 | Implementar | Implementado. El cliente crea, consulta y cancela sus propias reservas (fecha, hora, número de personas y notas); solo ve las suyas. La reserva guarda `customer_id` y un estado `pendiente`, `confirmada` o `cancelada`. |
+| 18 | Gestión de cuentas de empleados y jerarquía | P2 | Implementar | Implementado. El `admin` crea, desactiva y asigna uno o varios roles a las cuentas del personal; el `supervisor` puede gestionar cuentas operativas si tiene el permiso. Las cuentas no se eliminan y toda asignación queda auditada. |
 
 **Requerimientos del Prototipo 1 que pasan al Prototipo 2**
 
 | N.º | Requerimiento | Prioridad | Estado |
 |---|---|---|---|
-| 5 | Cobrar / confirmar pago y enviar comanda | P2 | Pendiente. El pago puede ser simulado por el cliente dueño del pedido o confirmado por `mesero`, `supervisor` o `admin`. El total se calcula en el servidor y el pedido se encola **solo después** de confirmar el pago. |
+| 5 | Cobrar / confirmar pago y enviar comanda | P2 | Implementado. El pago puede ser simulado por el cliente dueño del pedido o confirmado por `mesero`, `supervisor` o `admin`. El total se calcula en el servidor y el pedido se encola **solo después** de confirmar el pago. |
 
 **Requerimientos funcionales modificados**
 
@@ -208,20 +208,20 @@ auth.audit_log             (id, user_id, action, entity, entity_id, created_at)
 - El cliente nunca accede directamente a Kitchen Service, al despacho, al catálogo ni al historial general.
 - El KDS/POS solo lo usan `cocinero` y `despachador` (o roles superiores); el cliente no tiene acceso.
 
-##### Plan de implementación del Prototipo 2
+##### Estado de implementación del Prototipo 2
 
-1. **Infraestructura:** crear `docker-compose.p2.yml` con la red, los volúmenes, los healthchecks y los 12 contenedores.
-2. **Identidad:** implementar `identity-service` con el esquema `auth`, migraciones, datos semilla, login, JWT y auditoría.
-3. **Borde:** implementar `api-gateway` con ruteo, validación de JWT, rate limiting y CORS.
-4. **Pedidos:** implementar `order-service` con pedidos, reservas, pagos simulados, catálogo y publicación de eventos.
-5. **Cocina:** implementar `kitchen-service` con SJF, aging, capacidad, ETA y estados de comanda.
-6. **Asíncrono:** implementar `worker` con Celery y RabbitMQ para encolar pedidos pagados, actualizar read models y generar comprobantes.
-7. **Reportes:** implementar `reporting-service` con historial, reportes y exportaciones a RustFS.
-8. **Presentación:** implementar `web-ssr` con Next.js y `kds-pos` con Flutter; reemplazar el selector libre de roles por login y rutas protegidas.
-9. **Integración:** probar los flujos de pago, reserva, cola y reportes, y los casos de denegación: cocinero no cobra, mesero no cambia estados de cocina, cliente no ve pedidos ajenos y supervisor no gestiona roles.
-10. **Entrega:** actualizar el README, las cuatro vistas arquitectónicas y las instrucciones de despliegue local.
+1. **Infraestructura:** `docker-compose.p2.yml`, `.env.p2.example`, 12 contenedores, red, volúmenes, healthchecks y jobs de inicialización. Compose validado con `config --quiet`.
+2. **Identidad:** `identity-service` implementado con esquema `auth`, Flyway, datos semilla, login, refresh, JWT con `kid`, roles, permisos y auditoría.
+3. **Borde:** `api-gateway` implementado con ruteo, JWKS, validación de permisos, rate limit por usuario/IP y CORS.
+4. **Pedidos:** `order-service` implementado con pedidos, reservas, pagos idempotentes, catálogo y outbox de eventos.
+5. **Cocina:** `kitchen-service` implementado con SJF, aging, capacidad, ETA, estados y outbox.
+6. **Asíncrono:** `worker` con Celery/RabbitMQ implementado para encolar pedidos pagados, actualizar read models, generar comprobantes y procesar `order.ready`.
+7. **Reportes:** `reporting-service` implementado con historial, reportes de ventas/tiempos y exportaciones a RustFS.
+8. **Presentación:** `web-ssr` implementado con tienda, carrito, checkout, pago, seguimiento, reservas y backoffice completo; `kds-pos` implementado como cliente Flutter de escritorio.
+9. **Integración:** el contrato Worker→Kitchen→Worker está corregido y cubierto por pruebas; el smoke test E2E está en `scripts/smoke_test.py` y el guion de demo en `docs/equipo/demo.md`.
+10. **Entrega:** README, contratos, notas de integración y las cuatro vistas arquitectónicas actualizados.
 
-> La trazabilidad de los requerimientos del Prototipo 2 se completará cuando se implementen. Por ahora solo se documenta el alcance y el diseño objetivo.
+> La verificación automatizada completa depende de Docker, Go, Flutter y .NET. El workflow `.github/workflows/ci-p2.yml` ejecuta cada suite cuando esas herramientas están disponibles; el estado de lo validado localmente está en `docs/equipo/demo.md`.
 
 #### Trazabilidad requerimiento → implementación
 
@@ -240,7 +240,7 @@ auth.audit_log             (id, user_id, action, entity, entity_id, created_at)
 
 > El Requerimiento 5 no aparece en esta trazabilidad porque se trasladó al Prototipo 2.
 
-**Prototipo 2 (objetivo)**
+**Prototipo 2 (implementado)**
 
 | N.º | Componente principal | Rutas o responsabilidad |
 |---|---|---|
@@ -263,7 +263,7 @@ auth.audit_log             (id, user_id, action, entity, entity_id, created_at)
 
 ![Vista C&C - Prototipo 1](docs/Vista%20CyC.png)
 
-#### Vista C&C — Prototipo 2 (diseño objetivo)
+#### Vista C&C — Prototipo 2
 
 ![Vista C&C - Prototipo 2](docs/Vista%20CyC%20P2.png)
 
@@ -277,11 +277,11 @@ La vista C&C del Prototipo 2 muestra dos actores externos, dos componentes de pr
 
 ![Vista de despliegue - Prototipo 1](docs/tiers_despliegue.png)
 
-#### Vista de despliegue — Prototipo 2 (diseño objetivo)
+#### Vista de despliegue — Prototipo 2
 
 ![Vista de despliegue - Prototipo 2](docs/tiers_despliegue%20P2.png)
 
-El despliegue objetivo usa **12 contenedores** sobre Docker Compose y un **cliente de escritorio KDS/POS** que no se containeriza. Los contenedores comparten la red interna `panaderia-net`; solo `web-ssr` (:3000) y `api-gateway` (:8080) se publican al exterior. PostgreSQL, MongoDB, Redis, RustFS y RabbitMQ quedan en la red interna.
+El despliegue del Prototipo 2 usa **12 contenedores** sobre Docker Compose y un **cliente de escritorio KDS/POS** que no se containeriza. Los contenedores comparten la red interna `panaderia-net`; solo `web-ssr` (:3000) y `api-gateway` (:8080) se publican al exterior. PostgreSQL, MongoDB, Redis, RustFS y RabbitMQ quedan en la red interna.
 
 **Elementos:** un host Docker, la red `panaderia-net`, 12 contenedores, siete volúmenes persistentes y dos clientes externos (navegador y KDS/POS de escritorio).
 
@@ -503,7 +503,7 @@ swarch-2026ii/               # Repositorio del curso (sección 3)
     └── queue-scheduler/       # Servicio de cola de cocina (FastAPI)
 ```
 
-**Prototipo 2 (objetivo, pendiente de implementación)**
+**Prototipo 2 (implementado)**
 
 ```text
 g3-H-PanTech/
@@ -520,10 +520,14 @@ g3-H-PanTech/
 │   ├── secuencia_cliente_reserva.puml
 │   └── equipo/
 │       ├── contratos.md       # puertos, JWT, eventos y encabezados
+│       ├── demo.md            # guion de demostración y troubleshooting
+│       ├── axel-notas-integracion.md
 │       ├── jaime-angulo.md
 │       ├── diego-waitoto.md
 │       ├── yeison-aparicio.md
 │       └── axel-gomez.md
+├── scripts/                   # smoke_test.py, seed_demo.py, wait_for_services.ps1
+├── .github/workflows/         # CI P2 (compose, Python, Node, Go, Kotlin, .NET, Flutter)
 ├── web-ssr/                   # Next.js + TypeScript
 ├── kds-pos/                   # Flutter + Dart (escritorio)
 ├── api-gateway/               # Go
@@ -535,13 +539,13 @@ g3-H-PanTech/
 └── infrastructure/            # postgres/, mongodb/, redis/, rustfs/, rabbitmq/
 ```
 
-> El código del Prototipo 1 se conserva como referencia histórica. La implementación del Prototipo 2 se hará en una rama de trabajo y no reemplaza todavía los contenedores actuales.
+> El código del Prototipo 1 se conserva como referencia histórica. El Prototipo 2 vive en los servicios `*-service`, `api-gateway`, `worker`, `web-ssr` y `kds-pos`; `docker-compose.p2.yml` es el stack principal y `docker-compose.yml` queda como legado reproducible.
 
-> **Estado de la Fase 0:** ya existen `docker-compose.p2.yml`, `.env.p2.example`, `infrastructure/` y `docs/equipo/contratos.md`. Los servicios todavía no tienen código; el compose valida con `docker compose config` y se irá completando con los PRs de cada dueño.
+> **Estado de integración:** el compose P2 valida con `docker compose config --quiet`; Identity, Order, Kitchen, Reporting, Worker, Gateway, Web SSR y KDS/POS tienen código y pruebas. Las pruebas que requieren Docker, Go, Flutter o .NET se ejecutan en el workflow de CI o en una máquina con esos SDK.
 
 ### Instrucciones para desplegar el sistema localmente
 
-#### Prototipo 1 (actual)
+#### Prototipo 1 (legado)
 
 **Requisitos previos**
 
@@ -584,9 +588,9 @@ g3-H-PanTech/
    docker compose down -v
    ```
 
-#### Prototipo 2 (objetivo)
+#### Prototipo 2 (implementado)
 
-> Estas instrucciones describen el despliegue planeado. El compose y la infraestructura ya existen; se podrán ejecutar de punta a punta cuando los servicios del Prototipo 2 estén implementados en los PRs de cada dueño.
+> El stack P2 es el entorno principal de demostración. El guion completo, las cuentas demo y el troubleshooting están en `docs/equipo/demo.md`.
 
 **Requisitos previos**
 
@@ -594,7 +598,7 @@ g3-H-PanTech/
 - Docker y Docker Compose (v2)
 - Flutter SDK (solo para compilar el KDS/POS de escritorio)
 
-**Pasos previstos**
+**Pasos**
 
 1. Ubicarse en la carpeta del equipo:
 
@@ -625,7 +629,19 @@ g3-H-PanTech/
 
    El job es idempotente: si los buckets ya existen, solo verifica y termina.
 
-5. Abrir las interfaces:
+5. Esperar a que el borde y la web respondan:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts/wait_for_services.ps1
+   ```
+
+6. Sembrar los datos demo (idempotente):
+
+   ```bash
+   python scripts/seed_demo.py
+   ```
+
+7. Abrir las interfaces:
 
    | Servicio | URL |
    |---|---|
@@ -641,7 +657,7 @@ g3-H-PanTech/
      wget -qO- http://order-service:8000/openapi.json
    ```
 
-5. Compilar y ejecutar el KDS/POS de escritorio:
+8. Compilar y ejecutar el KDS/POS de escritorio:
 
    ```bash
    cd kds-pos
@@ -649,7 +665,16 @@ g3-H-PanTech/
    flutter run -d windows
    ```
 
-6. Para detener el sistema:
+   Si no hay Flutter/Windows disponible, usar `http://localhost:3000/staff/kitchen`
+   como vista de respaldo de la cola (solo lectura).
+
+9. Ejecutar el smoke test E2E (con el Worker activo):
+
+   ```bash
+   python scripts/smoke_test.py
+   ```
+
+10. Para detener el sistema:
 
    ```bash
    docker compose -f docker-compose.p2.yml down
@@ -663,7 +688,8 @@ g3-H-PanTech/
 
 ### Limitaciones conocidas
 
-- **El Prototipo 2 es un diseño objetivo, no una implementación.** El código actual sigue siendo el del Prototipo 1: una SPA con React/Vite, dos servicios FastAPI, PostgreSQL y Redis, y cinco contenedores.
+- **El Prototipo 2 está implementado como prototipo académico.** No es un sistema listo para producción: el pago es simulado, no hay pasarela real, la consistencia entre PostgreSQL y MongoDB es eventual y el KDS/POS es un cliente de escritorio que se distribuye aparte.
+- **La verificación completa requiere SDKs externos.** En el entorno de integración no había daemon de Docker ni Go/Flutter/.NET, por lo que el smoke test y las suites de esos lenguajes quedan para CI o para una máquina con las herramientas instaladas. El detalle está en `docs/equipo/demo.md`.
 - **El diseño de 6 contenedores quedó superado.** El documento del Prototipo 2 exige dos presentaciones, SSR, cuatro servicios de lógica, cuatro almacenes de datos, un componente de orquestación, uno asíncrono y al menos cuatro lenguajes. Por eso el objetivo es de 13 componentes (12 contenedores permanentes + KDS/POS de escritorio). El compose agrega dos jobs efímeros que no cuentan como componentes: `rabbitmq-init` importa las definiciones después de crear el vhost y `rustfs-perms` prepara el volumen de objetos. Los buckets se crean aparte con `rustfs-init`.
 - **El KDS/POS no es un contenedor.** Es una aplicación de escritorio Flutter que se conecta al API Gateway. El despliegue containerizado cubre los servicios y los almacenes del sistema; el cliente se distribuye como artefacto de escritorio.
 - **MinIO se reemplazó por RustFS.** MinIO dejó de publicar imágenes oficiales en Docker Hub y Quay en 2026, por lo que el compose no puede arrancar con `minio/minio`. RustFS es compatible con la API de S3 y mantiene las mismas operaciones; solo cambian el nombre del servicio y las variables (`S3_*`). El compose además usa un job efímero `rustfs-perms` para ajustar los permisos del volumen antes de arrancar RustFS.

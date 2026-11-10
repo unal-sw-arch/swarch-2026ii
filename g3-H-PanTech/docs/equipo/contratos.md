@@ -38,7 +38,7 @@ Cada servicio lee su configuración de variables. Los nombres canónicos son los
 | Servicio | Variables principales |
 |---|---|
 | `web-ssr` | `PORT`, `API_GATEWAY_URL`, `JWT_COOKIE_NAME`, `JWT_REFRESH_COOKIE_NAME`, `COOKIE_SECURE`, `NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_POLL_INTERVAL_MS` |
-| `api-gateway` | `PORT`, `IDENTITY_URL`, `ORDER_URL`, `KITCHEN_URL`, `REPORTING_URL`, `REDIS_URL`, `JWKS_URL`, `JWT_ISSUER`, `JWT_AUDIENCE`, `SERVICE_TOKEN`, `CORS_ORIGINS` |
+| `api-gateway` | `PORT`, `IDENTITY_URL`, `ORDER_URL`, `KITCHEN_URL`, `REPORTING_URL`, `REDIS_URL`, `JWKS_URL`, `JWT_ISSUER`, `JWT_AUDIENCE`, `SERVICE_TOKEN`, `CORS_ORIGINS`, `RATE_LIMIT_USER_PER_MINUTE`, `RATE_LIMIT_IP_PER_MINUTE` |
 | `identity-service` | `PORT`, `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`, `REDIS_URL`, `JWT_ISSUER`, `JWT_AUDIENCE`, `JWT_ACCESS_TTL_SECONDS`, `JWT_REFRESH_TTL_SECONDS`, `JWT_PRIVATE_KEY_PATH`, `JWT_PUBLIC_KEY_PATH` |
 | `order-service` | `PORT`, `DATABASE_URL`, `MONGODB_URL`, `REDIS_URL`, `REDIS_CACHE_URL`, `RABBITMQ_URL`, `RABBITMQ_EXCHANGE`, `SERVICE_TOKEN` |
 | `kitchen-service` | `PORT`, `DATABASE_URL`, `REDIS_QUEUE_URL`, `RABBITMQ_URL`, `RABBITMQ_EXCHANGE`, `SERVICE_TOKEN`, `AGING_FACTOR`, `KITCHEN_CAPACITY`, `DEFAULT_PREP_MINUTES` |
@@ -142,9 +142,9 @@ El Gateway agrega estos encabezados después de validar el JWT. Los servicios de
 
 ## 4. Contrato de eventos
 
-### Sobre (envelope) obligatorio
+### Sobre (envelope) canónico
 
-Todos los eventos se publican en el exchange `panaderia.events` (tipo `topic`) y llevan este sobre:
+Los eventos nuevos se publican en el exchange `panaderia.events` (tipo `topic`) con este sobre. Kitchen Service ya lo implementa. Order Service publica por compatibilidad el payload plano con `event_id` y `occurred_at` en el nivel superior; el Worker acepta ambos formatos, así que un mensaje en vuelo o en el outbox no se pierde durante la migración.
 
 ```json
 {
@@ -166,6 +166,23 @@ Todos los eventos se publican en el exchange `panaderia.events` (tipo `topic`) y
 | `producer` | string | Nombre del servicio productor |
 | `payload` | objeto | Datos del evento |
 
+**Formato plano de compatibilidad (Order Service):**
+
+```json
+{
+  "event_id": "9b2f4c1e-6a3d-4c8e-9f10-2b7d5a6e8c11",
+  "occurred_at": "2026-11-08T14:32:10Z",
+  "order_id": "UUID",
+  "customer_id": "UUID",
+  "total": "18500.00",
+  "paid_at": "2026-11-08T14:32:10Z",
+  "order_type": "para_llevar",
+  "items": []
+}
+```
+
+El Worker normaliza el sobre antes de validar: si existe `payload`, lo fusiona con los metadatos del nivel superior. Nunca se acepta un evento sin `event_id`.
+
 ### Eventos y routing keys
 
 | Evento | Routing key | Productor | Consumidores | Cola |
@@ -182,25 +199,37 @@ Todos los eventos se publican en el exchange `panaderia.events` (tipo `topic`) y
 ```json
 {
   "order_id": "UUID",
-  "customer_id": "UUID",
+  "customer_id": "UUID o null (pedido de mostrador)",
   "order_type": "para_llevar",
-  "total": 18500,
-  "currency": "COP",
+  "table_number": null,
+  "total": "18500.00",
   "paid_at": "2026-11-08T14:32:10Z",
-  "payment_method": "simulado_tarjeta"
+  "items": [
+    {
+      "product_id": "p-cafe-americano",
+      "name": "Café americano",
+      "quantity": 2,
+      "prep_minutes": 1,
+      "unit_price": "3500.00"
+    }
+  ]
 }
 ```
+
+`customer_id` es nullable porque los pedidos de mostrador no tienen cliente. `product_id` es el slug del catálogo, no un UUID.
 
 **`order.ready`**
 
 ```json
 {
   "order_id": "UUID",
-  "customer_id": "UUID",
+  "customer_id": "UUID o cadena vacía si el pedido es de mostrador",
   "ready_at": "2026-11-08T14:45:00Z",
   "prep_minutes": 12
 }
 ```
+
+Kitchen Service lo publica dentro del sobre canónico. El Worker lo normaliza y actualiza Order Service y el read model de historial.
 
 **`reservation.created`**
 
@@ -234,6 +263,26 @@ Todos los eventos se publican en el exchange `panaderia.events` (tipo `topic`) y
 - Un fallo se reintenta con backoff exponencial y luego va a la DLQ.
 - Los eventos no llevan datos sensibles: ni contraseñas, ni tokens, ni datos de tarjeta.
 - Order Service usa un outbox simple para no perder eventos si RabbitMQ falla.
+
+### Uso de Redis
+
+| Servicio | Uso | Si Redis cae |
+|---|---|---|
+| `api-gateway` | Rate limiting por usuario e IP | Se degrada el límite; el tráfico no se bloquea por completo |
+| `identity-service` | Refresh tokens y revocación | El login sigue con PostgreSQL; el refresh puede fallar |
+| `order-service` | Caché de idempotencia de pagos y candado corto por pedido | PostgreSQL sigue siendo la garantía (UNIQUE por `order_id`) |
+| `kitchen-service` | Cola priorizada, outbox y capacidad | `/ready` responde 503; la cola no opera |
+
+### Rate limiting del Gateway
+
+El Gateway aplica dos límites por ventana de un minuto, configurables por entorno:
+
+| Variable | Valor por defecto | Alcance |
+|---|---:|---|
+| `RATE_LIMIT_USER_PER_MINUTE` | `120` | Peticiones autenticadas por `sub` del JWT |
+| `RATE_LIMIT_IP_PER_MINUTE` | `300` | Peticiones públicas o sin usuario, por IP |
+
+Las respuestas que exceden el límite usan el formato uniforme de errores con código `RATE_LIMITED`.
 
 ---
 
