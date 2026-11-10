@@ -155,16 +155,53 @@ Los seis subsistemas tienen correspondencia identificable en el repositorio. Un 
 **Preparación del operador**
 
 1. Usar la versión integrada acordada con el equipo.
-2. Disponer de Docker Desktop con contenedores Linux y puertos libres.
+2. Disponer de Docker Desktop con contenedores Linux, Python 3.13 o superior, conexión a Internet y puertos libres.
 3. Completar el entorno privado desde `.env.example`, conservando las credenciales fuera del repositorio.
-4. Preparar el modelo seleccionado según la guía técnica.
-5. Construir y levantar los servicios; confirmar sus dependencias.
+4. Descargar el modelo seleccionado antes de iniciar los contenedores, siguiendo las instrucciones siguientes.
+5. Construir y levantar los servicios una vez terminada la descarga.
+
+**Preparar el entorno**
+
+Ejecutar desde la raíz del repositorio en PowerShell. Si se crea `.env`, completar sus valores antes de levantar los servicios.
 
 ```powershell
 if (-not (Test-Path -LiteralPath .env)) {
     Copy-Item -LiteralPath .env.example -Destination .env
 }
+```
 
+**Descargar el modelo de Hugging Face**
+
+La carpeta `artifacts/` está excluida de Git: clonar el repositorio no descarga los pesos del modelo. Cada máquina debe prepararlos antes del primer arranque. El Dockerfile instala las bibliotecas, pero la API carga el modelo localmente y no lo descarga al iniciar.
+
+Los siguientes comandos utilizan el Python disponible e instalan las dependencias necesarias para ejecutar el preparador.
+
+```powershell
+python -m pip install -r embeddings_service/requirements.txt "huggingface-hub==1.31.0"
+
+Remove-Item Env:HF_HUB_OFFLINE -ErrorAction SilentlyContinue
+Push-Location embeddings_service
+try {
+    python -m app.prepare_models --model selected --model-root ../artifacts/embeddings/models
+    if ($LASTEXITCODE -ne 0) {
+        throw "La descarga del modelo falló. Resolver el error antes de iniciar Docker."
+    }
+} finally {
+    Pop-Location
+}
+```
+
+La preparación requiere acceso a Hugging Face y descarga la revisión fijada en [models.json](embeddings_service/models.json). La eliminación de `HF_HUB_OFFLINE` afecta únicamente a la sesión de PowerShell; el contenedor mantiene su configuración de carga sin conexión.
+
+Con la selección actual, el resultado queda en `artifacts/embeddings/models/minilm/`, incluido el marcador `nexoplay-revision.json`. Esperar el mensaje `Ready:` antes de continuar. Compose monta `artifacts/embeddings/models` en `/models` como solo lectura.
+
+Si se elimina esa carpeta, repetir la preparación antes de arrancar o reiniciar Embeddings. El comando descarga el modelo seleccionado; `--model all` prepara ambos candidatos. La preparación no recupera los reportes, respaldos ni otros archivos que se hayan borrado de `artifacts/`.
+
+**Construir y levantar los servicios**
+
+Desde la raíz del repositorio, con `.env` completo y el modelo descargado:
+
+```powershell
 docker compose config --quiet
 docker compose build
 docker compose up -d --no-build
