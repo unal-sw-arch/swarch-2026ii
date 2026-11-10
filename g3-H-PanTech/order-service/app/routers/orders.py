@@ -53,3 +53,16 @@ def get_order_status(
     db: Session = Depends(get_db),
 ):
     return order_service.get_visible_order(db, order_id, principal)
+
+
+@router.post(
+    "/{order_id}/cancel",
+    response_model=OrderOut,
+    summary="Cancelar un pedido pendiente (supervisor o admin)",
+)
+def cancel_order(
+    order_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("orders:read_all")),
+    db: Session = Depends(get_db),
+):
+    return order_service.cancel_pending_order(db, order_id, principal)

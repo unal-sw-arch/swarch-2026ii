@@ -49,7 +49,29 @@ class Deps:
     dispatch_receipt: Callable[[dict], None]  # encola la tarea `generate_receipt`
 
 
+def normalize_event(event: object) -> object:
+    """Acepta el sobre canónico de eventos y el formato plano legado.
+
+    Contrato canónico (Kitchen Service):
+        {"event_id": ..., "event_type": ..., "version": 1, "occurred_at": ...,
+         "producer": ..., "payload": {...}}
+
+    Order Service publicó históricamente el payload plano con `event_id` y
+    `occurred_at` en el nivel superior. El Worker acepta ambos para no romper
+    los eventos que ya están en el outbox ni los mensajes en vuelo.
+    """
+    if not isinstance(event, dict):
+        return event
+    payload = event.get("payload")
+    if not isinstance(payload, dict):
+        return event
+    merged = dict(payload)
+    merged.update({key: value for key, value in event.items() if key != "payload" and value is not None})
+    return merged
+
+
 def require(event: object, *fields: str) -> dict:
+    event = normalize_event(event)
     if not isinstance(event, dict):
         raise InvalidEvent("El evento no es un objeto JSON")
     missing = [f for f in fields if event.get(f) in (None, "")]
@@ -69,7 +91,7 @@ def parse_dt(value: str, field: str) -> datetime:
 # ---------------------------------------------------------------------------------------------
 def handle_order_paid(event: dict, deps: Deps) -> str:
     """Encola el pedido en Kitchen (solo tras el pago), actualiza el read model, notifica y pide el comprobante."""
-    require(event, "event_id", "order_id", "total", "paid_at", "order_type", "items")
+    event = require(event, "event_id", "order_id", "total", "paid_at", "order_type", "items")
     if not event["items"]:
         raise InvalidEvent("El pedido pagado no tiene ítems")
     handler = "order.paid"
@@ -81,7 +103,7 @@ def handle_order_paid(event: dict, deps: Deps) -> str:
     deps.kitchen.enqueue(
         {
             "order_id": event["order_id"],
-            "type": event["order_type"],
+            "order_type": event["order_type"],
             "table_number": event.get("table_number"),
             "customer_id": event.get("customer_id"),
             "paid_at": event["paid_at"],
@@ -105,7 +127,7 @@ def handle_order_paid(event: dict, deps: Deps) -> str:
 
 def handle_order_ready(event: dict, deps: Deps) -> str:
     """Marca el pedido como listo en Order Service y en el read model."""
-    require(event, "event_id", "order_id", "ready_at")
+    event = require(event, "event_id", "order_id", "ready_at")
     handler = "order.ready"
     if deps.store.is_done(event["event_id"], handler):
         return "duplicate"
@@ -128,7 +150,7 @@ _RESERVATION = {
 
 
 def handle_reservation_event(event_name: str, event: dict, deps: Deps) -> str:
-    require(event, "event_id", "reservation_id", "customer_id")
+    event = require(event, "event_id", "reservation_id", "customer_id")
     status, kind, template = _RESERVATION[event_name]
     if deps.store.is_done(event["event_id"], event_name):
         return "duplicate"
@@ -144,7 +166,7 @@ def handle_reservation_event(event_name: str, event: dict, deps: Deps) -> str:
 
 def generate_receipt(event: dict, deps: Deps) -> str:
     """Una vez por pedido pagado: si el objeto ya existe en MinIO no se vuelve a generar."""
-    require(event, "order_id", "total", "paid_at", "items")
+    event = require(event, "order_id", "total", "paid_at", "items")
     object_name = f"{event['order_id']}.pdf"
     if deps.receipts.exists(object_name):
         return "exists"

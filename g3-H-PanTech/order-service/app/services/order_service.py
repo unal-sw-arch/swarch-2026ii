@@ -79,6 +79,26 @@ def list_visible_orders(
     )
 
 
+def cancel_pending_order(db: Session, order_id: uuid.UUID, principal: Principal) -> Order:
+    """Cancela un pedido aún no pagado (supervisor/admin).
+
+    Un pedido pagado ya pudo entrar a la cola de cocina; para no dejar comandas
+    fantasma, la cancelación posterior al pago requiere un flujo de reembolso
+    que no forma parte de este prototipo.
+    """
+    if not principal.has("orders:read_all"):
+        raise Forbidden("Solo supervisión puede cancelar pedidos")
+    order = order_repository.get_for_update(db, order_id)
+    if order is None:
+        raise NotFound("Pedido no encontrado")
+    if order.status != "pendiente":
+        raise Conflict(f"El pedido está '{order.status}'; solo se cancelan pedidos pendientes")
+    order.status = "cancelado"
+    db.commit()
+    db.refresh(order)
+    return order
+
+
 def apply_kitchen_status(db: Session, order_id: uuid.UUID, new_status: str) -> tuple[Order, bool]:
     """Avanza el estado por eventos de cocina (vía Worker). Idempotente y tolerante al desorden:
     un estado igual o anterior al actual no se aplica (`applied=False`)."""

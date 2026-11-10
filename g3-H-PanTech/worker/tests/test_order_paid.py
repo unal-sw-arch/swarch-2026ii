@@ -18,7 +18,7 @@ class OrderPaidTests(unittest.TestCase):
         self.assertEqual(handlers.handle_order_paid(paid_event(), self.deps), "processed")
         self.assertEqual(len(self.kitchen.orders), 1)
         sent = self.kitchen.orders[0]
-        self.assertEqual((sent["order_id"], sent["type"], sent["customer_id"]), ("ord-1", "para_llevar", "cust-1"))
+        self.assertEqual((sent["order_id"], sent["order_type"], sent["customer_id"]), ("ord-1", "para_llevar", "cust-1"))
         self.assertEqual(sent["items"][0]["prep_minutes"], 3)
         self.assertEqual(self.store.orders["ord-1"]["status"], "pagado")
         self.assertIn(("ev-1", "order_paid"), self.store.notifications)

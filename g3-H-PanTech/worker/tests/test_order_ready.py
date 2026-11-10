@@ -36,6 +36,24 @@ class OrderReadyTests(unittest.TestCase):
         with self.assertRaises(InvalidEvent):
             handlers.handle_order_ready({"event_id": "x", "order_id": "o"}, self.deps)
 
+    def test_acepta_el_sobre_canonico_de_kitchen(self):
+        envelope = {
+            "event_id": "ev-envelope",
+            "event_type": "order.ready",
+            "version": 1,
+            "occurred_at": "2026-11-07T15:10:00Z",
+            "producer": "kitchen-service",
+            "payload": {
+                "order_id": "ord-9",
+                "customer_id": "cust-9",
+                "ready_at": "2026-11-07T15:10:00Z",
+                "prep_minutes": 5,
+            },
+        }
+        self.assertEqual(handlers.handle_order_ready(envelope, self.deps), "processed")
+        self.assertEqual(self.orders.calls, [("ord-9", "listo")])
+        self.assertIn(("ev-envelope", "order_ready"), self.store.notifications)
+
 
 if __name__ == "__main__":
     unittest.main()
