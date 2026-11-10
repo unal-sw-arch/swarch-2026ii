@@ -1,348 +1,572 @@
-# UNDesparche: Prototype 1
+# UNDesparche: Prototipo 2
 
-**Software Architecture Course Project**  
-**Universidad Nacional de Colombia · Facultad de Ingeniería**  
-**Departamento de Ingeniería de Sistemas e Industrial (2026)**
+**Presentado por:**
+
+-   Deibyd Santiago Barragan Gaitan - dbarragang@unal.edu.co
+-   Jacobo Alzate Corredor - jalzateco@unal.edu.co
+-   Víctor Camilo Cañón Castellanos - vcanonc@unal.edu.co
+-   David Santiago Velasquez Gomez - dvelasquezg@unal.edu.co
+
+**Docente:**
+
+Santiago Suarez Suarez - ssuarez@unal.edu.co
+
+Universidad Nacional de Colombia\
+Facultad de Ingeniería\
+Departamento de Ingeniería de Sistemas e Industrial\
+2026
+
+## Índice
+
+-   [Contexto](#contexto)
+-   [Alcance del proyecto](#alcance-del-proyecto)
+-   [Funcionalidades principales del
+    sistema](#funcionalidades-principales-del-sistema)
+    -   [Características principales para el administrador del
+        sistema](#características-principales-para-el-administrador-del-sistema)
+    -   [Características principales para el administrador de
+        eventos](#características-principales-para-el-administrador-de-eventos)
+    -   [Características principales para el administrador de
+        implementos](#características-principales-para-el-administrador-de-implementos)
+    -   [Características principales para el
+        miembro](#características-principales-para-el-miembro)
+-   [Caracterización de actores](#caracterización-de-actores)
+-   [Caracterización de entidades](#caracterización-de-entidades)
+-   [Reglas de negocio](#reglas-de-negocio)
+-   [Requerimientos funcionales](#requerimientos-funcionales)
+-   [Requerimientos no funcionales](#requerimientos-no-funcionales)
+    -   [Seguridad](#seguridad)
+    -   [Rendimiento](#rendimiento)
+    -   [Escalabilidad](#escalabilidad)
+    -   [Disponibilidad](#disponibilidad)
+    -   [Mantenibilidad](#mantenibilidad)
+    -   [Portabilidad](#portabilidad)
+    -   [Usabilidad](#usabilidad)
+    -   [Interoperabilidad](#interoperabilidad)
+    -   [Calidad](#calidad)
+    -   [Concurrencia](#concurrencia)
+-   [Arquitectura del sistema](#arquitectura-del-sistema)
+
+### Descripción del proyecto
+
+Este documento tiene como objetivo la recopilación, análisis y
+especificación de los requerimientos de un sistema para la gestión de
+eventos e implementos recreativos de la UNAL como proyecto de la materia
+de Arquitectura de Software.
+
+## Contexto
+
+En la Universidad Nacional de Colombia, los estudiantes no cuentan con
+un medio centralizado que les permita conocer las actividades y los
+implementos recreativos disponibles dentro del campus. Como
+consecuencia, muchos desconocen estos recursos y pierden oportunidades
+de participación en espacios deportivos, culturales y recreativos.
+
+Actualmente, la consulta de disponibilidad de implementos requiere
+desplazarse físicamente a las distintas facultades, ya que no existe un
+sistema que permita verificar esta información de manera remota. De
+forma similar, la difusión de eventos se realiza principalmente a través
+del correo institucional, lo que limita su alcance debido a la
+saturación de mensajes que reciben los estudiantes.
+
+A partir de esta situación, surge la necesidad de una solución que
+centralice la información relacionada con implementos recreativos y
+eventos, permitiendo su consulta, seguimiento y gestión de manera
+eficiente. La propuesta plantea un sistema que facilite la visualización
+de disponibilidad de implementos por facultad, así como la publicación y
+consulta de eventos, integrando además mecanismos de notificación y
+visualización geográfica dentro del campus.
+
+UNDesparche está enfocado en el sector de la educación superior y la
+gestión de bienestar institucional universitario. Su naturaleza consiste
+en el desarrollo de una solución de software plataforma web orientada a
+centralizar, promover y optimizar el acceso a actividades recreativas,
+culturales y deportivas dentro de la Universidad Nacional de Colombia
+(Sede Bogotá).
+
+El sistema actúa como un puente directo entre las dependencias
+administrativas de la universidad (facultades, áreas de deporte, cultura
+y bienestar) y los estudiantes, resolviendo problemas de ineficiencia
+logística en el préstamo presencial de implementos recreativos y fallas
+en los canales masivos de comunicación institucional (correos no leídos,
+carteleras físicas desactualizadas).
+
+## Alcance del proyecto
+
+Diseñar y desarrollar una aplicación web para la gestión de eventos y de
+implementos recreativos en la Universidad Nacional de Colombia, que
+permita la administración de inventarios y la visualización de
+disponibilidad de implementos, como también la gestión y consulta de
+eventos.
+
+El sistema incluirá funcionalidades de registro, actualización,
+consulta, seguimiento y reserva de implementos y eventos, con control de
+acceso basado en roles (administrador general, administrador de eventos,
+administrador de implementos y estudiantes), limitado al uso dentro de
+la comunidad universitaria mediante autenticación institucional para el
+préstamo de implementos, mientras que usuarios externos podrán
+suscribirse a notificaciones de eventos sin autenticarse.
+
+## Funcionalidades principales del sistema
+
+A continuación, se enlistan las características y funcionalidades
+proyectadas para el software, segmentadas por los roles que tendrá el
+sistema:
+
+### Características principales para el administrador del sistema
+
+1.  **Gestión de usuarios:** El sistema permitirá crear, consultar y
+    eliminar los datos de los usuarios registrados, asignarles un rol
+    (Administrador del sistema, Administrador de eventos, Administrador
+    de implementos, Miembros de la comunidad) y darle los permisos
+    referentes a su rol.
+2.  **Gestión de eventos:** Permite supervisar y gestionar todos los
+    eventos registrados en el sistema, incluyendo su creación,
+    modificación y eliminación en caso necesario.
+3.  **Gestión de implementos:** Permite supervisar y administrar el
+    inventario general de implementos recreativos registrados por las
+    distintas facultades.
+4.  **Gestión de cuentas:** El administrador del sistema puede bloquear
+    cuentas por actividades indebidas.
+
+### Características principales para el administrador de eventos
+
+1.  **Gestión de eventos:** El administrador de eventos podrá crear,
+    consultar, modificar y eliminar eventos (que haya creado antes de
+    ser publicados), definiendo atributos como nombre, estado (por
+    hacerse, en ejecución, cancelado, realizado), descripción, lugar,
+    fecha y hora, categoría, entre otros.
+2.  **Publicación de eventos:** El administrador de eventos podrá
+    publicar los eventos para que sean visibles a los demás usuarios del
+    sistema.
+
+### Características principales para el administrador de implementos
+
+1.  **Gestión de implementos:** El administrador de implementos podrá
+    registrar, actualizar, eliminar y consultar implementos recreativos
+    asociados a su respectiva facultad.
+2.  **Gestión de disponibilidad:** El administrador de implementos podrá
+    actualizar el estado de disponibilidad de los implementos.
+3.  **Gestión de reservas:** El administrador de implementos podrá
+    validar y gestionar las solicitudes de reserva realizadas por los
+    estudiantes.
+
+### Características principales para el miembro
+
+Nota: llamaremos "miembro" al usuario registrado en la plataforma con
+correo UNAL (@unal.edu.co).
+
+1.  **Consulta de implementos:** El miembro podrá consultar el catálogo
+    de implementos por facultades y verificar su disponibilidad.
+2.  **Suscripción y notificaciones:** El miembro podrá realizar
+    suscripciones a eventos o implementos y recibir notificaciones sobre
+    cambios relevantes.
+3.  **Reserva de implementos:** El miembro podrá realizar reservas
+    temporales de implementos disponibles por un tiempo determinado.
+
+## Caracterización de actores
+
+| Actor | Descripción | Rango de Edad | Género | Gustos / Intereses | Discapacidad |
+|---|---|---|---|---|---|
+| Miembro de la Comunidad | Estudiantes, docentes o administrativos con correo @unal.edu.co que usan el sistema para consultar y reservar eventos e implementos | 15 – 100 años | Todos los géneros | Deportes, videojuegos, música, integración social, cultura y bienestar. | Puede presentar discapacidades motrices o visuales (el sistema NO implementará accesibilidad). |
+| Administrador de Eventos | Estudiante, docente o funcionario administrativo encargado de proponer, publicar y gestionar la logística de eventos culturales o deportivos. | 18 – 65 años | Todos los géneros | Liderazgo estudiantil, difusión cultural, coordinación logística y animación de espacios públicos. | Puede presentar discapacidades motrices o visuales (el sistema NO implementará accesibilidad). |
+| Administrador de Implementos | Funcionario de Bienestar Universitario o estudiante auxiliar del inventario y control físico de los implementos deportivos en las facultades. | 18 – 65 años | Todos los géneros | Control de inventarios, servicio al cliente, deportes y gestión administrativa. | Puede presentar discapacidades motrices o visuales (el sistema NO implementará accesibilidad). |
+| Administrador del Sistema | Ingeniero de soporte encargado de supervisar los logs de auditoría, gestionar permisos globales de acceso y garantizar la operación técnica. | 22 – 60 años | Todos los géneros | Ciberseguridad, administración de bases de datos y optimización de software. | Puede presentar discapacidades motrices o visuales (el sistema NO implementará accesibilidad). |
+
+## Caracterización de entidades
+
+A continuación, se estructuran las características técnicas de los
+elementos principales del dominio de software.
+
+### 1. Miembros de la Comunidad (Usuarios)
+
+-   **Descripción:** Entidad que tiene los datos de todas las personas
+    registradas con credenciales institucionales (correo @unal.edu.co =
+    Miembro de la Comunidad , Administrador de Eventos, Administrador de
+    Implementos, Administrador del Sistema).
+-   **Propiedades:** id_usuario, nombre completo, correo institucional
+    (@unal.edu.co), facultad, rol (Valores permitidos: Miembro de la
+    Comunidad , Administrador de Eventos, Administrador de Implementos,
+    Administrador del Sistema), estado del usuario (Valores permitidos:
+    Activo, Sancionado)., fecha_registro.
+
+### 2. Evento
+
+-   **Descripción:** Actividad con un objetivo concreto programada
+    dentro de los límites geográficos del campus universitario. Pueden
+    asistir tanto Miembros de la Comunidad universitaria como externos
+    (personas sin correo @unal.edu.co), creada por un Administrador de
+    Eventos.
+-   **Propiedades:** id_evento, nombre del evento, descripción,
+    publicado, lugar, fecha y hora de inicio, fecha y hora de fin,
+    organizador, estado del evento (Valores permitidos: Programado, En
+    Curso, Finalizado, Cancelado), categoría temática (Valores
+    permitidos: Académico, Cultural, Deportivo, Asamblea, Parche, Otro),
+    imagen.
+
+### 3. Implemento
+
+-   **Descripción:** Objeto, material recreativo o artículo deportivo de
+    propiedad de la universidad, disponible en las facultades para
+    préstamo a los Miembros de la Comunidad.
+-   **Propiedades:** id_implemento, nombre del artículo, categoría
+    (Valores permitidos: Balones, Raquetas, Mesas, Juegos recreativos,
+    Juegos de mesa, otros), facultad propietaria, estado del implemento
+    (valores permitidos: Disponible, No Disponible, Reservado,
+    Prestado), descripción, imagen.
+
+## Reglas de negocio
+
+**RN-01 (Autenticación Exclusiva):** El sistema restringirá el registro
+e inicio de sesión exclusivamente a usuarios que utilicen una cuenta con
+dominio institucional (@unal.edu.co). Cualquier solicitud proveniente de
+un dominio distinto será rechazada de manera automática.
+
+**RN-02 (Vigencia Temporal de Reservas):** Al solicitar la reserva de un
+implemento en estado "Disponible", su estado cambiará a "Reservado" y el
+Miembro de la Comunidad dispondrá de un plazo improrrogable de diez (10)
+minutos para realizar su retiro presencial en la facultad
+correspondiente. Transcurrido dicho lapso sin la confirmación del
+préstamo, el sistema cancelará la reserva y reajustará el estado del
+implemento a "Disponible".
+
+**RN-03 (Sanción por Daño o Deterioro de Implementos):** Si un
+implemento es devuelto con daños o averías, el Administrador de
+Implementos registrará la novedad, modificando el estado del Miembro de
+la Comunidad de "Activo" a "Sancionado" y el del implemento a "No
+Disponible". Esta sanción inhabilitará al usuario para realizar nuevas
+reservas hasta que se efectúe el pago correspondiente o la reparación de
+los daños causados.
+
+**RN-04 (Exclusividad de Gestión por Facultad):** Un usuario únicamente
+podrá gestionar o modificar la información de un implemento si cuenta
+con el rol de Administrador de Implementos y el artículo pertenece
+formalmente a la misma facultad registrada en su perfil.
+
+**RN-05 (Límite de Reservas Simultáneas):** Un Miembro de la Comunidad
+podrá tener registrado un máximo de un (1) implemento simultáneamente
+bajo los estados "Reservado" o "Prestado" en todo el sistema.
+
+## Requerimientos funcionales
+
+Todo lo referente al que debe hacer la aplicación para cumplir sus
+funcionalidades principales de manera óptima, satisfaciendo las
+necesidades del cliente.
+
+**RF-1.** El sistema debe permitir el registro e inicio de sesión de
+usuarios mediante autenticación exclusiva con cuentas de correo
+institucionales (@unal.edu.co) a través de Google.
+
+**RF-2.** El sistema debe manejar los siguientes roles de usuario:
+Administrador del sistema, Administrador de eventos, Administrador de
+implementos y Miembro de la comunidad.
+
+**RF-3.** El sistema debe permitir a todos los usuarios visualizar los
+eventos públicos en un mapa interactivo del campus universitario.
+
+**RF-4.** El sistema debe permitir filtrar todos los eventos por
+categoría temática (Académico, Cultural, Deportivo, Asamblea, Parche,
+Otro) y estado (Programado, En Curso, Finalizado, Cancelado).
+
+**RF-5.** El sistema debe permitir ordenar el listado de eventos por
+fecha y hora de inicio.
+
+**RF-6.** El sistema debe permitir filtrar el catálogo de implementos
+por categoría (Balones, Raquetas, Mesas, Juegos recreativos, Juegos de
+mesa, otros).
+
+**RF-7.** El sistema debe permitir a usuarios no registrados suscribirse
+a las notificaciones de un evento específico ingresando una dirección de
+correo electrónico válida.
+
+**RF-8.** El sistema debe enviar notificaciones automáticas por correo
+electrónico a los usuarios suscritos a un evento cuando ocurran cambios
+relevantes en el mismo (modificación de lugar, fecha, hora o
+cancelación).
+
+**RF-9.** El sistema debe permitir a los miembros de la comunidad
+consultar el catálogo completo e inventario de implementos recreativos
+filtrados por facultad propietaria y verificar su estado de
+disponibilidad (Disponible, No Disponible, Reservado, Prestado).
+
+**RF-10.** El sistema debe mostrar un aviso de descargo de
+responsabilidad antes de solicitar la reserva de cualquier implemento.
+
+**RF-11.** El sistema debe permitir la reserva de un implemento
+únicamente si el usuario está con estado Activo y acepta expresamente el
+aviso de descargo de responsabilidad.
+
+**RF-12.** El sistema debe permitir a los miembros de la comunidad
+autenticados realizar la reserva temporal de un implemento en estado
+"Disponible", cambiando su estado a "Reservado" por un plazo
+improrrogable de diez (10) minutos para su retiro físico.
+
+**RF-13.** El sistema debe cancelar automáticamente la reserva y cambiar
+el estado del implemento de vuelta a "Disponible" si el plazo de diez
+(10) minutos expira sin que el préstamo haya sido confirmado por el
+Administrador de Implementos.
+
+**RF-14.** El sistema debe validar y restringir que un miembro de la
+comunidad sólo tenga máximo un (1) implemento activo simultáneamente
+bajo el estado "Reservado" o "Prestado".
+
+**RF-15.** El sistema debe permitir a los miembros de la comunidad
+autenticados suscribirse a eventos para recibir notificaciones.
+
+**RF-16.** El sistema debe permitir a los administradores de eventos
+registrar eventos en el sistema especificando nombre, descripción,
+lugar, fecha/hora de inicio, fecha/hora de fin, categoría temática y
+opcionalmente una imagen asociada.
+
+**RF-17.** El sistema debe guardar los eventos creados inicialmente en
+estado de borrador (no publicado), impidiendo su visualización pública
+hasta que su creador decida publicarlo.
+
+**RF-18.** El sistema debe permitir a los administradores de eventos
+publicar los eventos de su autoría para hacerlos visibles a la
+comunidad.
+
+**RF-19.** El sistema debe permitir a los administradores de eventos
+modificar la información de los eventos creados por ellos.
+
+**RF-20.** El sistema debe permitir a los administradores de eventos
+cancelar los eventos creados por ellos cambiando su estado a
+"Cancelado".
+
+**RF-21.** El sistema debe impedir la eliminación física de eventos que
+ya hayan sido publicados para preservar el historial del sistema.
+
+**RF-22.** El sistema debe permitir a los administradores de implementos
+registrar, consultar, modificar y eliminar físicamente implementos
+recreativos asociados de manera exclusiva a su facultad registrada.
+
+**RF-23.** El sistema debe permitir al administrador de implementos
+gestionar el estado de los implementos de su facultad (Disponible, No
+Disponible, Reservado, Prestado).
+
+**RF-24.** El sistema debe permitir a los administradores de implementos
+validar y procesar las solicitudes de reserva de implementos
+pertenecientes a su facultad.
+
+**RF-25.** El sistema debe permitir al administrador de implementos
+reportar la entrega de un implemento dañado, cambiando automáticamente
+el estado del usuario de "Activo" a "Sancionado" y el del implemento a
+"No Disponible", restringiendo futuras reservas del usuario sancionado.
+
+**RF-26.** El sistema debe permitir al administrador del sistema
+consultar la lista completa de usuarios registrados mostrando su
+id_usuario, nombre completo, correo institucional, facultad, rol, estado
+(Activo, Sancionado) y fecha de registro.
+
+**RF-27.** El sistema debe permitir al administrador del sistema buscar
+usuarios por nombre completo o correo institucional y filtrarlos por rol
+y estado actual.
+
+**RF-28.** El sistema debe permitir al administrador del sistema asignar
+o revocar roles de usuario, exceptuando la modificación sobre otros
+administradores del sistema.
+
+**RF-29.** El sistema debe permitir al administrador del sistema
+bloquear o sancionar cuentas de usuario ante faltas cometidas y eliminar
+usuarios registrados (excepto a otros administradores del sistema).
+
+**RF-30.** El sistema debe permitir al administrador del sistema
+supervisar, consultar, modificar o eliminar cualquier evento o
+implemento registrado en la plataforma independientemente de la facultad
+u organizador.
+
+## Requerimientos no funcionales
+
+El cómo la aplicación debe cumplir sus funcionalidades principales de
+manera que satisfaga las necesidades del cliente y a su vez no presente
+errores.
+
+### Seguridad
+
+**RNF-1.** El sistema debe integrar la plataforma Firebase
+Authentication para autenticar a los usuarios de manera segura mediante
+sus cuentas institucionales de Google.
+
+**RNF-2.** El sistema debe finalizar automáticamente la sesión activa
+del usuario tras detectar diez (10) minutos continuos de inactividad.
+
+### Rendimiento
+
+**RNF-3.** El tiempo de respuesta para la consulta de disponibilidad de
+inventario y la carga del mapa interactivo no debe superar los dos (2)
+segundos bajo condiciones normales de red.
+
+**RNF-4.** El backend debe implementar un mecanismo de almacenamiento en
+caché para las peticiones de alta frecuencia, optimizando la velocidad
+de respuesta y reduciendo la carga sobre la base de datos.
+
+### Escalabilidad
+
+**RNF-5.** El sistema debe ser desplegado en contenedores Docker
+independientes para la interfaz de usuario (frontend) y sus respectivos
+microservicios o servicios de soporte.
+
+**RNF-6.** La arquitectura del sistema debe permitir la incorporación
+modular de nuevas funcionalidades o servicios sin degradar ni alterar la
+operación de los módulos existentes.
+
+### Disponibilidad
+
+**RNF-7.** Ante la ocurrencia de fallas controladas, el sistema debe
+registrar el evento de excepción y garantizar la continuidad operativa
+sin comprometer ni perder la información del usuario.
+
+**RNF-8.** El sistema debe contar con un proceso automatizado de
+respaldo (backup) de la base de datos con una periodicidad semanal.
+
+### Mantenibilidad
+
+**RNF-9.** El código fuente debe apegarse al estándar de estilo PEP 8 e
+implementar principios de Código Limpio (Clean Code) y patrones de
+diseño reconocidos para favorecer su mantenibilidad.
+
+**RNF-10.** El código fuente debe incluir documentación técnica clara
+mediante comentarios e intencionados docstrings para clases, métodos y
+módulos principales.
+
+### Portabilidad
+
+**RNF-11.** La aplicación web debe ser plenamente compatible y funcional
+en las últimas dos versiones principales del navegador Google Chrome.
+
+### Usabilidad
+
+**RNF-12.** La interfaz gráfica de usuario debe contar con un diseño
+adaptable (responsive) para su correcta visualización en diversos
+dispositivos.
+
+**RNF-13.** La navegación debe estructurarse de modo que el usuario
+pueda acceder a cualquier funcionalidad principal en un máximo de cinco
+(5) clics.
+
+### Interoperabilidad
+
+**RNF-14.** El sistema debe integrarse con Google Maps Platform para
+visualizar de forma precisa la ubicación geográfica de los eventos en el
+campus.
+
+**RNF-15.** El sistema debe utilizar un servicio externo especializado
+para el envío seguro y confiable de notificaciones por correo
+electrónico.
+
+### Calidad
+
+**RNF-16.** El sistema debe incluir contar con pruebas unitarias que
+cubra la lógica de los módulos principales.
+
+**RNF-17.** El desarrollo debe emplear herramientas de análisis estático
+de código (linters) para identificar y corregir posibles defectos
+durante la fase de construcción.
+
+### Concurrencia
+
+**RNF-18.** El sistema debe prevenir condiciones de carrera para
+garantizar la integridad de los datos, asegurando que un mismo
+implemento no pueda ser reservado por más de un usuario simultáneamente.
+
+**RNF-19.** La aplicación debe soportar de manera concurrente cerca de
+400 usuarios a cualquier hora del día, funcionando de lunes a domingo
+las 24 horas del día durante el periodo académico establecido por el
+Consejo Universitario.
 
 ---
 
-## Authors & Academic Information
-
-* **Authors:**
-  * Deibyd Santiago Barragán Gaitán – `dbarragang@unal.edu.co`
-  * Jacobo Alzate Corredor – `jalzateco@unal.edu.co`
-  * Víctor Camilo Cañón Castellanos – `vcanonc@unal.edu.co`
-  * David Santiago Velásquez Gómez – `dvelasquezg@unal.edu.co`
-* **Professor:**
-  * Santiago Suárez Suárez – `ssuarezs@unal.edu.co`
-
----
-
-## Table of Contents
-
-1. [Context](#context)
-2. [Project Scope](#project-scope)
-3. [Main System Features](#main-system-features)
-4. [Actor Characterization](#actor-characterization)
-5. [Entity Characterization](#entity-characterization)
-6. [Business Rules](#business-rules)
-7. [Functional Requirements](#functional-requirements)
-8. [Non-Functional Requirements](#non-functional-requirements)
-9. [System Architecture](#system-architecture)
-10. [Installation and Running the Project](#installation-and-running-the-project)
-
----
-
-## Context
-
-At the Universidad Nacional de Colombia (UNAL), students lack a centralized platform to stay informed about campus activities and available recreational implements. As a consequence, many students are unaware of these resources and miss opportunities to engage in athletic, cultural, and recreational spaces.
-
-Currently, inquiring about implement availability requires physically commuting across different faculties, as there is no system to check this information remotely. Similarly, event dissemination is largely conducted through institutional email, limiting its reach due to student email inbox saturation.
-
-From this need arises the proposal for a solution that centralizes information regarding recreational equipment and events, enabling efficient queries, tracking, and management. The proposal outlines a system that facilitates visibility into implement availability by faculty, as well as the publication and browsing of events, incorporating notification mechanisms and geographical visualization across the campus.
-
-The **UNDesparche** project focuses on the higher education sector and university institutional welfare management. Its core purpose is the development of a web platform designed to centralize, promote, and optimize access to recreational, cultural, and sports activities within the Universidad Nacional de Colombia (Bogotá Campus).
-
-The system serves as a direct bridge between university administrative departments (faculties, sports, culture, and welfare offices) and students, resolving logistical inefficiencies in in-person equipment lending and institutional mass communication barriers (unread emails, outdated physical bulletin boards).
-
----
-
-## Project Scope
-
-Design and develop a web application for the management of events and recreational implements at the Universidad Nacional de Colombia, enabling inventory administration, implement availability visualization, and event management and exploration.
-
-The system will include functionality for registration, updating, querying, tracking, and reserving implements and events, with role-based access control (System Administrator, Event Administrator, Implement Administrator, and Students). Equipment lending is restricted to the university community through institutional authentication, while external guests may subscribe to event notifications without authenticating.
-
----
-
-## Main System Features
-
-### System Administrator
-1. **User Management:** Create, view, and delete registered user records, assign roles (*System Administrator*, *Event Administrator*, *Implement Administrator*, *Community Member*), and configure associated permissions.
-2. **Event Management:** Supervise and manage all events registered in the system, including creation, modification, and deletion when required.
-3. **Implement Management:** Supervise and manage the general inventory of recreational implements registered across faculties.
-4. **Account Management:** Suspend or block accounts due to improper activities.
-
-### Event Administrator
-1. **Event Management:** Create, view, modify, and delete events created by themselves, setting attributes such as name, status (*Scheduled*, *In Progress*, *Cancelled*, *Completed*), description, venue, date/time, category, and others.
-2. **Event Publication:** Publish events to make them visible to the rest of the system users.
-
-### Implement Administrator
-1. **Implement Management:** Register, update, delete, and browse recreational implements associated with their respective faculty.
-2. **Availability Management:** Update the availability status of implements.
-3. **Reservation Management:** Validate and process reservation requests made by students.
-
-### Community Member
-*(Registered user with an `@unal.edu.co` institutional email)*
-1. **Implement Browsing:** Browse the catalog of implements by faculty and verify availability.
-2. **Subscriptions & Notifications:** Subscribe to events or implements and receive notifications regarding relevant changes.
-3. **Implement Reservation:** Place temporary reservations on available implements for a designated time window.
-
----
-
-## Actor Characterization
-
-| Actor | Description | Age Range | Gender | Interests / Hobbies | Accessibility Needs |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Community Member** | Students, faculty, or staff with `@unal.edu.co` email who use the system to check and reserve events and implements. | 15 – 100 years | All genders | Sports, video games, music, social integration, culture, welfare. | May present motor or visual impairments (system does NOT implement custom accessibility). |
-| **Event Administrator** | Student, teacher, or administrative officer responsible for organizing, publishing, and managing the logistics of cultural or athletic events. | 18 – 65 years | All genders | Student leadership, cultural outreach, logistics, public space activation. | May present motor or visual impairments (system does NOT implement custom accessibility). |
-| **Implement Administrator** | University Welfare officer or student assistant responsible for physical inventory and control of sports implements in faculties. | 18 – 65 years | All genders | Inventory management, customer service, sports, administrative tasks. | May present motor or visual impairments (system does NOT implement custom accessibility). |
-| **System Administrator** | Support engineer in charge of audit logs, global access permissions, and overall technical operations. | 22 – 60 years | All genders | Cybersecurity, database administration, software optimization. | May present motor or visual impairments (system does NOT implement custom accessibility). |
-
----
-
-## Entity Characterization
-
-### 1. Community Members (Users)
-* **Description:** Represents all registered individuals with institutional credentials (`@unal.edu.co` email = Community Member, Event Administrator, Implement Administrator, System Administrator).
-* **Properties:** `id_usuario`, `nombre completo`, `correo institucional (@unal.edu.co)`, `facultad`, `rol` (*Permitted values: Miembro de la Comunidad, Administrador de Eventos, Administrador de Implementos, Administrador del Sistema*), `estado del usuario` (*Permitted values: Activo, Sancionado*), `fecha_registro`.
-
-### 2. Event
-* **Description:** Concrete activity scheduled within the geographical boundaries of the university campus. Can be attended by both university community members and external visitors (users without an `@unal.edu.co` email), created by an Event Administrator.
-* **Properties:** `id_evento`, `nombre del evento`, `descripción`, `publicado`, `lugar`, `fecha y hora de inicio`, `fecha y hora de fin`, `organizador`, `estado del evento` (*Permitted values: Programado, En Curso, Finalizado, Cancelado*), `categoría temática`, `imagen`.
-
-### 3. Implement
-* **Description:** Recreational, sports, or leisure equipment owned by the university and available across faculties for loan to Community Members.
-* **Properties:** `id_implemento`, `nombre del artículo`, `categoría`, `facultad propietaria`, `estado del implemento` (*Permitted values: Disponible, No Disponible, Reservado, Prestado*), `descripción`, `imagen`, `tiempo de uso`.
-
----
-
-## Business Rules
-
-* **RN-01 (Exclusive Authentication):** The system strictly rejects any registration attempt that does not originate from an `@unal.edu.co` email address.
-* **RN-02 (Reservation Time Window):** When an available implement is set aside in the application, changing its status to *Reserved*, the Community Member has an unextendable period of ten (10) minutes to claim it in the faculty where it was reserved. After this time, the system automatically releases the implement, reverting its status to *Available*.
-* **RN-03 (Penalty for Damaged Implement):** If an implement is returned in damaged condition, the Implement Administrator must immediately change the Community Member's status to *Sanctioned*, restricting their ability to create new reservations until paying the fine and resolving the repair or replacement. The implement status is concurrently set to *Unavailable*.
-* **RN-04 (Logistics Management Exclusivity):** A user can only manipulate an implement's data if they hold the *Implement Administrator* role and the implement belongs to the faculty registered in their user profile.
-* **RN-05 (Simultaneous Implements Limit):** A Community Member may hold at most one (1) implement under *Reserved* or *Borrowed/Occupied* status simultaneously across the entire system.
-
----
-
-## Functional Requirements
-
-* **RF-1:** The system must allow user registration through institutional Google accounts (`@unal.edu.co`).
-* **RF-2:** The system must manage user roles: System Administrator, Event Administrator, Implement Administrator, and Community Member.
-* **RF-3:** The system must enforce role-based access privileges for each user role.
-* **RF-4:** The system must allow visualization of published events on an interactive map of the university campus.
-* **RF-5:** The system must allow filtering events by category and status.
-* **RF-6:** The system must allow sorting events by date.
-* **RF-7:** The system must allow filtering implements by category.
-* **RF-8:** The system must allow registered users to consult available implements by faculty.
-* **RF-9:** The system must allow community members to make a temporary reservation on an implement in "available" status, changing its status to "reserved" for a 10-minute window to ensure in-person pickup.
-* **RF-10:** The system must allow registered and authenticated users to formally request the loan of available implements.
-* **RF-11:** The system must allow registered users to subscribe to an event.
-* **RF-12:** The system must allow unregistered external users to subscribe to events via email to receive related notifications.
-* **RF-13:** The system must send email notifications to subscribed users when changes occur in events.
-* **RF-14:** The system must allow event administrators to create events specifying name, description, venue, date, time, category, and status.
-* **RF-15:** The system must allow saving events in draft status, preventing public visibility until the creating administrator decides to publish it.
-* **RF-16:** The system must allow event administrators to publish events created by them.
-* **RF-17:** The system must allow event administrators to modify events created by them.
-* **RF-18:** The system must allow event administrators to cancel events created by them.
-* **RF-19:** The system must prevent deletion of events that have already been published in order to maintain historical activity records; these may only transition to "Cancelled".
-* **RF-20:** The system must display a liability disclaimer before confirming an implement request.
-* **RF-21:** The system must permit implement requests only if the user accepts the liability disclaimer.
-* **RF-22:** The system must allow the system administrator to view all registered users, including name, institutional email, status, and role.
-* **RF-23:** The system must allow the system administrator to filter users by role and status (Active, Sanctioned).
-* **RF-24:** The system must allow the system administrator to search for users by name or institutional email.
-* **RF-25:** The system must allow the system administrator to delete registered users, except other system administrators.
-* **RF-26:** The system must allow the system administrator to assign and revoke user roles, except for other system administrators.
-* **RF-27:** The system must allow the system administrator to view, modify, and delete any registered event.
-* **RF-28:** The system must allow implement administrators to register, view, modify, and delete implements associated with their faculty.
-* **RF-29:** The system must allow implement administrators to update implement statuses for their faculty among: available, unavailable, reserved, borrowed/occupied.
-* **RF-30:** The system must allow implement administrators to manage implement reservation requests.
-* **RF-31:** The system must allow implement administrators to enable or restrict a user's borrowing access.
-* **RF-32:** The system must log actions performed in the implements module, storing the responsible user, date, time, and action type.
-
----
-
-## Non-Functional Requirements
-
-### Security
-* **RNF-1:** The system must implement Firebase Authentication to handle registration and login via Google accounts.
-* **RNF-2:** The system must terminate user sessions if 10 minutes have elapsed since the user's last activity.
-
-### Performance
-* **RNF-3:** Inventory availability queries and geographic map loading must not exceed 2 seconds under normal network conditions.
-* **RNF-4:** The backend must implement a caching strategy for high-frequency queries to avoid repetitive database hits.
-
-### Scalability
-* **RNF-5:** The system must be deployed using separate Docker containers for frontend, backend, and database.
-* **RNF-6:** The architecture must allow adding new modules without affecting existing ones (events and implements).
-
-### Availability
-* **RNF-7:** Under controlled errors, the system must log the exception and maintain application uptime without losing user information.
-* **RNF-8:** The system must feature an automated weekly database backup mechanism.
-
-### Maintainability
-* **RNF-9:** The source code must adhere to the PEP8 standard and apply Clean Code principles and design patterns.
-* **RNF-10:** Source code must include technical documentation for relevant classes, methods, and modules using comments and docstrings.
-
-### Portability
-* **RNF-11:** The web application must function correctly on the latest two versions of Google Chrome.
-
-### Usability
-* **RNF-12:** The system must provide a responsive Graphical User Interface (GUI).
-* **RNF-13:** Users must be able to reach any core system feature in 5 clicks or fewer.
-
-### Interoperability
-* **RNF-14:** The system must integrate Google Maps Platform to display event locations across the university campus.
-* **RNF-15:** The system must implement an external service for sending email notifications.
-
-### Quality
-* **RNF-16:** The system must include unit tests for core modules.
-* **RNF-17:** Static code analyzers (linters) must be utilized during development to minimize defects during implementation.
-
-### Concurrency
-* **RNF-18:** The system must prevent race conditions that could compromise state integrity (e.g., if two users attempt to reserve the same implement simultaneously, only the first request succeeds).
-* **RNF-19:** The application must concurrently support approximately 400 users at any hour, operating 24/7 Monday through Sunday during the academic term established by the University Council.
-
----
-
-## System Architecture
-
-Below is the Components and Connectors (C&C) diagram of the planned architecture:
-The Component and Connector (C&C) Diagram:
-
-![C&C diagram](images/diagramaC&C.jpeg)
-
-The model organizes the system into three main layers:
-
-- Frontend Client (<<UI>> Frontend Client): Contains the <<Web App>> SPA React App component, which is the single point of user interaction.
-
-- Backend Microservices Layer (Backend Containers): Composed of three encapsulated and independent subsystems.
-
-- External Services & Persistence: Includes relational data stores and SaaS cloud services.
-
-Components:
-
-- "Web App" SPA React App ("UI"): The user interface component executed in the client's browser. It consumes local resources (CPU/RAM in the browser) and initiates the system's initial requests.
-
-- "Service" Inventory Service, Users Service, and Events Service: The primary backend compute units. They process the business rules for each domain autonomously and independently.
-
-- Internal Adapters (Firebase Auth and Firebase Storage): Act as auxiliary components (utilities / adapters) within the microservices' internal structure to adapt external SDK APIs to the interfaces expected by the services.
-
-- "DB" Inventory DB, Users DB, and Events DB: The relational database management system (RDBMS) engines. Each provides ACID guarantees to its respective microservice under the polyglot persistence / Database per Service pattern.
-
-- "Identity Provider" Firebase Auth: An external managed service acting as the single source of truth for identity state, credentials, and custom user claims.
-
-- "Object Storage" Firebase Storage: Unstructured cloud object storage used to store binary files such as event and equipment images.
-
-Connectors:
-
-- "http": Operates between backend adapters and external APIs in the cloud.
-
-- "Database Connection": Links the persistence port of each microservice to the input port of its respective relational database engine.
-
-Why it is a microservices-based architecture:
-
-It is a microservices architecture because no direct connection (via HTTP or RPC) exists between the Users, Events, and Inventory microservices, and each exclusively owns and manages its own relational persistent storage. Furthermore, authentication and authorization do not require cascading calls to the Users Service; all microservices autonomously validate the token and custom role claims.
-
----
-## Installation and Running the Project
-
-### Prerequisites
-* [Docker](https://docs.docker.com/get-docker/) (v24.0+ recommended)
-* [Docker Compose](https://docs.docker.com/compose/) (v2.20+)
-* [Git](https://git-scm.com/)
-
----
-
-### Step 1: Clone the Repository
-```bash
-git clone <repository-url>
-cd undesparche
-```
-
----
-
-### Step 2: Configure Firebase Credentials
-
-To enable Google Authentication and Firebase token verification, place your Firebase Service Account JSON key in the root directory:
-```bash
-# Copy your credentials into the root folder:
-cp /path/to/your/firebase-adminsdk.json ./firebase_credentials.json
-```
-> **Note:** A template is provided at [`firebase_credentials.example.json`](./firebase_credentials.example.json). All three backend microservices (`events_service`, `users_service`, `inventory_service`) automatically mount this root file in read-only mode (`:ro`).
-
----
-
-### Step 3: Environment Variables Configuration
-
-Environment files with default values are provided as templates:
-* **Frontend:** [`frontend_web/.env.example`](./frontend_web/.env.example)
-* **Events Service:** [`events_service/events_service/.env.example`](./events_service/events_service/.env.example)
-* **Users Service:** [`users_service/users_service/.env.example`](./users_service/users_service/.env.example)
-* **Inventory Service:** [`inventory_service/inventory_service/.env.example`](./inventory_service/inventory_service/.env.example)
-
-Docker automatically falls back to `.env.example` if a custom `.env` is omitted. However, you can create your custom environment files:
-```bash
-# Frontend
-cp frontend_web/.env.example frontend_web/.env
-
-# Backend Microservices
-cp events_service/events_service/.env.example events_service/events_service/.env
-cp users_service/users_service/.env.example users_service/users_service/.env
-cp inventory_service/inventory_service/.env.example inventory_service/inventory_service/.env
-```
-
----
-
-### Step 4: Build and Run with Docker Compose
-
-Run the following command in the root directory:
-```bash
-docker compose up --build
-```
-Or run in detached mode (background):
-```bash
-docker compose up -d --build
-```
-
----
-
-### Automatic Database Migrations and Seeding
-
-Upon container startup, each Django microservice executes automatic migrations and database seeding (`update_or_create`):
-
-| Service | Startup Command | Seeded Data |
-| :--- | :--- | :--- |
-| **`events_service`** | `migrate && seed_events && runserver` | 9 Campus Events + Institutional users |
-| **`users_service`** | `migrate && seed_users && runserver` | 4 Pre-configured institutional users & roles |
-| **`inventory_service`** | `migrate && seed_inventory && runserver` | Sports & recreational implements across faculties |
-
-#### Pre-seeded Accounts for Development / Testing
-Seeded accounts are created in the database with their respective roles. A default password (`Admin123*`) is set for Django Admin panel access (`/admin/`), while user access in the main web application is handled via institutional Google Authentication (`@unal.edu.co`):
-
-| Email | System Role | Faculty |
-| :--- | :--- | :--- |
-| `dbarragang@unal.edu.co` | `SYS_ADMIN` (System Administrator) | Engineering |
-| `vcanonc@unal.edu.co` | `EVENT_ADMIN` (Event Administrator) | Engineering |
-| `jalzateco@unal.edu.co` | `IMPLEMENT_ADMIN` (Implement Administrator) | Engineering |
-| `dvelasquezg@unal.edu.co` | `COMMUNITY` (Active Community Member) | Engineering |
-
----
-
-### Application Access Endpoints
-
-Once the containers are up, the application is accessible at:
-
-* **Frontend Web Application:** [http://localhost:5172](http://localhost:5172)
-* **Events Service API:** [http://localhost:8000/events/](http://localhost:8000/events/)
-* **Users Service API:** [http://localhost:5000/users/](http://localhost:5000/users/)
-* **Inventory Service API:** [http://localhost:8080/inventory/implements/](http://localhost:8080/inventory/implements/)
-
----
-
-### Useful Commands
-
-* **View container logs:**
-  ```bash
-  docker compose logs -f
-  ```
-* **Stop all containers:**
-  ```bash
-  docker compose down
-  ```
-* **Stop and remove data volumes (Fresh reset):**
-  ```bash
-  docker compose down -v
-  ```
+# Arquitectura del sistema
+
+## Estructura de Componentes y Conectores (C&C)
+
+### Diagrama C&C
+
+El diagrama muestra dos clientes, un gateway, tres servicios de dominio, sus bases de datos, un sistema de mensajería y los servicios externos de autenticación, mapas, almacenamiento y correo.
+
+![C&C diagram](images/diagrama_c&c.png)
+
+### Descripción de componentes
+
+| Componente | Responsabilidad |
+|---|---|
+| **ReactWebPage** | Interfaz web desarrollada en React. Se comunica con el Gateway, Firebase Authentication y Google Maps. |
+| **FlutterMobileApp** | Aplicación móvil desarrollada en Flutter. Utiliza las mismas integraciones que el cliente web. |
+| **APIGateway** | API desarrollada con FastAPI. Valida los ID Tokens de Firebase y encamina las solicitudes a los servicios de dominio. Añade a las solicitudes internas el contexto del usuario mediante encabezados. No contiene lógica de negocio ni sustituye la autorización de cada servicio. Mantiene en memoria una caché de datos de usuario con TTL de 60 segundos; la validación del token se realiza en cada solicitud protegida. |
+| **Users** | Servicio desarrollado con Django REST Framework. Gestiona usuarios, roles y estados. Comprueba la identidad recibida del Gateway consultando su propia base de datos. |
+| **Events** | Servicio desarrollado con Django REST Framework. Gestiona eventos y suscripciones. Persiste los datos en `EventsDB` y utiliza Firebase Storage para las imágenes. Aplica los permisos de las operaciones sobre eventos. |
+| **Inventory** | Servicio desarrollado con Django REST Framework. Gestiona implementos, disponibilidad, reservas y préstamos. Persiste los datos en `Inventory DB` y utiliza Firebase Storage para las imágenes. Aplica las reglas de autorización del inventario. |
+| **UsersDB**, **EventsDB**, **Inventory DB** | Bases de datos PostgreSQL independientes, una para cada servicio de dominio. Los servicios acceden a ellas mediante Django ORM. |
+| **NotificationsQueue** | Cola de mensajes implementada con RabbitMQ. Recibe mensajes publicados por `Events` e `Inventory` y los entrega al consumidor. |
+| **Notifications** | Servicio independiente desarrollado con FastAPI. Consume mensajes de RabbitMQ, construye los correos y solicita su envío a Brevo. |
+| **FirebaseAuth** | Proveedor externo de autenticación. Los clientes obtienen ID Tokens que el Gateway valida en las solicitudes protegidas. |
+| **GoogleMapsAPI** | Servicio externo de mapas, utilizado directamente por los clientes para mostrar ubicaciones. |
+| **Firebase Storage** | Almacenamiento externo utilizado por `Events` e `Inventory` para las imágenes de eventos e implementos. |
+| **Brevo** | Servicio externo utilizado por `Notifications` para el envío de correos electrónicos. |
+
+### Interfaces y mecanismos de comunicación
+
+Cada conexión del diagrama enlaza los puertos indicados en la tabla. Los mecanismos corresponden al protocolo o tecnología utilizada en esa comunicación.
+
+| Origen | Puerto de salida | Destino | Puerto de entrada | Mecanismo |
+|---|---|---|---|---|
+| `ReactWebPage` | `fbAuthPt` | `FirebaseAuth` | `authPt` | SDK de Firebase sobre HTTPS |
+| `FlutterMobileApp` | `fbAuthPt` | `FirebaseAuth` | `authPt` | SDK de Firebase sobre HTTPS |
+| `ReactWebPage` | `apiPt` | `APIGateway` | `webApiPt` | HTTP |
+| `FlutterMobileApp` | `apiPt` | `APIGateway` | `mobileApiPt` | HTTP |
+| `ReactWebPage` | `mapsPt` | `GoogleMapsAPI` | `apiPt` | API de Google Maps sobre HTTPS |
+| `FlutterMobileApp` | `mapsPt` | `GoogleMapsAPI` | `apiPt` | API de Google Maps sobre HTTPS |
+| `APIGateway` | `usersPt` | `Users` | `apiPt` | HTTP |
+| `APIGateway` | `eventsPt` | `Events` | `apiPt` | HTTP |
+| `APIGateway` | `invPt` | `Inventory` | `apiPt` | HTTP |
+| `Users` | `usersDbPt` | `UsersDB` | `queryPt` | Django ORM / conexión PostgreSQL |
+| `Events` | `eventsDbPt` | `EventsDB` | `queryPt` | Django ORM / conexión PostgreSQL |
+| `Inventory` | `invDbPt` | `Inventory DB` | `queryPt` | Django ORM / conexión PostgreSQL |
+| `Events` | `fbStgPt` | `Firebase Storage` | `objStgPt` | API de Firebase Storage |
+| `Inventory` | `fbStgPt` | `Firebase Storage` | `objStgPt` | API de Firebase Storage |
+| `Events` | `ntfsPt` | `NotificationsQueue` | `prodPt` | AMQP, publicación de mensajes |
+| `Inventory` | `ntfsPt` | `NotificationsQueue` | `prodPt` | AMQP, publicación de mensajes |
+| `NotificationsQueue` | `conPt` | `Notifications` | `queuePt` | AMQP, consumo de mensajes |
+| `Notifications` | `brevoPt` | `Brevo` | `emailApiPt` | API HTTP de Brevo |
+
+En las solicitudes protegidas, los clientes envían el ID Token en `Authorization: Bearer <token>`. El Gateway lo valida y transmite la identidad del usuario a los servicios mediante los encabezados `X-From-Gateway`, `X-User-Id`, `X-User-Email`, `X-User-Role`, `X-User-Faculty` y `X-User-Status`. El token de Firebase no se reenvía. Las solicitudes públicas pueden llegar sin contexto de usuario.
+
+El Gateway encamina las solicitudes HTTP, pero cada servicio aplica sus propios permisos. `Users` reconstruye el usuario consultando `UsersDB`; `Events` e `Inventory` utilizan el contexto recibido para evaluar sus reglas de acceso.
+
+Las tareas periódicas previstas en `Events` e `Inventory` revisarán, aproximadamente cada 30 segundos, condiciones temporales o cambios de estado que puedan generar notificaciones. Cuando corresponda, publicarán un mensaje en RabbitMQ. `Notifications` consume los mensajes de forma continua y llama a la API de Brevo para solicitar el envío del correo.
+
+**Consideración de seguridad:** el encabezado `X-From-Gateway: true` no autentica criptográficamente al emisor. La comunicación interna debe restringirse a los componentes autorizados y requiere un mecanismo de autenticación entre servicios para evitar la falsificación de encabezados.
+
+### Escenarios de interacción
+
+#### 1. Autenticación y solicitud protegida
+
+1. El cliente se autentica directamente con `FirebaseAuth` y obtiene un ID Token.
+2. Envía la solicitud al Gateway con el token en el encabezado `Authorization`.
+3. El Gateway valida el token y obtiene el identificador del usuario (`firebase_uid`).
+4. Si no tiene datos vigentes en caché, consulta a `Users`; si el usuario no existe, solicita su creación.
+5. El Gateway añade los encabezados de contexto y reenvía la solicitud al servicio correspondiente.
+6. El servicio verifica los permisos, ejecuta la operación y devuelve la respuesta a través del Gateway.
+
+#### 2. Consulta y visualización de eventos
+
+1. El cliente solicita los eventos al Gateway.
+2. El Gateway reenvía la solicitud a `Events`.
+3. `Events` consulta `EventsDB` y devuelve los eventos correspondientes.
+4. El cliente utiliza los datos de ubicación para mostrarlos mediante `GoogleMapsAPI`, sin pasar por el Gateway.
+
+#### 3. Cambio de evento y envío de correo
+
+1. El cliente envía al Gateway una solicitud para crear o modificar un evento.
+2. El Gateway valida la identidad y remite la solicitud a `Events`.
+3. `Events` verifica los permisos y guarda los cambios en `EventsDB`.
+4. Si el cambio requiere notificaciones, `Events` publica un mensaje en `NotificationsQueue` mediante AMQP.
+5. `Notifications` consume el mensaje y solicita a Brevo el envío del correo mediante su API.
+
+#### 4. Reserva y vencimiento de un implemento
+
+1. El cliente solicita a `Inventory` la disponibilidad de un implemento.
+2. `Inventory` consulta `Inventory DB` y, al recibir una solicitud de reserva, verifica las reglas correspondientes, incluido el límite de un implemento reservado o prestado por miembro.
+3. Si se cumplen las condiciones, registra la reserva, que debe confirmarse en un plazo de diez minutos.
+4. La tarea periódica prevista detecta las reservas vencidas, las cancela y restablece la disponibilidad del implemento.
+5. Si corresponde enviar una notificación, `Inventory` publica el mensaje en RabbitMQ para que `Notifications` lo procese y solicite el envío a Brevo.
