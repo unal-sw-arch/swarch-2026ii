@@ -2,6 +2,8 @@ import mutationApp from '../../mutationApp';
 import { rows } from '../../shared/http';
 import type { CloudBindings } from '../../types';
 import { patchesForMutation, type RealtimePatch } from './events';
+import { drainDueJobs } from '../../features/async_jobs/drain';
+import { nextPendingRunAt } from '../../features/async_jobs/repository';
 
 type SocketAttachment = {
   sessionId: number;
@@ -138,10 +140,37 @@ export class RestaurantCoordinator implements DurableObject {
         this.env.DB, request, parsed, idempotencyKey, startedAt,
       );
       for (const patch of patches) this.broadcast(patch);
+      // The mutation routes may have enqueued async jobs (e.g. metric writes).
+      // Make sure the background drain alarm is scheduled to pick them up.
+      await this.scheduleJobAlarm();
     }
     const headers = new Headers(response.headers);
     headers.set('Idempotency-Key', idempotencyKey);
     return new Response(body || null, { status: response.status, headers });
+  }
+
+  // --- Asynchronous job processing ------------------------------------------
+  // The coordinator doubles as the system's background worker: a Durable Object
+  // alarm drains the `async_jobs` queue, running deferred side effects (metric
+  // writes) off the request path and retrying failures with backoff.
+
+  async alarm() {
+    const result = await this.enqueue(() => drainDueJobs(this.env));
+    // Reschedule while jobs remain (ready now or awaiting a retry backoff).
+    if (result.nextRunAt !== null) {
+      await this.state.storage.setAlarm(Math.max(result.nextRunAt, Date.now()));
+    }
+  }
+
+  /**
+   * Ensures an alarm is pending so queued jobs get drained. Only sets one when
+   * none is scheduled, honoring the earliest pending job's backoff gate.
+   */
+  private async scheduleJobAlarm() {
+    if (await this.state.storage.getAlarm() !== null) return;
+    const nextRunAt = await nextPendingRunAt(this.env.DB);
+    if (nextRunAt === null) return;
+    await this.state.storage.setAlarm(Math.max(nextRunAt, Date.now()));
   }
 
   private broadcast(patch: RealtimePatch) {

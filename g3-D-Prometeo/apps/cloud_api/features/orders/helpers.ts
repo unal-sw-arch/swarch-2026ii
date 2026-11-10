@@ -282,12 +282,13 @@ export const paymentMethods = new Set(['cash', 'transfer', 'card']);
 // Sales metrics now live in MongoDB (via the metrics gateway), so they can no
 // longer ride inside the order's D1 batch. These helpers run AFTER the D1 batch
 // commits: D1 stays the transactional source of truth for the order, and the
-// metric write is a separate, idempotent step keyed by the coordinator's
-// idempotency-key so retries never double-count. If the gateway is unreachable,
-// the order still succeeds; metrics can be resynced with a rebuild.
+// metric write is handed off to the asynchronous job processor so a slow or
+// unreachable gateway never delays (or fails) the user's mutation. The job is
+// keyed by the coordinator's idempotency-key, so retries never double-count.
 
-import { metricsClient, type MetricOperation, type MetricSnapshot }
+import { type MetricOperation, type MetricSnapshot }
   from '../../infrastructure/metrics/client';
+import { enqueueJob } from '../async_jobs/repository';
 
 /**
  * Resolves the mutation id used to dedupe metric writes. Under the coordinator
@@ -298,15 +299,19 @@ export function mutationId(c: import('hono').Context<CloudEnvironment>): string 
   return c.req.header('idempotency-key') ?? crypto.randomUUID();
 }
 
-/** Applies incremental metric operations after the order's D1 batch commits. */
+/**
+ * Enqueues incremental metric operations as an async job after the order's D1
+ * batch commits. The coordinator's alarm drains the job to the gateway in the
+ * background with retries, so this returns without waiting on the network.
+ */
 export async function applyMetrics(c: import('hono').Context<CloudEnvironment>,
   operations: MetricOperation[]): Promise<void> {
   if (operations.length === 0) return;
-  await metricsClient(c.env).apply(mutationId(c), operations);
+  await enqueueJob(c.env.DB, 'metrics.apply', mutationId(c), { operations });
 }
 
-/** Replaces all metric collections with a snapshot recomputed from D1 orders. */
+/** Enqueues a full metric-snapshot rebuild as an async job. */
 export async function rebuildMetrics(c: import('hono').Context<CloudEnvironment>,
   snapshot: MetricSnapshot): Promise<void> {
-  await metricsClient(c.env).rebuild(mutationId(c), snapshot);
+  await enqueueJob(c.env.DB, 'metrics.rebuild', mutationId(c), { snapshot });
 }
