@@ -1,4 +1,3 @@
-# Levantar todo:  docker compose up --build
 services:
   # ------------------------------------------------------------ Bases de datos
   db-usuarios:
@@ -53,6 +52,42 @@ services:
       retries: 12
       start_period: 10s
 
+  db-estadisticas:
+    image: postgres:15-alpine
+    container_name: bd_estadisticas
+    environment:
+      POSTGRES_USER: user_buffit
+      POSTGRES_PASSWORD: password_buffit
+      POSTGRES_DB: bd_estadisticas
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_stats_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U user_buffit -d bd_estadisticas"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # ------------------------------------------------------------ Broker de mensajes
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: buffit
+      RABBITMQ_DEFAULT_PASS: password_buffit
+    ports:
+      - "5672:5672"     # AMQP (los servicios)
+      - "15672:15672"   # Panel web: http://localhost:15672  (buffit / password_buffit)
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq/mnesia
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
   # ------------------------------------------------------------ Servicios
   gestor-usuarios:
     build: ./apps/gestor-usuarios
@@ -74,10 +109,16 @@ services:
       PORT: "8004"
       DATABASE_URL: postgresql+psycopg2://user_buffit:password_buffit@db-pedidos:5432/bd_pedidos
       INVENTORY_GRPC_TARGET: gestor-inventario:50051
+      INVENTORY_HTTP_URL: http://gestor-inventario:8003
+      JWT_SECRET_KEY: clave_secreta_super_segura_buffit
+      JWT_ALGORITHM: HS256
+      RABBITMQ_URL: amqp://buffit:password_buffit@rabbitmq:5672/
     ports:
       - "8004:8004"
     depends_on:
       db-pedidos:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       gestor-inventario:
         condition: service_started
@@ -102,6 +143,25 @@ services:
         condition: service_healthy
     restart: on-failure
 
+  gestor-estadisticas:
+    build: ./apps/gestor-estadisticas
+    container_name: gestor_estadisticas
+    environment:
+      PORT: "8005"
+      DATABASE_URL: postgresql+psycopg2://user_buffit:password_buffit@db-estadisticas:5432/bd_estadisticas
+      RABBITMQ_URL: amqp://buffit:password_buffit@rabbitmq:5672/
+      REFERENCE_PRICE: "16500"
+      JWT_SECRET_KEY: clave_secreta_super_segura_buffit
+      JWT_ALGORITHM: HS256
+    ports:
+      - "8005:8005"
+    depends_on:
+      db-estadisticas:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+
   api-gateway:
     build: ./apps/api-gateway
     container_name: api_gateway
@@ -111,40 +171,30 @@ services:
       USERS_SERVICE_URL: http://gestor-usuarios:8002
       ORDERS_SERVICE_URL: http://gestor-pedidos:8004
       INVENTORY_SERVICE_URL: http://gestor-inventario:8003
+      STATS_SERVICE_URL: http://gestor-estadisticas:8005
     ports:
       - "8000:8000"
     depends_on:
       - gestor-usuarios
       - gestor-pedidos
       - gestor-inventario
-    restart: on-failure
-
-  auth-service:
-    build: ./apps/auth-service
-    container_name: auth_service
-    environment:
-      PORT: "5000"
-      JWT_SECRET_KEY: clave_secreta_super_segura_buffit
-      JWT_ALGORITHM: HS256
-      API_GATEWAY_URL: http://api-gateway:8000
-    ports:
-      - "5000:5000"
-    depends_on:
-      - api-gateway
+      - gestor-estadisticas
     restart: on-failure
 
   portal:
     build: ./apps/portal
     container_name: portal
     environment:
-      # Lo usa el navegador (en tu PC), por eso es localhost y no el nombre del contenedor
-      VITE_AUTH_SERVICE_URL: http://localhost:5000
+      # Lo usa el navegador (localhost-no el nombre del contenedor)
+      VITE_API_GATEWAY_URL: http://localhost:8000
     ports:
       - "3000:3000"
     depends_on:
-      - auth-service
+      - api-gateway
 
 volumes:
   postgres_users_data:
   postgres_orders_data:
   mongo_inventory_data:
+  postgres_stats_data:
+  rabbitmq_data:

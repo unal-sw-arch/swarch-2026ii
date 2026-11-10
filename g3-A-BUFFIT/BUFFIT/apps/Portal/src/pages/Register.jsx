@@ -110,9 +110,9 @@ export const Register = () => {
               onChange={handleChange}
               style={{ width: '100%', padding: '8px', marginTop: '4px' }}
             >
-              <option value="ESTUDIANTE">Estudiante ($3.500 COP)</option>
+              <option value="ESTUDIANTE">Estudiante con carnet ($8.400 COP)</option>
               <option value="APOYO_ALIMENTARIO">Apoyo Alimentario ($0 COP)</option>
-              <option value="GENERAL">General ($12.000 COP)</option>
+              <option value="GENERAL">General sin carnet ($16.500 COP)</option>
             </select>
           </div>
         )}

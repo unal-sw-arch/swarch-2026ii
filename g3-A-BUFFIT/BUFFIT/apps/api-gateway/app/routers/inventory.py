@@ -13,6 +13,9 @@ async def proxy_inventory(path: str, request: Request, user_payload: dict = Depe
     headers = dict(request.headers)
     headers.pop("host", None)
 
+    headers["X-User-Id"] = str(user_payload.get("sub", ""))
+    headers["X-User-Role"] = str(user_payload.get("role", "Usuario"))
+    
     async with httpx.AsyncClient() as client:
         response = await client.request(
             method=request.method,

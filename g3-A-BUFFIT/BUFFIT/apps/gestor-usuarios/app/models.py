@@ -12,6 +12,7 @@ class User(db.Model):
     role = db.Column(db.String(50), nullable=False, default="Usuario")  # Usuario, Comedor, Administrador
     user_type = db.Column(db.String(50), nullable=False, default="ESTUDIANTE")  # APOYO_ALIMENTARIO, ESTUDIANTE, GENERAL
     is_active = db.Column(db.Boolean, default=True)
+    notes_state = db.Column(db.String(60), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def set_password(self, password: str):
@@ -30,5 +31,6 @@ class User(db.Model):
             "role": self.role,
             "user_type": self.user_type,
             "is_active": self.is_active,
+            "notes_state": self.notes_state,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }

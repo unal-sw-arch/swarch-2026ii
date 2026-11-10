@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect } from 'react';
-import api from '../services/api';
+import { loginUser } from '../services/api';
 
 export const AuthContext = createContext();
 
@@ -17,23 +17,25 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await api.post('/login', { email, password });
-      const { token, user: userData } = response.data;
+      // Usar la función centralizada de api.js
+      const data = await loginUser({ email, password });
+      const { token, refresh, user: userData } = data;
 
       localStorage.setItem('token', token);
+      localStorage.setItem('refreshToken', refresh);
       localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
 
       return { user: userData };
     } catch (err) {
-      // Extrae el mensaje de error que devuelve Flask/FastAPI o usa uno por defecto
-      const errorMessage = err.response?.data?.error || err.response?.data?.message || 'Credenciales inválidas';
+      const errorMessage = err.response?.data?.detail || err.response?.data?.error || err.response?.data?.message || 'Credenciales inválidas';
       return { error: errorMessage };
     }
   };
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     setUser(null);
   };
