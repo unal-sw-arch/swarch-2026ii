@@ -2,9 +2,9 @@ import { Hono } from 'hono';
 import { hashPassword } from '../../domain/security/password';
 import { requireAdmin, requireSession } from '../auth/session';
 import { readLayout } from '../read_model/repository';
-import { bogotaMetricKeys, rebuildSalesMetricStatements,
-  rebuildStatusMetricStatements, billedOrderMetricStatements,
+import { bogotaMetricKeys, billedOrderMetricOperations, rebuildMetricSnapshot,
   statusMetricChange } from './sales_metrics';
+import { metricsClient } from '../../infrastructure/metrics/client';
 import { generatedId, jsonObject, positiveId, rows } from '../../shared/http';
 import type { CloudEnvironment } from '../../types';
 import {
@@ -15,6 +15,12 @@ import {
 const allowedRoles = new Set(['waiter', 'kitchen', 'cashier', 'manager']);
 const routes = new Hono<CloudEnvironment>();
 routes.use('*', requireSession, requireAdmin);
+
+// Dedupe key for metric writes: the coordinator stamps every mutation with an
+// idempotency-key; outside it (tests) we fall back to a random id.
+function metricMutationId(c: import('hono').Context<CloudEnvironment>): string {
+  return c.req.header('idempotency-key') ?? crypto.randomUUID();
+}
 
 routes.get('/activities', async (c) => c.json({
   activities: await rows(c.env.DB.prepare(
@@ -29,10 +35,7 @@ routes.get('/halls/:hallId/order-history-summary', async (c) => {
   const hallId = positiveId(c.req.param('hallId'));
   if (!hallId || !await c.env.DB.prepare('SELECT 1 FROM hall WHERE id = ?')
     .bind(hallId).first()) return c.json({ error: 'ROOM_NOT_FOUND' }, 404);
-  const counts = await rows<{ status: string; count: number }>(c.env.DB.prepare(
-    `SELECT status, order_count AS count FROM hall_order_status_totals
-     WHERE hall_id = ?`,
-  ).bind(hallId));
+  const counts = await metricsClient(c.env).hallStatusCounts(hallId);
   const count = (status: string) => Number(
     counts.find((row) => row.status === status)?.count ?? 0,
   );
@@ -78,8 +81,10 @@ routes.delete('/halls/:hallId/orders/:orderId', async (c) => {
      FROM orders WHERE id = ? AND hall_id = ?`,
   ).bind(orderId, hallId).first<{ id: number; status: string; updatedAt: string }>();
   if (!order) return c.json({ error: 'ORDER_NOT_FOUND' }, 404);
+  // Compute the reversal operations before the batch deletes the order items,
+  // since they are read from D1. They are applied to Mongo after D1 commits.
   const salesChanges = order.status === 'closed'
-    ? await billedOrderMetricStatements(
+    ? await billedOrderMetricOperations(
       c.env.DB, orderId, hallId, new Date(order.updatedAt), -1,
     ) : [];
   const session = c.get('session');
@@ -89,8 +94,6 @@ routes.delete('/halls/:hallId/orders/:orderId', async (c) => {
     c.env.DB.prepare('DELETE FROM order_items WHERE order_id = ?').bind(orderId),
     c.env.DB.prepare('DELETE FROM removed_order_items WHERE order_id = ?').bind(orderId),
     c.env.DB.prepare('DELETE FROM orders WHERE id = ?').bind(orderId),
-    statusMetricChange(c.env.DB, hallId, order.status, -1),
-    ...salesChanges,
     c.env.DB.prepare(
       `UPDATE hall_tables SET status = COALESCE((
          SELECT active.status FROM orders active
@@ -124,6 +127,10 @@ routes.delete('/halls/:hallId/orders/:orderId', async (c) => {
        (author_id, hall_id, type, modification, created_at)
        VALUES (?, ?, 'Pedidos', ?, ?)`,
     ).bind(session.user.id, hallId, `Eliminó el pedido ${orderId}`, now),
+  ]);
+  await metricsClient(c.env).apply(metricMutationId(c), [
+    statusMetricChange(hallId, order.status, -1),
+    ...salesChanges,
   ]);
   return c.json({ deleted: true, orderId, status: order.status });
 });
@@ -170,8 +177,6 @@ routes.delete('/halls/:hallId/orders', async (c) => {
     c.env.DB.prepare(
       `DELETE FROM orders WHERE id IN (${targetOrders})`,
     ).bind(...bindings),
-    ...rebuildStatusMetricStatements(c.env.DB),
-    ...(statuses.includes('closed') ? rebuildSalesMetricStatements(c.env.DB) : []),
     c.env.DB.prepare(
       `UPDATE hall_tables SET status = COALESCE((
          SELECT o.status FROM orders o
@@ -208,6 +213,12 @@ routes.delete('/halls/:hallId/orders', async (c) => {
       `Eliminó ${deletedCount} orden(es) ${statuses.map((status) => labels[status]).join(', ')}`,
       now),
   ]);
+  // Bulk delete can't cheaply reverse individual contributions, so after D1
+  // commits we recompute the whole snapshot from the surviving orders and push
+  // it to the gateway, replacing every metric collection wholesale.
+  await metricsClient(c.env).rebuild(
+    metricMutationId(c), await rebuildMetricSnapshot(c.env.DB),
+  );
   return c.json({ deletedCount, statuses });
 });
 
@@ -228,41 +239,21 @@ routes.get('/overview', async (c) => {
   const buckets = revenueBuckets(period, range, todayStart, now);
   const keys = buckets.map((bucket) => bucket.key);
   const todayKey = bogotaMetricKeys(now).day;
-  const [summary, accumulatedPoints, topProduct, categories] = await Promise.all([
-    c.env.DB.prepare(
-      `SELECT total_sales AS sales, order_count AS orders
-       FROM sales_metric_buckets WHERE period = 'day' AND bucket_key = ?`,
-    ).bind(todayKey).first<{ sales: number; orders: number }>(),
-    rows<{ key: string; value: number }>(c.env.DB.prepare(
-      `SELECT bucket_key AS key, total_sales AS value
-       FROM sales_metric_buckets
-       WHERE period = ? AND bucket_key IN (${keys.map(() => '?').join(',')})`,
-    ).bind(period, ...keys)),
-    c.env.DB.prepare(
-      `SELECT product_name AS name, unit_value AS value, quantity
-       FROM daily_product_sales WHERE day_key = ?
-       ORDER BY quantity DESC, product_name COLLATE NOCASE, product_id LIMIT 1`,
-    ).bind(todayKey).first(),
-    rows(c.env.DB.prepare(
-      `SELECT category_name AS name, total_sales AS value
-       FROM daily_category_sales WHERE day_key = ?
-       ORDER BY total_sales DESC, category_name COLLATE NOCASE, category_id LIMIT 4`,
-    ).bind(todayKey)),
-  ]);
-  const values = new Map(accumulatedPoints.map((point) => [point.key, Number(point.value)]));
+  const metrics = await metricsClient(c.env).overview({ period, todayKey, keys });
+  const values = new Map(metrics.points.map((point) => [point.key, Number(point.value)]));
   const points = buckets.map((bucket) => ({
     label: bucket.label,
     value: values.get(bucket.key) ?? 0,
   }));
-  const sales = Number(summary?.sales ?? 0);
-  const orderCount = Number(summary?.orders ?? 0);
+  const sales = Number(metrics.summary?.sales ?? 0);
+  const orderCount = Number(metrics.summary?.orders ?? 0);
   return c.json({
     salesToday: sales,
     ordersToday: orderCount,
     averageTicket: orderCount === 0 ? 0 : Math.round(sales / orderCount),
     points,
-    topProduct,
-    categories,
+    topProduct: metrics.topProduct,
+    categories: metrics.categories,
   });
 });
 

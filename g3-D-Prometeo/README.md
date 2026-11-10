@@ -54,6 +54,8 @@ database/
   d1/seeds/             Datos de desarrollo
 scripts/
   catalog/              Importadores de catálogos hacia D1
+services/
+  metrics_gateway/      Gateway HTTP ↔ MongoDB (métricas; solo local)
 docs/
   architecture/         Diseño vigente del sistema
   development/          Reglas y flujos para contribuir
@@ -80,11 +82,18 @@ Requisitos: Docker y Docker Compose.
 docker compose up --build
 ```
 
-| Servicio          | Descripción                                               | URL                   |
-| ----------------- | --------------------------------------------------------- | --------------------- |
-| `backend`         | Worker en `wrangler dev` (D1 y Durable Object emulados)   | http://localhost:8787 |
-| `web-operational` | Build web del cliente operativo servido por nginx         | http://localhost:8080 |
-| `web-admin`       | Build web del cliente administrativo servido por nginx    | http://localhost:8081 |
+| Servicio          | Descripción                                               | URL                    |
+| ----------------- | --------------------------------------------------------- | ---------------------- |
+| `backend`         | Worker en `wrangler dev` (D1 y Durable Object emulados)   | http://localhost:8787  |
+| `web-operational` | Build web del cliente operativo servido por nginx         | http://localhost:8080  |
+| `web-admin`       | Build web del cliente administrativo servido por nginx    | http://localhost:8081  |
+| `mongo`           | MongoDB, dueño de las métricas de ventas                  | mongodb://localhost:27017 |
+| `metrics-gateway` | Gateway HTTP ↔ Mongo para el Worker (ver `services/`)     | http://localhost:8788  |
+
+> Las métricas de ventas acumuladas viven en MongoDB (no en D1). El Worker no
+> abre TCP crudo, así que las lee/escribe por HTTP a través del
+> `metrics-gateway`, un gateway de datos puro (sin lógica de negocio). Ver
+> `services/metrics_gateway/README.md`. Solo aplica en desarrollo local.
 
 Con el stack levantado, aplica las migraciones y los datos de desarrollo en otra terminal:
 
@@ -99,6 +108,18 @@ Notas:
 - La URL del backend se compila dentro de los builds web (`--dart-define=RESTAURANT_API_URL`, por defecto `http://localhost:8787`). Si cambias el puerto o el host del backend, reconstruye las imágenes web con el build arg actualizado.
 - La imagen de `web-admin` se construye con contexto `apps/` porque `admin_client` depende de `operational_client` por path.
 - Docker solo se usa para desarrollo local; en producción el Worker se despliega a Cloudflare con `npm run cloud:deploy`.
+
+## Usuarios de prueba
+
+`development.sql` crea usuarios con contraseñas conocidas para probar la aplicación en local. Los hashes se generan con el mismo scrypt del backend (`apps/cloud_api/domain/security/password.ts`).
+
+| Rol      | Usuario        | Contraseña        |
+| -------- | -------------- | ----------------- |
+| admin    | `admin.test`   | `AdminTest1234`   |
+| waiter   | `mesero.test`  | `MeseroTest1234`  |
+| kitchen  | `cocina.test`  | `CocinaTest1234`  |
+| cashier  | `caja.test`    | `CajaTest123456`  |
+| manager  | `gerente.test` | `GerenteTest1234` |
 
 ### Sin Docker
 

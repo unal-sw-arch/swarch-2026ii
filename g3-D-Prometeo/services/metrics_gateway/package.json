@@ -1,0 +1,14 @@
+{
+  "name": "metrics-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HTTP data gateway between the Cloudflare Worker and MongoDB (local dev only).",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "mongodb": "6.12.0"
+  }
+}
