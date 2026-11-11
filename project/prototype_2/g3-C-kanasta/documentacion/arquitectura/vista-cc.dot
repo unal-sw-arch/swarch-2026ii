@@ -1,0 +1,83 @@
+// Kanasta - Components and connectors view (prototype 2)
+digraph cc {
+  graph [rankdir=TB, splines=spline, nodesep=0.35, ranksep=0.42, fontname="Helvetica", bgcolor="white", pad=0.3, label=<<b>Kanasta - Vista de Componentes y Conectores</b>>, labelloc=t, fontsize=18, newrank=true];
+  node [fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=10, penwidth=1.2, color="#37474F"];
+  browser [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="5" style="rounded,dashed" bgcolor="#F5F5F5"><tr><td><font point-size="10">&lt;&lt; Browser &gt;&gt;</font></td></tr><tr><td><b>Navegador del cliente</b><br/><font point-size="9">celular o computador</font></td></tr><tr><td><table border="0" cellspacing="5"><tr><td port="http" border="1" bgcolor="white"><font point-size="9">http</font></td></tr></table></td></tr></table>>];
+  web [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="5" style="rounded" bgcolor="#E3F0FF"><tr><td><table border="0" cellspacing="5"><tr><td port="paginas_html" border="1" bgcolor="white"><font point-size="9">paginas-html</font></td></tr></table></td></tr><tr><td><font point-size="10">&lt;&lt; SSR Web App &gt;&gt;</font></td></tr><tr><td><b>Kanasta Web</b><br/><font point-size="9">JavaScript (Node.js, Express + EJS)</font></td></tr><tr><td><table border="0" cellspacing="5"><tr><td port="rest" border="1" bgcolor="white"><font point-size="9">rest</font></td><td port="graphql" border="1" bgcolor="white"><font point-size="9">graphql</font></td><td port="imagenes" border="1" bgcolor="white"><font point-size="9">imagenes</font></td></tr></table></td></tr></table>>];
+  admin [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="5" style="rounded" bgcolor="#E3F0FF"><tr><td><font point-size="10">&lt;&lt; Desktop App &gt;&gt;</font></td></tr><tr><td><b>Kanasta Admin</b><br/><font point-size="9">Python (PyQt5)</font></td></tr><tr><td><table border="0" cellspacing="5"><tr><td port="rest" border="1" bgcolor="white"><font point-size="9">rest</font></td><td port="graphql" border="1" bgcolor="white"><font point-size="9">graphql</font></td><td port="imagenes" border="1" bgcolor="white"><font point-size="9">imagenes</font></td></tr></table></td></tr></table>>];
+  gateway [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="5" style="rounded" bgcolor="#FCE4EC"><tr><td><table border="0" cellspacing="5"><tr><td port="api_rest" border="1" bgcolor="white"><font point-size="9">api-rest</font></td><td port="api_graphql" border="1" bgcolor="white"><font point-size="9">api-graphql</font></td><td port="api_imagenes" border="1" bgcolor="white"><font point-size="9">api-imagenes</font></td></tr></table></td></tr><tr><td><font point-size="10">&lt;&lt; API Gateway &gt;&gt;</font></td></tr><tr><td><b>API Gateway</b><br/><font point-size="9">Go</font></td></tr><tr><td><table border="0" cellspacing="5"><tr><td port="catalogo" border="1" bgcolor="white"><font point-size="9">catalogo</font></td><td port="pedidos" border="1" bgcolor="white"><font point-size="9">pedidos</font></td><td port="cuentas" border="1" bgcolor="white"><font point-size="9">cuentas</font></td><td port="correo" border="1" bgcolor="white"><font point-size="9">correo</font></td><td port="imagenes" border="1" bgcolor="white"><font point-size="9">imagenes</font></td></tr></table></td></tr></table>>];
+  catalog [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="5" style="rounded" bgcolor="#E8F5E9"><tr><td><table border="0" cellspacing="5"><tr><td port="api_rest" border="1" bgcolor="white"><font point-size="9">api-rest</font></td><td port="api_interna" border="1" bgcolor="white"><font point-size="9">api-interna</font></td></tr></table></td></tr><tr><td><font point-size="10">&lt;&lt; Service &gt;&gt;</font></td></tr><tr><td><b>Catalog Service</b><br/><font point-size="9">Python (FastAPI)</font></td></tr><tr><td><table border="0" cellspacing="5"><tr><td port="bd" border="1" bgcolor="white"><font point-size="9">bd</font></td></tr></table></td></tr></table>>];
+  orders [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="5" style="rounded" bgcolor="#E8F5E9"><tr><td><table border="0" cellspacing="5"><tr><td port="api_graphql" border="1" bgcolor="white"><font point-size="9">api-graphql</font></td></tr></table></td></tr><tr><td><font point-size="10">&lt;&lt; Service &gt;&gt;</font></td></tr><tr><td><b>Orders Service</b><br/><font point-size="9">JavaScript (Node.js, GraphQL)</font></td></tr><tr><td><table border="0" cellspacing="5"><tr><td port="cliente_catalogo" border="1" bgcolor="white"><font point-size="9">cliente-catalogo</font></td><td port="eventos" border="1" bgcolor="white"><font point-size="9">eventos</font></td><td port="bd" border="1" bgcolor="white"><font point-size="9">bd</font></td></tr></table></td></tr></table>>];
+  accounts [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="5" style="rounded" bgcolor="#E8F5E9"><tr><td><table border="0" cellspacing="5"><tr><td port="api_rest" border="1" bgcolor="white"><font point-size="9">api-rest</font></td></tr></table></td></tr><tr><td><font point-size="10">&lt;&lt; Service &gt;&gt;</font></td></tr><tr><td><b>Accounts Service</b><br/><font point-size="9">Java (Spring Boot)</font></td></tr><tr><td><table border="0" cellspacing="5"><tr><td port="eventos" border="1" bgcolor="white"><font point-size="9">eventos</font></td><td port="bd" border="1" bgcolor="white"><font point-size="9">bd</font></td></tr></table></td></tr></table>>];
+  images [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="5" style="rounded" bgcolor="#E8F5E9"><tr><td><table border="0" cellspacing="5"><tr><td port="api_imagenes" border="1" bgcolor="white"><font point-size="9">api-imagenes</font></td></tr></table></td></tr><tr><td><font point-size="10">&lt;&lt; Service &gt;&gt;</font></td></tr><tr><td><b>Image Provider</b><br/><font point-size="9">JavaScript (Node.js)</font></td></tr></table>>];
+  notifications [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="5" style="rounded" bgcolor="#FFF3E0"><tr><td><table border="0" cellspacing="5"><tr><td port="api_rest" border="1" bgcolor="white"><font point-size="9">api-rest</font></td></tr></table></td></tr><tr><td><font point-size="10">&lt;&lt; Async Worker &gt;&gt;</font></td></tr><tr><td><b>Notifications Service</b><br/><font point-size="9">Go</font></td></tr><tr><td><table border="0" cellspacing="5"><tr><td port="eventos" border="1" bgcolor="white"><font point-size="9">eventos</font></td><td port="cliente_catalogo" border="1" bgcolor="white"><font point-size="9">cliente-catalogo</font></td><td port="correo" border="1" bgcolor="white"><font point-size="9">correo</font></td><td port="bd" border="1" bgcolor="white"><font point-size="9">bd</font></td></tr></table></td></tr></table>>];
+  broker [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="5" style="rounded" bgcolor="#FFF3E0"><tr><td><table border="0" cellspacing="5"><tr><td port="publicar" border="1" bgcolor="white"><font point-size="9">publicar</font></td><td port="suscribir" border="1" bgcolor="white"><font point-size="9">suscribir</font></td></tr></table></td></tr><tr><td><font point-size="10">&lt;&lt; Message Broker &gt;&gt;</font></td></tr><tr><td><b>Message Broker</b><br/><font point-size="9">RabbitMQ</font></td></tr></table>>];
+  resend [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="5" style="rounded,dashed" bgcolor="#F5F5F5"><tr><td><table border="0" cellspacing="5"><tr><td port="api_https" border="1" bgcolor="white"><font point-size="9">api-https</font></td></tr></table></td></tr><tr><td><font point-size="10">&lt;&lt; External Service &gt;&gt;</font></td></tr><tr><td><b>Resend</b><br/><font point-size="9">API de correo</font></td></tr></table>>];
+  catalogdb [shape=cylinder, style=filled, fillcolor="#F3E5F5", margin="0.25,0.12", label=<<table border="0" cellspacing="1"><tr><td><table border="0" cellspacing="4"><tr><td port="sql" border="1" bgcolor="white"><font point-size="9">sql</font></td></tr></table></td></tr><tr><td><font point-size="10">&lt;&lt; RDB &gt;&gt;</font></td></tr><tr><td><b>Catalog DB</b><br/><font point-size="9">PostgreSQL</font></td></tr></table>>];
+  accountsdb [shape=cylinder, style=filled, fillcolor="#F3E5F5", margin="0.25,0.12", label=<<table border="0" cellspacing="1"><tr><td><table border="0" cellspacing="4"><tr><td port="sql" border="1" bgcolor="white"><font point-size="9">sql</font></td></tr></table></td></tr><tr><td><font point-size="10">&lt;&lt; RDB &gt;&gt;</font></td></tr><tr><td><b>Accounts DB</b><br/><font point-size="9">PostgreSQL</font></td></tr></table>>];
+  ordersdb [shape=cylinder, style=filled, fillcolor="#F3E5F5", margin="0.25,0.12", label=<<table border="0" cellspacing="1"><tr><td><table border="0" cellspacing="4"><tr><td port="documentos" border="1" bgcolor="white"><font point-size="9">documentos</font></td></tr></table></td></tr><tr><td><font point-size="10">&lt;&lt; NoSQL DB &gt;&gt;</font></td></tr><tr><td><b>Orders DB</b><br/><font point-size="9">MongoDB</font></td></tr></table>>];
+  notificationsdb [shape=cylinder, style=filled, fillcolor="#F3E5F5", margin="0.25,0.12", label=<<table border="0" cellspacing="1"><tr><td><table border="0" cellspacing="4"><tr><td port="documentos" border="1" bgcolor="white"><font point-size="9">documentos</font></td></tr></table></td></tr><tr><td><font point-size="10">&lt;&lt; NoSQL DB &gt;&gt;</font></td></tr><tr><td><b>Notifications DB</b><br/><font point-size="9">MongoDB</font></td></tr></table>>];
+  j1 [shape=point, width=0.03, label=""];
+  j1 -> web:paginas_html:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;HTTP&gt;&gt;</font>>];
+  browser:http:s -> j1 [arrowhead=icurve, arrowsize=1.3];
+  j2 [shape=point, width=0.03, label=""];
+  j2 -> gateway:api_rest:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;REST&gt;&gt;</font>>];
+  web:rest:s -> j2 [arrowhead=icurve, arrowsize=1.3];
+  j3 [shape=point, width=0.03, label=""];
+  j3 -> gateway:api_graphql:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;GraphQL&gt;&gt;</font>>];
+  web:graphql:s -> j3 [arrowhead=icurve, arrowsize=1.3];
+  j4 [shape=point, width=0.03, label=""];
+  j4 -> gateway:api_imagenes:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;HTTP&gt;&gt;</font>>];
+  web:imagenes:s -> j4 [arrowhead=icurve, arrowsize=1.3];
+  admin:rest:s -> j2 [arrowhead=icurve, arrowsize=1.3];
+  admin:graphql:s -> j3 [arrowhead=icurve, arrowsize=1.3];
+  admin:imagenes:s -> j4 [arrowhead=icurve, arrowsize=1.3];
+  j5 [shape=point, width=0.03, label=""];
+  j5 -> catalog:api_rest:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;REST&gt;&gt;</font>>];
+  gateway:catalogo:s -> j5 [arrowhead=icurve, arrowsize=1.3];
+  j6 [shape=point, width=0.03, label=""];
+  j6 -> orders:api_graphql:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;GraphQL&gt;&gt;</font>>];
+  gateway:pedidos:s -> j6 [arrowhead=icurve, arrowsize=1.3];
+  j7 [shape=point, width=0.03, label=""];
+  j7 -> accounts:api_rest:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;REST&gt;&gt;</font>>];
+  gateway:cuentas:s -> j7 [arrowhead=icurve, arrowsize=1.3];
+  j8 [shape=point, width=0.03, label=""];
+  j8 -> notifications:api_rest:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;REST&gt;&gt;</font>>];
+  gateway:correo:s -> j8 [arrowhead=icurve, arrowsize=1.3];
+  j9 [shape=point, width=0.03, label=""];
+  j9 -> images:api_imagenes:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;HTTP&gt;&gt;</font>>];
+  gateway:imagenes:s -> j9 [arrowhead=icurve, arrowsize=1.3];
+  j10 [shape=point, width=0.03, label=""];
+  j10 -> catalog:api_interna:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;REST&gt;&gt;</font>>];
+  orders:cliente_catalogo:s -> j10 [arrowhead=icurve, arrowsize=1.3];
+  notifications:cliente_catalogo:s -> j10 [arrowhead=icurve, arrowsize=1.3];
+  j11 [shape=point, width=0.03, label=""];
+  j11 -> broker:publicar:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;AMQP&gt;&gt;</font>>];
+  orders:eventos:s -> j11 [arrowhead=icurve, arrowsize=1.3];
+  accounts:eventos:s -> j11 [arrowhead=icurve, arrowsize=1.3];
+  j12 [shape=point, width=0.03, label=""];
+  j12 -> broker:suscribir:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;AMQP&gt;&gt;</font>>];
+  notifications:eventos:s -> j12 [arrowhead=icurve, arrowsize=1.3];
+  j13 [shape=point, width=0.03, label=""];
+  j13 -> resend:api_https:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;REST (HTTPS)&gt;&gt;</font>>];
+  notifications:correo:s -> j13 [arrowhead=icurve, arrowsize=1.3];
+  j14 [shape=point, width=0.03, label=""];
+  j14 -> catalogdb:sql:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;Database Connection&gt;&gt;</font>>];
+  catalog:bd:s -> j14 [arrowhead=icurve, arrowsize=1.3];
+  j15 [shape=point, width=0.03, label=""];
+  j15 -> accountsdb:sql:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;Database Connection&gt;&gt;</font>>];
+  accounts:bd:s -> j15 [arrowhead=icurve, arrowsize=1.3];
+  j16 [shape=point, width=0.03, label=""];
+  j16 -> ordersdb:documentos:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;Database Connection&gt;&gt;</font>>];
+  orders:bd:s -> j16 [arrowhead=icurve, arrowsize=1.3];
+  j17 [shape=point, width=0.03, label=""];
+  j17 -> notificationsdb:documentos:n [dir=back, arrowtail=odot, arrowsize=1.1, label=<<font point-size="9" color="#1565C0"> &lt;&lt;Database Connection&gt;&gt;</font>>];
+  notifications:bd:s -> j17 [arrowhead=icurve, arrowsize=1.3];
+  {rank=same; web; admin}
+  {rank=same; orders; accounts; images; notifications}
+  {rank=same; catalog; broker; resend}
+  {rank=same; catalogdb; accountsdb; ordersdb; notificationsdb}
+  browser -> web [style=invis]; web -> gateway [style=invis];
+  legend [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="2" cellpadding="3" bgcolor="white"><tr><td colspan="2"><b>Convenciones</b></td></tr><tr><td>—○</td><td align="left">bola: rol <b>proveedor</b> (ofrece la interfaz)</td></tr><tr><td>—(</td><td align="left">cuenca: rol <b>consumidor</b> (usa la interfaz)</td></tr><tr><td bgcolor="white" border="1">puerto</td><td align="left">puerto con nombre del componente</td></tr><tr><td>&lt;&lt;tipo&gt;&gt;</td><td align="left">tipo de componente o de conector</td></tr><tr><td bgcolor="#E3F0FF">  </td><td align="left">presentación</td></tr><tr><td bgcolor="#FCE4EC">  </td><td align="left">comunicación</td></tr><tr><td bgcolor="#E8F5E9">  </td><td align="left">lógica</td></tr><tr><td bgcolor="#FFF3E0">  </td><td align="left">procesos asíncronos</td></tr><tr><td bgcolor="#F3E5F5">  </td><td align="left">datos</td></tr><tr><td>- - -</td><td align="left">elemento externo</td></tr></table>>];
+}

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | <%= store.name %></title>
+  <link rel="icon" href="/img/icono.svg">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">
+      <img src="/img/icono.svg" alt="" class="brand-icon">
+      <span>
+        <strong><%= store.name %></strong>
+        <small><%= store.slogan %></small>
+      </span>
+    </a>
+    <nav>
+      <a href="/">Catálogo</a>
+      <% if (user) { %>
+        <a href="/pedidos">Mis pedidos</a>
+        <a href="/cuenta">Mi cuenta</a>
+        <form method="post" action="/salir" class="inline"><button class="link-button plain">Salir</button></form>
+      <% } else { %>
+        <a href="/ingresar">Ingresar</a>
+        <a href="/registro">Crear cuenta</a>
+      <% } %>
+      <a href="/carrito" class="cart-link">Carrito <span class="cart-count"><%= cartCount %></span></a>
+    </nav>
+  </header>
+  <% if (flash) { %>
+    <div class="message <%= flash.type %>"><%= flash.text %></div>
+  <% } %>
+  <main>

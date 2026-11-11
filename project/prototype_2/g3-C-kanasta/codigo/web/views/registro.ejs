@@ -1,0 +1,30 @@
+<%- include("partials/header") %>
+
+<div class="narrow">
+  <form method="post" action="/registro" class="panel form">
+    <h1>Crear cuenta</h1>
+    <p class="muted small">Con tu cuenta haces pedidos, sigues su estado y recibes los recibos en tu correo.</p>
+    <label>Nombre completo
+      <input name="name" value="<%= form.name || '' %>" required>
+    </label>
+    <label>Correo
+      <input type="email" name="email" value="<%= form.email || '' %>" required>
+    </label>
+    <label>Teléfono
+      <input name="phone" value="<%= form.phone || '' %>">
+    </label>
+    <label>Dirección de entrega
+      <input name="address" value="<%= form.address || '' %>">
+    </label>
+    <label>Contraseña (mínimo 6 caracteres)
+      <input type="password" name="password" minlength="6" required>
+    </label>
+    <label>Repite la contraseña
+      <input type="password" name="password2" minlength="6" required>
+    </label>
+    <button type="submit">Crear cuenta</button>
+    <p class="small">¿Ya tienes cuenta? <a href="/ingresar">Ingresa aquí</a>.</p>
+  </form>
+</div>
+
+<%- include("partials/footer") %>

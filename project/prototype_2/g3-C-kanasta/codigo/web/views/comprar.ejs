@@ -1,0 +1,41 @@
+<%- include("partials/header") %>
+
+<a href="/carrito" class="back">← Volver al carrito</a>
+<h1>Confirmar pedido</h1>
+
+<div class="cart-layout">
+  <form method="post" action="/comprar" class="panel form">
+    <h2>Datos de entrega</h2>
+    <p class="muted small">Entregamos en: <%= store.delivery_area %></p>
+    <label>Nombre
+      <input value="<%= user.name %>" disabled>
+    </label>
+    <label>Correo (aquí te llega el recibo)
+      <input value="<%= user.email %>" disabled>
+    </label>
+    <label>Teléfono
+      <input name="phone" value="<%= user.phone %>" required>
+    </label>
+    <label>Dirección de entrega
+      <input name="address" value="<%= user.address %>" required>
+    </label>
+    <label>Notas para la entrega (opcional)
+      <textarea name="notes" rows="2" placeholder="Por ejemplo: dejar en portería"></textarea>
+    </label>
+    <p class="small">Pagas al recibir tu pedido.</p>
+    <button type="submit">Confirmar pedido</button>
+  </form>
+
+  <aside class="panel">
+    <h2>Tu pedido</h2>
+    <table class="table compact">
+      <% cart.items.forEach((item) => { %>
+        <tr><td><%= item.name %></td><td><%= formatQuantity(item.quantity, item.unit) %></td><td class="right"><%= formatPrice(item.subtotal) %></td></tr>
+      <% }) %>
+    </table>
+    <p class="total">Total<%= cart.estimated ? " aproximado" : "" %>: <strong><%= formatPrice(cart.total) %></strong></p>
+    <% if (cart.estimated) { %><%- include("partials/weight-notice") %><% } %>
+  </aside>
+</div>
+
+<%- include("partials/footer") %>
