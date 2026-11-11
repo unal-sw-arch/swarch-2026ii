@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { enroll, getCourses, getEnrollments } from "../api.js";
 import { Schedule } from "../Schedule.jsx";
 
-export default function Catalog({ student }) {
+export default function Catalog({ student, initialCatalog, initialEnrollments }) {
   const [search, setSearch] = useState("");
-  const [catalog, setCatalog] = useState(null);
-  const [enrollments, setEnrollments] = useState([]);
+  // si la página viene del servidor (SSR), el catálogo ya llega cargado
+  const [catalog, setCatalog] = useState(initialCatalog || null);
+  const [enrollments, setEnrollments] = useState(initialEnrollments || []);
   const [message, setMessage] = useState(null);
 
   async function load(text = search) {
@@ -22,7 +23,7 @@ export default function Catalog({ student }) {
   }
 
   useEffect(() => {
-    load("");
+    if (!initialCatalog) load("");
   }, []);
 
   async function handleEnroll(groupId) {

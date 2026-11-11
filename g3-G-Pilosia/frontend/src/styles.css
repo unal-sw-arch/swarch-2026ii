@@ -645,3 +645,15 @@ select:focus {
     font-size: 32px;
   }
 }
+ .notification-banner {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  max-width: 1100px;
+  margin: 1rem auto 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid #b7c8ff;
+  border-radius: 0.5rem;
+  background: #eef2ff;
+  color: #1d2b63;
+}

@@ -1,11 +1,14 @@
-import { useState } from "react";
-import Login from "./pages/Login.jsx";
-import Catalog from "./pages/Catalog.jsx";
-import MyEnrollments from "./pages/MyEnrollments.jsx";
-import MySchedule from "./pages/MySchedule.jsx";
-import AcademicHistory from "./pages/AcademicHistory.jsx";
-import MyGroups from "./pages/MyGroups.jsx";
-import GroupGrades from "./pages/GroupGrades.jsx";
+"use client";
+
+import { useEffect, useState } from "react";
+import { getNotifications } from "./api.js";
+import Login from "./views/Login.jsx";
+import Catalog from "./views/Catalog.jsx";
+import MyEnrollments from "./views/MyEnrollments.jsx";
+import MySchedule from "./views/MySchedule.jsx";
+import AcademicHistory from "./views/AcademicHistory.jsx";
+import MyGroups from "./views/MyGroups.jsx";
+import GroupGrades from "./views/GroupGrades.jsx";
 
 // Opciones del menú según el rol
 const MENUS = {
@@ -18,32 +21,61 @@ const MENUS = {
   professor: [{ id: "groups", label: "Mis grupos" }],
 };
 
-// La sesión se guarda en el navegador para no perderla al recargar.
+// La sesión se guarda en una cookie para que el servidor (SSR) sepa qué página armar.
 // No hay autenticación real: es solo para el prototipo.
-function loadSession() {
-  try {
-    return JSON.parse(localStorage.getItem("pilosia-session"));
-  } catch {
-    return null;
-  }
-}
-
 function saveSession(session) {
-  try {
-    if (session) localStorage.setItem("pilosia-session", JSON.stringify(session));
-    else localStorage.removeItem("pilosia-session");
-  } catch {
-    // si el navegador no deja guardar, la sesión solo dura mientras la página esté abierta
+  if (session) {
+    const id = session.role === "student" ? session.user.code : session.user.id;
+    document.cookie = `pilosia-session=${session.role}:${id}; path=/; max-age=86400; SameSite=Lax`;
+  } else {
+    document.cookie = "pilosia-session=; path=/; max-age=0";
   }
 }
 
-export default function App() {
-  const [session, setSession] = useState(loadSession);
-  const [page, setPage] = useState(session ? MENUS[session.role][0].id : null);
+export default function App({ initialSession, initialUsers, initialCatalog, initialEnrollments, initialGroups }) {
+  const [session, setSession] = useState(initialSession);
+  const [page, setPage] = useState(initialSession ? MENUS[initialSession.role][0].id : null);
   const [selectedGroup, setSelectedGroup] = useState(null);
+  // Datos que ya trajo el servidor. Solo sirven para la primera vista; después cada vista consulta sola.
+  const [ssrData, setSsrData] = useState({
+    catalog: initialCatalog,
+    enrollments: initialEnrollments,
+    groups: initialGroups,
+  });
+  const [notifications, setNotifications] = useState([]);
+
+  useEffect(() => {
+    if (!session || session.role !== "professor") {
+      setNotifications([]);
+      return undefined;
+    }
+
+    let active = true;
+    const loadNotifications = () => {
+      getNotifications(session.user.id)
+        .then((items) => {
+          if (active) setNotifications(items);
+        })
+        .catch(() => {
+          if (active) setNotifications([]);
+        });
+    };
+    loadNotifications();
+    const timer = window.setInterval(loadNotifications, 3000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [session]);
+
+  function goTo(newPage) {
+    setSsrData({});
+    setPage(newPage);
+  }
 
   function handleLogin(newSession) {
     saveSession(newSession);
+    setSsrData({});
     setSession(newSession);
     setPage(MENUS[newSession.role][0].id);
   }
@@ -56,7 +88,7 @@ export default function App() {
   }
 
   if (!session) {
-    return <Login onLogin={handleLogin} />;
+    return <Login onLogin={handleLogin} initialUsers={initialUsers} />;
   }
 
   const { role, user } = session;
@@ -64,7 +96,7 @@ export default function App() {
   function renderPage() {
     switch (page) {
       case "catalog":
-        return <Catalog student={user} />;
+        return <Catalog student={user} initialCatalog={ssrData.catalog} initialEnrollments={ssrData.enrollments} />;
       case "enrollments":
         return <MyEnrollments student={user} />;
       case "schedule":
@@ -75,14 +107,15 @@ export default function App() {
         return (
           <MyGroups
             professor={user}
+            initialData={ssrData.groups}
             onSelectGroup={(groupId) => {
               setSelectedGroup(groupId);
-              setPage("grades");
+              goTo("grades");
             }}
           />
         );
       case "grades":
-        return <GroupGrades groupId={selectedGroup} onBack={() => setPage("groups")} />;
+        return <GroupGrades groupId={selectedGroup} onBack={() => goTo("groups")} />;
       default:
         return null;
     }
@@ -111,7 +144,7 @@ export default function App() {
               <button
                 key={item.id}
                 className={page === item.id || (page === "grades" && item.id === "groups") ? "active" : ""}
-                onClick={() => setPage(item.id)}
+                onClick={() => goTo(item.id)}
               >
                 {item.label}
               </button>
@@ -120,6 +153,15 @@ export default function App() {
         </div>
       </header>
 
+      {role === "professor" && notifications.length > 0 && (
+        <aside className="notification-banner" role="status">
+          <strong>Nueva actividad</strong>
+          <span>
+            {notifications[notifications.length - 1].studentName} se inscribió en{" "}
+            {notifications[notifications.length - 1].courseName}.
+          </span>
+        </aside>
+      )}
       <main className="content">{renderPage()}</main>
     </>
   );

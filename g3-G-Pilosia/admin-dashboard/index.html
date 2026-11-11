@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pilosia | Panel administrativo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f4f6fb; color: #172033; }
+    main { max-width: 1000px; margin: 0 auto; padding: 2rem; }
+    section { background: white; border-radius: 12px; padding: 1.25rem; margin: 1rem 0; box-shadow: 0 2px 12px #17203318; }
+    table { border-collapse: collapse; width: 100%; } th, td { padding: .65rem; border-bottom: 1px solid #e5e8ef; text-align: left; }
+    button { padding: .6rem .9rem; border: 0; border-radius: 6px; background: #3157d5; color: white; cursor: pointer; }
+    #status { min-height: 1.5rem; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Panel administrativo Pilosia</h1>
+  <p>Segundo componente de presentación para consultas operativas.</p>
+  <button id="load">Cargar información</button>
+  <p id="status"></p>
+  <section>
+    <h2>Movimientos de inscripción</h2>
+    <p>Datos de stats-service. Se arman con los eventos que llegan por RabbitMQ cada vez que alguien inscribe o cancela una asignatura.</p>
+    <table><thead><tr><th>Código</th><th>Asignatura</th><th>Inscripciones</th><th>Cancelaciones</th><th>Último movimiento</th></tr></thead><tbody id="stats"></tbody></table>
+  </section>
+  <section><h2>Estudiantes</h2><table><thead><tr><th>Código</th><th>Nombre</th><th>Programa</th></tr></thead><tbody id="students"></tbody></table></section>
+  <section><h2>Docentes</h2><table><thead><tr><th>Nombre</th><th>Departamento</th></tr></thead><tbody id="professors"></tbody></table></section>
+</main>
+<script>
+  const status = document.querySelector("#status");
+  const rows = (items, fields) => items.map(item => `<tr>${fields.map(field => `<td>${item[field] ?? ""}</td>`).join("")}</tr>`).join("");
+  async function load() {
+    status.textContent = "Cargando...";
+    try {
+      const [students, professors, stats] = await Promise.all([
+        fetch("/api/students").then(r => r.json()),
+        fetch("/api/professors").then(r => r.json()),
+        fetch("/stats/courses").then(r => r.json())
+      ]);
+      document.querySelector("#stats").innerHTML = stats.length
+        ? rows(stats, ["course_code", "course_name", "enrolled", "cancelled", "last_event_at"])
+        : '<tr><td colspan="5">Todavía no hay movimientos. Inscribe o cancela una asignatura en el frontend.</td></tr>';
+      document.querySelector("#students").innerHTML = rows(students, ["code", "name", "program"]);
+      document.querySelector("#professors").innerHTML = rows(professors, ["name", "department"]);
+      status.textContent = "Información actualizada.";
+    } catch (error) {
+      status.textContent = `No se pudo cargar la información: ${error.message}`;
+    }
+  }
+  document.querySelector("#load").addEventListener("click", load);
+  load();
+</script>
+</body>
+</html>

@@ -2,16 +2,21 @@ import { useEffect, useState } from "react";
 import { getProfessors, getStudents } from "../api.js";
 
 // Pantalla de ingreso: se escoge el rol y un usuario de prueba (no hay contraseñas en el prototipo)
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, initialUsers }) {
   const [role, setRole] = useState("student");
-  const [users, setUsers] = useState([]);
+  // si el servidor ya trajo las listas (SSR), se usan directamente
+  const [users, setUsers] = useState(initialUsers ? initialUsers.student : []);
   const [selected, setSelected] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setUsers([]);
     setSelected("");
     setError("");
+    if (initialUsers) {
+      setUsers(initialUsers[role]);
+      return;
+    }
+    setUsers([]);
     const request = role === "student" ? getStudents() : getProfessors();
     request.then(setUsers).catch(() => setError("No se pudo cargar la lista de usuarios"));
   }, [role]);

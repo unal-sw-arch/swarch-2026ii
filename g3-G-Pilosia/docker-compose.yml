@@ -3,12 +3,38 @@ name: pilosia
 services:
   # ---------- Presentación ----------
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        API_GATEWAY_URL: http://api-gateway:8080
     ports:
-      - "8080:80"
+      - "8080:3000"
+    environment:
+      API_GATEWAY_URL: http://api-gateway:8080
+    depends_on:
+      - api-gateway
+
+  admin-dashboard:
+    build: ./admin-dashboard
+    ports:
+      - "8081:80"
+    depends_on:
+      - api-gateway
+
+  api-gateway:
+    build: ./api-gateway
+    environment:
+      API_TARGET: http://courses-service:8000
+      GRAPHQL_TARGET: http://grades-service:4000
+      NOTIFICATIONS_TARGET: http://notifications-service:8081
+      STATS_TARGET: http://stats-service:8082
+    ports:
+      - "8000:8080"
     depends_on:
       - courses-service
       - grades-service
+      - notifications-service
+      - stats-service
 
   # ---------- Lógica ----------
   courses-service:
@@ -16,10 +42,11 @@ services:
     environment:
       DATABASE_URL: postgresql://pilosia:pilosia@courses-db:5432/courses_db
       CURRENT_PERIOD: "2025-2"
-    ports:
-      - "8000:8000"
+      RABBITMQ_URL: amqp://pilosia:pilosia@rabbitmq:5672/
     depends_on:
       courses-db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   grades-service:
@@ -27,13 +54,49 @@ services:
     environment:
       MONGO_URL: mongodb://grades-db:27017
       COURSES_SERVICE_URL: http://courses-service:8000
-    ports:
-      - "4000:4000"
     depends_on:
       grades-db:
         condition: service_healthy
       courses-service:
         condition: service_started
+
+  notifications-service:
+    build: ./notifications-service
+    environment:
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: pilosia
+      SPRING_RABBITMQ_PASSWORD: pilosia
+      REDIS_HOST: notifications-db
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      notifications-db:
+        condition: service_healthy
+
+  stats-service:
+    build: ./stats-service
+    environment:
+      DATABASE_URL: postgresql://stats:stats@stats-db:5432/stats_db
+      RABBITMQ_URL: amqp://pilosia:pilosia@rabbitmq:5672/
+    depends_on:
+      stats-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: pilosia
+      RABBITMQ_DEFAULT_PASS: pilosia
+    ports:
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   # ---------- Datos ----------
   courses-db:
@@ -62,6 +125,32 @@ services:
       interval: 5s
       retries: 10
 
+  notifications-db:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - notifications-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  stats-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: stats_db
+      POSTGRES_USER: stats
+      POSTGRES_PASSWORD: stats
+    volumes:
+      - ./databases/stats/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - stats-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stats -d stats_db"]
+      interval: 5s
+      retries: 10
+
 volumes:
   courses-data:
   grades-data:
+  notifications-data:
+  stats-data:

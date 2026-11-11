@@ -36,6 +36,12 @@ export const getEnrollments = (code) => rest(`/students/${code}/enrollments`);
 export const getSchedule = (code) => rest(`/students/${code}/schedule`);
 export const getProfessorGroups = (id) => rest(`/professors/${id}/groups`);
 export const getGroupStudents = (groupId) => rest(`/groups/${groupId}/students`);
+export const getNotifications = (professorId) =>
+  fetch(`/notifications?professorId=${encodeURIComponent(professorId)}`)
+    .then((response) => {
+      if (!response.ok) throw new Error("No se pudieron consultar las notificaciones");
+      return response.json();
+    });
 
 export const enroll = (code, groupId) =>
   rest(`/students/${code}/enrollments`, {

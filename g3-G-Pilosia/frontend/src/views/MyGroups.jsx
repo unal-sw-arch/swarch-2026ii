@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { getProfessorGroups } from "../api.js";
 import { Schedule } from "../Schedule.jsx";
 
-export default function MyGroups({ professor, onSelectGroup }) {
-  const [data, setData] = useState(null);
+export default function MyGroups({ professor, initialData, onSelectGroup }) {
+  // si la página viene del servidor (SSR), los grupos ya llegan cargados
+  const [data, setData] = useState(initialData || null);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (initialData) return;
     getProfessorGroups(professor.id)
       .then(setData)
       .catch((e) => setError(e.message));
