@@ -29,3 +29,7 @@ Thumbs.db
 firebase_credentials.json
 !firebase_credentials.example.json
 **/firebase_credentials.json
+
+# Local agent configurations
+.kiro/
+

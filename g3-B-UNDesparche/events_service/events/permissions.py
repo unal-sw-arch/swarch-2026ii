@@ -5,22 +5,27 @@ EVENT_ADMIN = "EVENT_ADMIN"
 
 
 class IsRegisteredUser(BasePermission):
+    """Usuario autenticado por el gateway y con un rol asignado."""
 
     def has_permission(self, request, view):
-        return bool(request.user.role)
+        return bool(request.user.is_authenticated and request.user.role)
 
 
 class IsSystemAdminOrEventAdmin(BasePermission):
 
     def has_permission(self, request, view):
-        return request.user.role in (SYS_ADMIN, EVENT_ADMIN)
+        return bool(
+            request.user.is_authenticated
+            and request.user.role in (SYS_ADMIN, EVENT_ADMIN)
+        )
 
 
 class IsEventOwner(BasePermission):
+    """El administrador del sistema puede con cualquier evento; los demás, solo con los suyos."""
 
     def has_object_permission(self, request, view, obj):
-        if getattr(request.user, "role", None) == SYS_ADMIN:
+        if not request.user.is_authenticated:
+            return False
+        if request.user.role == SYS_ADMIN:
             return True
-
-        user_uid = getattr(request.user, "firebase_uid", None) or getattr(request.user, "uid", None) or str(request.user.id)
-        return obj.organizer_id in (user_uid, str(request.user.id))
+        return obj.organizer_id == request.user.uid

@@ -1,88 +1,81 @@
-from django.conf import settings
+from typing import ClassVar
+
 from rest_framework.authentication import BaseAuthentication
-from rest_framework.exceptions import AuthenticationFailed
 
-from firebase_admin import auth as firebase_auth
-from core.firebase import init_firebase
-from .models import User
+from .permissions import IMPLEMENT_ADMIN, SYS_ADMIN
+
+# Headers que inyecta el API Gateway (se definen aquí, en un solo lugar)
+GATEWAY_HEADER = "X-From-Gateway"
+USER_ID_HEADER = "X-User-Id"
 
 
-class FirebaseAuthentication(BaseAuthentication):
-    def authenticate_header(self, request):
-        return "Bearer"
+class GatewayUser:
+    """
+    Usuario liviano reconstruido a partir de los headers del gateway.
+
+    No existe en la base de datos de Inventory: el gateway ya verificó el token de
+    Firebase y consultó a Users, así que aquí solo se leen sus datos. Expone lo
+    mínimo que DRF y las vistas necesitan de un usuario.
+    """
+
+    is_authenticated: ClassVar[bool] = True
+    is_anonymous: ClassVar[bool] = False
+    is_active: ClassVar[bool] = True
+
+    def __init__(self, firebase_uid, email="", role="", faculty=None, status=""):
+        self.firebase_uid = firebase_uid
+        self.email = email
+        self.role = role
+        self.faculty = faculty
+        self.status = status
+
+    @property
+    def uid(self):
+        """Identificador del usuario en todo el sistema (es el firebase_uid)."""
+        return self.firebase_uid
+
+    @property
+    def pk(self):
+        return self.firebase_uid
+
+    @property
+    def is_sys_admin(self):
+        return self.role == SYS_ADMIN
+
+    @property
+    def is_implement_admin(self):
+        return self.role == IMPLEMENT_ADMIN
+
+    def __str__(self):
+        return self.email or self.firebase_uid
+
+
+class GatewayAuthentication(BaseAuthentication):
+    """
+    Identifica al usuario con los headers que inyecta el API Gateway.
+
+    - Sin X-From-Gateway o sin X-User-Id la petición es anónima (los endpoints
+      públicos siguen funcionando).
+    - Nunca toca la base de datos ni verifica tokens: eso lo hace el gateway.
+    """
 
     def authenticate(self, request):
-        init_firebase()
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            return None
+        if request.headers.get(GATEWAY_HEADER) != "true":
+            return None  # no viene del gateway: anónimo
 
-        id_token = auth_header.split(" ").pop()
+        firebase_uid = request.headers.get(USER_ID_HEADER)
+        if not firebase_uid:
+            return None  # el gateway no identificó a ningún usuario: anónimo
 
-        # En modo desarrollo (DEBUG=True), permitir autenticación con tokens demo / mock
-        if settings.DEBUG and (id_token.startswith("mock_") or id_token.startswith("demo_")):
-            user = None
-            if id_token.startswith("demo_user_"):
-                email = id_token.replace("demo_user_", "")
-                user = User.objects.filter(email=email).first()
-            elif id_token.startswith("mock_user_"):
-                val = id_token.replace("mock_user_", "")
-                if val.isdigit():
-                    user = User.objects.filter(id=int(val)).first()
-                else:
-                    user = User.objects.filter(email=val).first()
-
-            if not user:
-                user = User.objects.filter(role=User.Role.SYS_ADMIN).first() or User.objects.first()
-
-            if user:
-                decoded_token = {
-                    "uid": user.firebase_uid or f"dev_uid_{user.id}",
-                    "email": user.email,
-                    "name": user.name,
-                    "role": user.role,
-                    "faculty": user.faculty,
-                    "email_verified": True,
-                }
-                return (user, decoded_token)
-
-        try:
-            decoded_token = firebase_auth.verify_id_token(id_token)
-        except firebase_auth.InvalidIdTokenError:
-            raise AuthenticationFailed("Token de Firebase invalido.")
-        except Exception:
-            raise AuthenticationFailed("No se pudo verificar el token.")
-
-        name = decoded_token.get("name", "")
-        email = decoded_token.get("email")
-        firebase_uid = decoded_token.get("uid")
-
-        if not email or not email.endswith("@unal.edu.co"):
-            raise AuthenticationFailed("El correo debe pertenecer al dominio @unal.edu.co")
-
-        if not decoded_token.get("email_verified"):
-            raise AuthenticationFailed("Debes verificar tu correo electrónico.")
-
-        user, created = User.objects.get_or_create(
-            email=email,
-            defaults={
-                "firebase_uid": firebase_uid,
-                "name": name,
-            },
+        user = GatewayUser(
+            firebase_uid=firebase_uid,
+            email=request.headers.get("X-User-Email", ""),
+            role=request.headers.get("X-User-Role", ""),
+            faculty=request.headers.get("X-User-Faculty") or None,
+            status=request.headers.get("X-User-Status", ""),
         )
+        return (user, None)
 
-        if not created:
-            updated_fields = []
-            if user.firebase_uid != firebase_uid:
-                user.firebase_uid = firebase_uid
-                updated_fields.append("firebase_uid")
-            if user.name != name and name:
-                user.name = name
-                updated_fields.append("name")
-            if updated_fields:
-                user.save(update_fields=updated_fields)
-
-        if not user.is_active:
-            raise AuthenticationFailed("Usuario inactivo.")
-
-        return (user, decoded_token)
+    def authenticate_header(self, request):
+        # Hace que DRF responda 401 (y no 403) cuando falta autenticación
+        return "Gateway"

@@ -1,39 +1,4 @@
 services:
-  events_service:
-    build: ./events_service
-    container_name: events_service
-    ports:
-      - "8000:8000"
-    env_file:
-      - ./events_service/events_service/.env
-    volumes:
-      - ./firebase_credentials.json:/app/firebase_credentials.json:ro
-      - events_data:/data
-    restart: unless-stopped
-
-  users_service:
-    build: ./users_service
-    container_name: users_service
-    ports:
-      - "5000:5000"
-    env_file:
-      - ./users_service/users_service/.env
-    volumes:
-      - ./firebase_credentials.json:/app/firebase_credentials.json:ro
-      - users_data:/data
-    restart: unless-stopped
-
-  inventory_service:
-    build: ./inventory_service
-    container_name: inventory_service
-    ports:
-      - "8080:8080"
-    env_file:
-      - ./inventory_service/inventory_service/.env
-    volumes:
-      - ./firebase_credentials.json:/app/firebase_credentials.json:ro
-      - inventory_data:/data
-    restart: unless-stopped
 
   frontend:
     build: ./frontend_web
@@ -41,12 +6,192 @@ services:
     ports:
       - "5172:5172"
     depends_on:
-      - events_service
-      - users_service
-      - inventory_service
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5172/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    container_name: undesparche_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: undesparche
+      POSTGRES_PASSWORD: undesparche_pass
+      POSTGRES_DB: undesparche_users
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-sql:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U undesparche -d undesparche_users"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  users:
+    build: ./users_service
+    container_name: undesparche_users_service
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./users_service/users_service/.env
+    environment:
+      DB_NAME: undesparche_users
+      DB_USER: undesparche
+      DB_PASSWORD: undesparche_pass
+      DB_HOST: db
+      DB_PORT: "5432"
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./users_service:/app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 8001), 3); s.close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    command: ["sh", "-c", "python manage.py migrate --noinput && exec python manage.py runserver 0.0.0.0:8001"]
+
+  events:
+    build: ./events_service
+    container_name: undesparche_events_service
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./events_service/events_service/.env
+    environment:
+      DB_NAME: undesparche_events
+      DB_USER: undesparche
+      DB_PASSWORD: undesparche_pass
+      DB_HOST: db
+      DB_PORT: "5432"
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./events_service:/app
+      - ./events_service/firebase_credentials.json:/app/firebase_credentials.json:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 8002), 3); s.close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    # ENABLE_BACKGROUND_TASKS se exporta después de migrate, solo para el servidor:
+    # activa el hilo que avanza los estados de los eventos según la hora.
+    command: ["sh", "-c", "python manage.py migrate --noinput && export ENABLE_BACKGROUND_TASKS=1 && exec python manage.py runserver 0.0.0.0:8002 --noreload"]
+
+  inventory:
+    build: ./inventory_service
+    container_name: undesparche_inventory_service
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./inventory_service/inventory_service/.env
+    environment:
+      DB_NAME: undesparche_inventory
+      DB_USER: undesparche
+      DB_PASSWORD: undesparche_pass
+      DB_HOST: db
+      DB_PORT: "5432"
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./inventory_service:/app
+      - ./inventory_service/firebase_credentials.json:/app/firebase_credentials.json:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 8003), 3); s.close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    # ENABLE_BACKGROUND_TASKS se exporta después de migrate, solo para el servidor:
+    # activa el hilo que libera las reservas vencidas.
+    command: ["sh", "-c", "python manage.py migrate --noinput && export ENABLE_BACKGROUND_TASKS=1 && exec python manage.py runserver 0.0.0.0:8003 --noreload"]
+
+  gateway:
+    build: ./gateway
+    container_name: undesparche_gateway
+    restart: unless-stopped
+    depends_on:
+      users:
+        condition: service_healthy
+      events:
+        condition: service_healthy
+      inventory:
+        condition: service_healthy
+    env_file:
+      - ./gateway/.env
+    environment:
+      USERS_SERVICE_URL: http://users:8001
+      EVENTS_SERVICE_URL: http://events:8002
+      INVENTORY_SERVICE_URL: http://inventory:8003
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./gateway/app:/app/app
+      - ./gateway/firebase_credentials.json:/app/firebase_credentials.json:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Consola web: http://localhost:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: undesparche
+      RABBITMQ_DEFAULT_PASS: undesparche
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  notifications_service:
+    build: ./notifications_service
+    container_name: notifications_service
+    ports:
+      - "8090:8090"     # solo /health y /types
+    env_file:
+      - path: ./notifications_service/.env
+        required: false
+    environment:
+      RABBITMQ_URL: amqp://undesparche:undesparche@rabbitmq:5672/
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8090/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
     restart: unless-stopped
 
 volumes:
-  events_data:
-  users_data:
-  inventory_data:
+  postgres_data:
+  rabbitmq_data:

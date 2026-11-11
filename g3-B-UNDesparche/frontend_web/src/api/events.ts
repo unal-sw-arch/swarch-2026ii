@@ -140,9 +140,12 @@ export interface EmailUnsubscribeResponse {
   already?: boolean;
 }
 
-export async function unsubscribeWithToken(tokenStr: string): Promise<EmailUnsubscribeResponse> {
-  return apiRequest<EmailUnsubscribeResponse>('/events/unsubscribe/', {
-    method: 'POST',
-    body: { token: tokenStr },
-  });
+/**
+ * @deprecated El endpoint /events/unsubscribe/ fue retirado en el nuevo Gateway.
+ * Utilice unsubscribeFromEvent(eventId, token) para desuscribirse directamente.
+ */
+export async function unsubscribeWithToken(_tokenStr: string): Promise<EmailUnsubscribeResponse> {
+  return {
+    detail: 'Función en desuso. Utilice la desuscripción directa por evento.',
+  };
 }

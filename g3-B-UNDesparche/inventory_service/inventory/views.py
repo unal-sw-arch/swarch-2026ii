@@ -1,15 +1,20 @@
 from datetime import timedelta
 from django.db import IntegrityError, transaction
 from django.utils import timezone
+
 from rest_framework import filters, mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+
 from django_filters.rest_framework import DjangoFilterBackend
 
+from core.firebase import init_firebase
 from core.firebase_storage import delete_image, upload_image
-from .models import Borrowing, Implement, Reserve, User
+
+from . import notifications
+from .models import Borrowing, Implement, Reserve
 from .permissions import IsSystemAdminOrImplementAdmin
 from .serializers import (
     BorrowingSerializer,
@@ -17,6 +22,18 @@ from .serializers import (
     ReserveAdminSerializer,
     ReserveSerializer,
 )
+
+
+def _upload_implement_image(image_file):
+    """Sube la imagen de un implemento a Firebase Storage y devuelve su URL."""
+    init_firebase()  # Storage sigue usando Firebase; ya no lo inicializa la autenticación
+    return upload_image(image_file, folder="inventory")
+
+
+def _delete_implement_image(image_url):
+    """Elimina la imagen de un implemento de Firebase Storage."""
+    init_firebase()
+    delete_image(image_url)
 
 
 class ImplementViewSet(viewsets.ModelViewSet):
@@ -27,11 +44,6 @@ class ImplementViewSet(viewsets.ModelViewSet):
     http_method_names = ["get", "post", "patch", "delete"]
 
     def get_queryset(self):
-        try:
-            from .tasks import release_expired_reserves
-            release_expired_reserves()
-        except Exception:
-            pass
         return Implement.objects.all().order_by("name")
 
     def get_permissions(self):
@@ -42,21 +54,22 @@ class ImplementViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         image_file = self.request.FILES.get("image_file")
         try:
-            image_url = upload_image(image_file, folder="inventory") if image_file else None
+            image_url = _upload_implement_image(image_file) if image_file else None
         except Exception:
             image_url = None
 
         user = self.request.user
-        is_sys_admin = getattr(user, "is_sys_admin", False) or user.groups.filter(name="Administrador del Sistema").exists()
 
-        if is_sys_admin:
+        if user.is_sys_admin:
             faculty = self.request.data.get("faculty")
             if not faculty:
                 raise ValidationError(
-                    {"faculty": "El Administrador del Sistema debe especificar la facultad del implemento."}
+                    {
+                        "faculty": "El Administrador del Sistema debe especificar la facultad del implemento."
+                    }
                 )
         else:
-            faculty = getattr(user, "faculty", None)
+            faculty = user.faculty
 
         serializer.save(faculty=faculty, image=image_url)
 
@@ -65,9 +78,8 @@ class ImplementViewSet(viewsets.ModelViewSet):
         self.check_object_permissions(self.request, instance)
 
         user = self.request.user
-        is_sys_admin = getattr(user, "is_sys_admin", False) or user.groups.filter(name="Administrador del Sistema").exists()
 
-        if is_sys_admin:
+        if user.is_sys_admin:
             faculty = self.request.data.get("faculty", instance.faculty)
         else:
             faculty = instance.faculty
@@ -76,11 +88,11 @@ class ImplementViewSet(viewsets.ModelViewSet):
         if image_file:
             if instance.image:
                 try:
-                    delete_image(instance.image)
+                    _delete_implement_image(instance.image)
                 except Exception:
                     pass
             try:
-                image_url = upload_image(image_file, folder="inventory")
+                image_url = _upload_implement_image(image_file)
             except Exception:
                 image_url = instance.image
             serializer.save(image=image_url, faculty=faculty)
@@ -90,7 +102,7 @@ class ImplementViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         if instance.image:
             try:
-                delete_image(instance.image)
+                _delete_implement_image(instance.image)
             except Exception:
                 pass
         return super().perform_destroy(instance)
@@ -105,27 +117,19 @@ class ReserveViewSet(
     http_method_names = ["get", "post"]
 
     def get_queryset(self):
-        try:
-            from .tasks import release_expired_reserves
-            release_expired_reserves()
-        except Exception:
-            pass
-
         user = self.request.user
-        if not user or not user.is_authenticated:
+        if not user.is_authenticated:
             return Reserve.objects.none()
 
-        is_sys = getattr(user, "is_sys_admin", False) or user.groups.filter(name="Administrador del Sistema").exists()
-        if is_sys:
-            return Reserve.objects.all().select_related("user", "implement")
+        if user.is_sys_admin:
+            return Reserve.objects.all().select_related("implement")
 
-        is_imp = getattr(user, "is_implement_admin", False) or user.groups.filter(name="Administrador de Implementos").exists()
-        if is_imp:
+        if user.is_implement_admin:
             return Reserve.objects.filter(
                 active=True, implement__faculty=user.faculty
-            ).select_related("user", "implement")
+            ).select_related("implement")
 
-        return Reserve.objects.filter(user=user).select_related("user", "implement")
+        return Reserve.objects.filter(user_id=user.uid).select_related("implement")
 
     def get_permissions(self):
         if self.action in ["create", "list", "retrieve"]:
@@ -134,70 +138,99 @@ class ReserveViewSet(
 
     def get_serializer_class(self):
         user = self.request.user
-        if user and user.is_authenticated:
-            is_admin = (
-                getattr(user, "is_sys_admin", False)
-                or getattr(user, "is_implement_admin", False)
-                or user.groups.filter(name__in=["Administrador del Sistema", "Administrador de Implementos"]).exists()
-            )
-            if is_admin:
-                return ReserveAdminSerializer
+        if user.is_authenticated and (user.is_sys_admin or user.is_implement_admin):
+            return ReserveAdminSerializer
         return ReserveSerializer
+
+    def create(self, request, *args, **kwargs):
+        # RF-11: solo reservan los usuarios activos que aceptan el aviso de descargo de responsabilidad
+        # Estado "Activo" de un usuario en el servicio Users
+        if request.user.status != "ACT":
+            raise PermissionDenied(
+                "Tu cuenta está sancionada: no puedes reservar implementos."
+            )
+
+        return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         implement_id = self.request.data.get("implement")
         if not implement_id:
-            raise ValidationError({"implement": "Debe especificar el id del implemento a reservar."})
+            raise ValidationError(
+                {"implement": "Debe especificar el id del implemento a reservar."}
+            )
+
+        user = self.request.user
 
         try:
             with transaction.atomic():
                 implement = Implement.objects.select_for_update().get(pk=implement_id)
 
-                if implement.state != "DIS":
+                if implement.state != Implement.State.AVAILABLE:
                     raise ValidationError(
-                        {"implement": "Este implemento no está disponible para reservar."}
+                        {
+                            "implement": "Este implemento no está disponible para reservar."
+                        }
                     )
-                if Reserve.objects.filter(user=self.request.user, active=True).exists():
+                if Reserve.objects.filter(user_id=user.uid, active=True).exists():
                     raise ValidationError({"detail": "Ya tienes una reserva activa."})
-                if Borrowing.objects.filter(user=self.request.user, active=True).exists():
+                if Borrowing.objects.filter(user_id=user.uid, active=True).exists():
                     raise ValidationError(
-                        {"detail": "Tienes un préstamo activo. No puedes reservar otro implemento."}
+                        {
+                            "detail": "Tienes un préstamo activo. No puedes reservar otro implemento."
+                        }
                     )
 
                 now = timezone.now()
                 reserve = serializer.save(
-                    user=self.request.user,
+                    user_id=user.uid,
+                    user_email=user.email,
                     implement=implement,
                     datetime_reserved=now,
                     datetime_expiration=now + timedelta(minutes=10),
                     active=True,
                 )
-                implement.state = "RES"
+                implement.state = Implement.State.RESERVED
                 implement.save(update_fields=["state"])
+                transaction.on_commit(lambda: notifications.notify_reserved(reserve))
                 return reserve
         except Implement.DoesNotExist:
             raise ValidationError({"implement": "Implemento no encontrado."})
         except IntegrityError:
-            raise ValidationError({"detail": "Ya tienes una reserva o préstamo activo."})
+            raise ValidationError(
+                {"detail": "Ya tienes una reserva o préstamo activo."}
+            )
 
     @action(detail=True, methods=["post"], url_path="confirm")
     def confirm(self, request, pk=None):
+        # get_object aplica el alcance por rol y los permisos sobre el objeto
         reserve = self.get_object()
-        if not reserve.active:
-            raise ValidationError({"detail": "Esta reserva ya no está activa."})
 
         try:
             with transaction.atomic():
+                # Se bloquea y se vuelve a leer la reserva: el hilo de expiración
+                # pudo liberarla entre get_object() y este punto
+                reserve = (
+                    Reserve.objects.select_for_update()
+                    .select_related("implement")
+                    .get(pk=reserve.pk)
+                )
+                if not reserve.active:
+                    raise ValidationError(
+                        {"detail": "Esta reserva ya no está activa."}
+                    )
+
                 reserve.active = False
                 reserve.save(update_fields=["active"])
                 borrowing = Borrowing.objects.create(
-                    user=reserve.user,
+                    user_id=reserve.user_id,
+                    user_email=reserve.user_email,
                     implement=reserve.implement,
                     datetime_borrowed=timezone.now(),
                     active=True,
                 )
-                reserve.implement.state = "PRE"
+                reserve.implement.state = Implement.State.BORROWED
                 reserve.implement.save(update_fields=["state"])
+                transaction.on_commit(lambda: notifications.notify_borrowed(borrowing))
         except IntegrityError:
             raise ValidationError({"detail": "El usuario ya tiene un préstamo activo."})
 
@@ -206,13 +239,20 @@ class ReserveViewSet(
     @action(detail=True, methods=["post"], url_path="cancel")
     def cancel(self, request, pk=None):
         reserve = self.get_object()
-        if not reserve.active:
-            raise ValidationError({"detail": "Esta reserva ya no está activa."})
 
         with transaction.atomic():
+            # Mismo motivo que en confirm: se bloquea y se relee la reserva
+            reserve = (
+                Reserve.objects.select_for_update()
+                .select_related("implement")
+                .get(pk=reserve.pk)
+            )
+            if not reserve.active:
+                raise ValidationError({"detail": "Esta reserva ya no está activa."})
+
             reserve.active = False
             reserve.save(update_fields=["active"])
-            reserve.implement.state = "DIS"
+            reserve.implement.state = Implement.State.AVAILABLE
             reserve.implement.save(update_fields=["state"])
 
         return Response({"detail": "Reserva cancelada correctamente."})
@@ -228,20 +268,18 @@ class BorrowingViewSet(
 
     def get_queryset(self):
         user = self.request.user
-        if not user or not user.is_authenticated:
+        if not user.is_authenticated:
             return Borrowing.objects.none()
 
-        is_sys = getattr(user, "is_sys_admin", False) or user.groups.filter(name="Administrador del Sistema").exists()
-        if is_sys:
-            return Borrowing.objects.all().select_related("user", "implement")
+        if user.is_sys_admin:
+            return Borrowing.objects.all().select_related("implement")
 
-        is_imp = getattr(user, "is_implement_admin", False) or user.groups.filter(name="Administrador de Implementos").exists()
-        if is_imp:
+        if user.is_implement_admin:
             return Borrowing.objects.filter(
                 implement__faculty=user.faculty
-            ).select_related("user", "implement")
+            ).select_related("implement")
 
-        return Borrowing.objects.filter(user=user).select_related("user", "implement")
+        return Borrowing.objects.filter(user_id=user.uid).select_related("implement")
 
     def get_permissions(self):
         if self.action in ["list", "retrieve"]:
@@ -258,7 +296,8 @@ class BorrowingViewSet(
             borrowing.active = False
             borrowing.datetime_return = timezone.now()
             borrowing.save(update_fields=["active", "datetime_return"])
-            borrowing.implement.state = "DIS"
+            borrowing.implement.state = Implement.State.AVAILABLE
             borrowing.implement.save(update_fields=["state"])
+            transaction.on_commit(lambda: notifications.notify_returned(borrowing))
 
         return Response({"detail": "Devolución registrada correctamente."})

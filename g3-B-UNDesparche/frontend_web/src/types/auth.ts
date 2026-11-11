@@ -7,7 +7,7 @@ export type RoleName =
 export type UserStatus = 'ACT' | 'SAN';
 
 export interface BackendProfile {
-  id: number;
+  id: number | string;
   email: string;
   name: string;
   faculty: string | null;

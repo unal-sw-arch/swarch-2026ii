@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "899346011232",
+    "project_id": "undesparche",
+    "storage_bucket": "undesparche.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:899346011232:android:90583be3ba7d5d9ad11f05",
+        "android_client_info": {
+          "package_name": "co.edu.unal.undesparche"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "899346011232-rofg77lico004eqq4611ap43u4q5mher.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "co.edu.unal.undesparche",
+            "certificate_hash": "e67e4e98024994220731eed5d30f044dff308430"
+          }
+        },
+        {
+          "client_id": "899346011232-hfn6712iqglkddci2c1r31bvfjloc9hu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxnVmjOGxx9t4x8ZKa7q0b1XEW06zKgzg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "899346011232-hfn6712iqglkddci2c1r31bvfjloc9hu.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

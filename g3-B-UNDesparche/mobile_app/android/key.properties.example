@@ -1,0 +1,19 @@
+# Plantilla de firma de publicación (#16).
+#
+# Para generar una APK/AAB de release firmada:
+#
+# 1. Crea tu llave (una sola vez, guárdala muy bien y NO la subas a git):
+#    keytool -genkey -v -keystore undesparche-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias undesparche
+#
+# 2. Copia este archivo a android/key.properties y rellena los valores reales:
+#    cp key.properties.example key.properties
+#
+# 3. Añade la huella SHA-1 de ESTA llave a Firebase y a Google Maps (como con la de debug):
+#    keytool -list -v -keystore undesparche-release.jks -alias undesparche
+#
+# key.properties ya está en .gitignore y nunca debe versionarse.
+
+storePassword=CAMBIA_ESTO
+keyPassword=CAMBIA_ESTO
+keyAlias=undesparche
+storeFile=../undesparche-release.jks

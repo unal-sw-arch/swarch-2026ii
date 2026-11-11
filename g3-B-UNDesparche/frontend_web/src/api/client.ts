@@ -1,8 +1,10 @@
 import { ApiErrorResponse } from '../types/common';
 
-const EVENTS_API_URL = (import.meta.env.VITE_EVENTS_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
-const USERS_API_URL = (import.meta.env.VITE_USERS_API_URL || 'http://127.0.0.1:5000').replace(/\/+$/, '');
-const INVENTORY_API_URL = (import.meta.env.VITE_INVENTORY_API_URL || 'http://127.0.0.1:8080').replace(/\/+$/, '');
+const API_GATEWAY_URL = (
+  import.meta.env.VITE_API_GATEWAY_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  'http://127.0.0.1:8000'
+).replace(/\/+$/, '');
 
 export interface RequestOptions extends Omit<RequestInit, 'body'> {
   token?: string | null;
@@ -11,20 +13,10 @@ export interface RequestOptions extends Omit<RequestInit, 'body'> {
 }
 
 /**
- * Resuelve la URL base adecuada según el microservicio al que corresponde la ruta.
+ * Resuelve la URL base adecuada apuntando al API Gateway centralizado.
  */
-export function getBaseUrlForPath(path: string): string {
-  const clean = path.replace(/^\/+/, '');
-  if (clean.startsWith('users')) {
-    return USERS_API_URL;
-  }
-  if (clean.startsWith('inventory')) {
-    return INVENTORY_API_URL;
-  }
-  if (clean.startsWith('events')) {
-    return EVENTS_API_URL;
-  }
-  return EVENTS_API_URL;
+export function getBaseUrlForPath(_path?: string): string {
+  return API_GATEWAY_URL;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import { BackendProfile, RoleName, UserUpdatePayload } from '../types/auth';
+import { BackendProfile, RoleName, UserStatus, UserUpdatePayload } from '../types/auth';
 
 const ROLE_CODE_TO_LABEL: Record<string, RoleName> = {
   SYS_ADMIN: 'Administrador del Sistema',
@@ -27,12 +27,15 @@ export function normalizeBackendProfile(raw: any): BackendProfile {
     ROLE_CODE_TO_LABEL[roleCode] ||
     (typeof roleCode === 'string' && roleCode.includes(' ') ? roleCode : 'Miembro de la Comunidad');
 
+  const rawStatus = String(raw.status || '').toUpperCase();
+  const normalizedStatus: UserStatus = (rawStatus === 'SAN' || rawStatus === 'SANCTIONED') ? 'SAN' : 'ACT';
+
   return {
-    id: raw.id,
-    email: raw.email,
+    id: raw.id ?? raw.firebase_uid ?? 0,
+    email: raw.email || '',
     name: raw.name || '',
     faculty: raw.faculty || null,
-    status: raw.status || 'ACT',
+    status: normalizedStatus,
     roles: [label as RoleName],
     is_active: raw.is_active ?? true,
     date_joined: raw.date_joined,
@@ -67,7 +70,7 @@ export async function getUsers(
 }
 
 export async function updateUser(
-  id: number,
+  id: number | string,
   payload: UserUpdatePayload,
   token: string
 ): Promise<BackendProfile> {
@@ -87,7 +90,7 @@ export async function updateUser(
   return normalizeBackendProfile(raw);
 }
 
-export async function deleteUser(id: number, token: string): Promise<void> {
+export async function deleteUser(id: number | string, token: string): Promise<void> {
   await apiRequest<void>(`/users/${id}/`, {
     method: 'DELETE',
     token,

@@ -30,3 +30,31 @@ class UserSerializer(ModelSerializer):
             )
 
         return data
+
+
+class UserCreateSerializer(ModelSerializer):
+    """
+    Solo para el alta de usuarios (primer login, la hace el gateway).
+
+    Acepta únicamente la identidad (firebase_uid, email, name). Rol, estado y facultad
+    NO se aceptan aunque vengan en el body: salen de los valores por defecto del modelo
+    (COMMUNITY, activo, sin facultad). Así, esta ruta nunca puede crear un administrador;
+    los roles se asignan después con PATCH por un administrador del sistema.
+    """
+
+    class Meta:
+        model = User
+        fields = ["firebase_uid", "email", "name"]
+        extra_kwargs = {
+            # En el modelo es opcional (null=True), pero un usuario nuevo siempre debe traerlo
+            "firebase_uid": {
+                "required": True,
+                "allow_null": False,
+                "allow_blank": False,
+            },
+        }
+
+    def create(self, validated_data):
+        # create_user normaliza el correo y deja la contraseña inutilizable
+        # (el único inicio de sesión es con Google, a través de Firebase)
+        return User.objects.create_user(**validated_data)

@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<p>Lamentamos informarte que el evento <strong>{{ event_name }}</strong> fue <strong>cancelado</strong>.</p>
+<p><strong>Estaba programado para:</strong> {{ datetime_start | datetime_es }}<br>
+<strong>Lugar:</strong> {{ place }}</p>
+{% endblock %}

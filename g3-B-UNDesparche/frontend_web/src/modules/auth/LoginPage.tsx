@@ -83,14 +83,14 @@ export function LoginPage(): React.JSX.Element {
             type="button"
             disabled={submitting}
             onClick={handleGoogleSignIn}
-            className="flex w-full items-center justify-center gap-3 rounded-full border border-gray-200 bg-white px-5 py-3.5 font-bold text-sm text-gray-800 shadow-sm hover:bg-gray-50 hover:border-[#00D592] focus-visible:outline-2 focus-visible:outline-[#00D592] disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-[#111A24] dark:text-gray-100 transition-all cursor-pointer"
+            className="heroui-btn-google flex w-full items-center justify-center gap-3 rounded-full px-5 py-3.5 font-bold text-sm shadow-sm focus-visible:outline-2 focus-visible:outline-[#00D592] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
           >
             {submitting ? (
               <span className="material-symbols-outlined animate-spin text-xl text-[#00D592]" aria-hidden="true">
                 progress_activity
               </span>
             ) : (
-              <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+              <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
                 <path
                   fill="#4285F4"
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -109,7 +109,7 @@ export function LoginPage(): React.JSX.Element {
                 />
               </svg>
             )}
-            <span>
+            <span className="truncate">
               {submitting ? 'Iniciando sesión…' : 'Continuar con Google (@unal.edu.co)'}
             </span>
           </button>

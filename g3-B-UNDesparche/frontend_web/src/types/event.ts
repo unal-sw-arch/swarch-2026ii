@@ -19,9 +19,9 @@ export const EVENT_CATEGORY_LABELS: Record<EventCategory, string> = {
 };
 
 export interface EventOrganizer {
-  id: number;
+  id: number | string;
   name: string;
-  email: string;
+  email?: string;
 }
 
 export interface CampusEvent {

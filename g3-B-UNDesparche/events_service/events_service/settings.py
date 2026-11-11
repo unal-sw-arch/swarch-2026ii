@@ -20,7 +20,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / "events_service" / ".env")
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-events-service-fallback-key-12345")
+SECRET_KEY = os.getenv(
+    "SECRET_KEY", "django-insecure-events-service-fallback-key-12345"
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1")
@@ -80,13 +82,14 @@ WSGI_APPLICATION = "events_service.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("DB_NAME"),
+        "USER": os.getenv("DB_USER"),
+        "PASSWORD": os.getenv("DB_PASSWORD"),
+        "HOST": os.getenv("DB_HOST"),
+        "PORT": os.getenv("DB_PORT"),
     }
 }
-
-# Project settings UNDesparche
-AUTH_USER_MODEL = "events.User"
 
 
 # Password validation
@@ -139,14 +142,20 @@ MAILERS = {
 # Project settings UNDesparche
 
 # CORS settings
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS").split(",") if o.strip()
+]
+
+UNSUBSCRIBE_TOKEN_SALT = os.getenv("UNSUBSCRIBE_TOKEN_SALT", "event-unsubscribe")
 
 REST_FRAMEWORK = {
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend",
     ],
-    "DEFAULT_AUTHENTICATION_CLASSES": ["events.authentication.FirebaseAuthentication"],
+    "DEFAULT_AUTHENTICATION_CLASSES": ["events.authentication.GatewayAuthentication"],
 }
 
 FIREBASE_CREDENTIALS_PATH = BASE_DIR / "firebase_credentials.json"
+FIREBASE_STORAGE_BUCKET = os.getenv("FIREBASE_STORAGE_BUCKET")

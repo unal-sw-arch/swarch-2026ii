@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<p>Quedaste suscrito a <strong>{{ event_name }}</strong>. Te avisaremos si el evento cambia de horario, lugar o se cancela.</p>
+<p><strong>Lugar:</strong> {{ place }}<br>
+<strong>Inicio:</strong> {{ datetime_start | datetime_es }}<br>
+<strong>Fin:</strong> {{ datetime_end | datetime_es }}</p>
+{% endblock %}

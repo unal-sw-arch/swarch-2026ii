@@ -1,5 +1,7 @@
 from django.db import IntegrityError, transaction
 from django.db.models import Q
+from django.core import signing
+
 from django_filters.rest_framework import DjangoFilterBackend
 
 from rest_framework import filters, status, viewsets
@@ -17,7 +19,60 @@ from .permissions import (
     IsSystemAdminOrEventAdmin,
 )
 
+from . import notifications
+from core.firebase import init_firebase
 from core.firebase_storage import delete_image, upload_image
+from .tokens import read_unsubscribe_token
+
+
+def _upload_event_image(image_file):
+    """Sube la imagen de un evento a Firebase Storage y devuelve su URL."""
+    init_firebase()  # Storage sigue usando Firebase; ya no lo inicializa la autenticación
+    return upload_image(image_file, folder="events")
+
+
+def _delete_event_image(image_url):
+    """Elimina la imagen de un evento de Firebase Storage."""
+    init_firebase()
+    delete_image(image_url)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def unsubscribe_via_token(request):
+    token = request.data.get("token", "")
+
+    try:
+        data = read_unsubscribe_token(token)
+    except signing.BadSignature:
+        return Response(
+            {"detail": "El enlace de desuscripción no es válido o está incompleto."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    subscription = (
+        Subscription.objects.select_related("event").filter(id=data.get("sid")).first()
+    )
+
+    if subscription is None:
+        return Response(
+            {
+                "detail": "Esta suscripción ya había sido cancelada.",
+                "event_name": None,
+                "already": True,
+            }
+        )
+
+    event_name = subscription.event.name
+    subscription.delete()
+
+    return Response(
+        {
+            "detail": "Te desuscribiste correctamente de este evento.",
+            "event_name": event_name,
+            "already": False,
+        }
+    )
 
 
 class EventViewSet(viewsets.ModelViewSet):
@@ -54,21 +109,19 @@ class EventViewSet(viewsets.ModelViewSet):
         queryset = Event.objects.all()
         user = self.request.user
 
-        if user.is_anonymous:
+        if not user.is_authenticated:
             return queryset.filter(published=True)
 
-        user_id_str = str(getattr(user, "id", ""))
-        user_uid = getattr(user, "firebase_uid", None) or getattr(user, "uid", None) or user_id_str
-        return queryset.filter(Q(published=True) | Q(organizer_id=user_uid) | Q(organizer_id=user_id_str))
+        # Publicados, más los propios (incluidos los borradores del organizador)
+        return queryset.filter(Q(published=True) | Q(organizer_id=user.uid))
 
     def perform_create(self, serializer):
         image_file = self.request.FILES.get("image_file")
-        image_url = upload_image(image_file, folder="events") if image_file else None
+        image_url = _upload_event_image(image_file) if image_file else None
         user = self.request.user
-        organizer_id = getattr(user, "firebase_uid", None) or getattr(user, "uid", None) or str(user.id)
         serializer.save(
-            organizer_id=organizer_id,
-            organizer_name=user.name or user.email,
+            organizer_id=user.uid,
+            organizer_email=user.email,
             image=image_url,
         )
 
@@ -79,17 +132,19 @@ class EventViewSet(viewsets.ModelViewSet):
                 "No es posible modificar un evento publicado que este cancelado o finalizado."
             )
 
-        previous_state = event.status
-        previous_datetime_start = event.datetime_start
+        previous = notifications.snapshot_event(event)
 
         image_file = self.request.FILES.get("image_file")
         if image_file:
             if event.image:
-                delete_image(event.image)
-            image_url = upload_image(image_file, folder="events")
+                _delete_event_image(event.image)
+            image_url = _upload_event_image(image_file)
             updated_event = serializer.save(image=image_url)
         else:
             updated_event = serializer.save()
+        transaction.on_commit(
+            lambda: notifications.notify_event_update(previous, updated_event)
+        )
 
     def perform_destroy(self, instance):
         is_system_admin = self.request.user.role == SYS_ADMIN
@@ -100,7 +155,7 @@ class EventViewSet(viewsets.ModelViewSet):
             )
 
         if instance.image:
-            delete_image(instance.image)
+            _delete_event_image(instance.image)
         super().perform_destroy(instance)
 
     @action(detail=True, methods=["post"])
@@ -139,7 +194,7 @@ class EventViewSet(viewsets.ModelViewSet):
             )
 
         if user.is_authenticated:
-            user_uid = getattr(user, "uid", None) or getattr(user, "firebase_uid", None) or str(user.id)
+            user_uid = user.uid
             if Subscription.objects.filter(event=event, user_id=user_uid).exists():
                 raise ValidationError({"detail": "Ya estás suscrito a este evento."})
 
@@ -169,6 +224,8 @@ class EventViewSet(viewsets.ModelViewSet):
                 event=event, notification_email=email
             )
 
+        transaction.on_commit(lambda: notifications.notify_subscribed(subscription))
+
         return Response(
             {"detail": "Suscripción realizada correctamente."},
             status=status.HTTP_201_CREATED,
@@ -180,7 +237,7 @@ class EventViewSet(viewsets.ModelViewSet):
         user = request.user
 
         if user.is_authenticated:
-            user_uid = getattr(user, "uid", None) or getattr(user, "firebase_uid", None) or str(user.id)
+            user_uid = user.uid
             subscription = Subscription.objects.filter(
                 event=event, user_id=user_uid
             ).first()
@@ -201,51 +258,3 @@ class EventViewSet(viewsets.ModelViewSet):
 
         subscription.delete()
         return Response({"detail": "Suscripción cancelada correctamente."})
-
-
-@api_view(["GET"])
-@permission_classes([AllowAny])
-def unsubscribe_via_token(request):
-    token = request.query_params.get("token")
-    if not token:
-        return Response(
-            {"detail": "Falta el token de desuscripción."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    try:
-        from .tokens import read_unsubscribe_token
-        from django.core import signing
-        data = read_unsubscribe_token(token)
-    except Exception:
-        return Response(
-            {"detail": "El enlace de desuscripción no es válido o está incompleto."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    subscription = (
-        Subscription.objects.select_related("event")
-        .filter(id=data.get("sid"))
-        .first()
-    )
-
-    if subscription is None:
-        return Response(
-            {
-                "detail": "Esta suscripción ya había sido cancelada.",
-                "event_name": None,
-                "already": True,
-            }
-        )
-
-    event_name = subscription.event.name
-    subscription.delete()
-
-    return Response(
-        {
-            "detail": "Te desuscribiste correctamente de este evento.",
-            "event_name": event_name,
-            "already": False,
-        }
-    )
-

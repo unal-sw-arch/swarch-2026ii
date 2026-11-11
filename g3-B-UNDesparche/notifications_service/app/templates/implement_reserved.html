@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block content %}
+<p>Reservaste <strong>{{ implement_name }}</strong>.</p>
+<p>Acércate a recogerlo antes de <strong>{{ expires_at | datetime_es }}</strong>; pasado ese momento la reserva vence y el implemento vuelve a quedar disponible.</p>
+{% endblock %}
