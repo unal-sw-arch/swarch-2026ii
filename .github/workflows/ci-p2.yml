@@ -1,0 +1,131 @@
+# =============================================================================
+# Panadería Express — Prototipo 2
+# Validación de la plataforma compartida en cada pull request.
+#
+# No construye los servicios de aplicación: cada dueño valida su propio
+# componente. Aquí solo se comprueba que la base común no se rompa.
+# =============================================================================
+
+name: CI Prototipo 2
+
+on:
+  pull_request:
+    paths:
+      - "g3-H-PanTech/**"
+      - ".github/workflows/ci-p2.yml"
+  push:
+    branches:
+      - "g3-H/Pantech-P2"
+      - "g3-H/**"
+    paths:
+      - "g3-H-PanTech/**"
+      - ".github/workflows/ci-p2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: g3-H-PanTech
+
+jobs:
+  platform:
+    name: Compose, infraestructura y planes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validar docker-compose.p2.yml
+        run: docker compose -f docker-compose.p2.yml --env-file .env.p2.example config --quiet
+
+      - name: Validar docker-compose.p2.yml con el perfil init
+        run: docker compose -f docker-compose.p2.yml --env-file .env.p2.example --profile init config --quiet
+
+      - name: Validar JSON de RabbitMQ
+        run: python -c "import json; json.load(open('infrastructure/rabbitmq/definitions.json', encoding='utf-8')); print('definitions.json OK')"
+
+      - name: Validar sintaxis de init.js
+        run: node --check infrastructure/mongodb/init.js
+
+      - name: Validar sintaxis de init.sh
+        run: bash -n infrastructure/rustfs/init.sh
+
+      - name: Validar variables de entorno sin duplicados
+        run: |
+          python - <<'PY'
+          from collections import Counter
+          from pathlib import Path
+
+          lines = Path(".env.p2.example").read_text(encoding="utf-8").splitlines()
+          keys = [
+              line.split("=", 1)[0].strip()
+              for line in lines
+              if line.strip() and not line.lstrip().startswith("#") and "=" in line
+          ]
+          duplicates = sorted(key for key, count in Counter(keys).items() if count > 1)
+          if duplicates:
+              raise SystemExit(f"Variables duplicadas en .env.p2.example: {duplicates}")
+          print(f"{len(keys)} variables, sin duplicados")
+          PY
+
+      - name: Validar finales de línea LF
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          files = [
+              "infrastructure/rustfs/init.sh",
+              "infrastructure/postgres/init.sql",
+              "infrastructure/mongodb/init.js",
+              "infrastructure/redis/redis.conf",
+              "infrastructure/rabbitmq/rabbitmq.conf",
+              "infrastructure/rabbitmq/definitions.json",
+              "docker-compose.p2.yml",
+              ".env.p2.example",
+          ]
+          with_crlf = [name for name in files if b"\r\n" in Path(name).read_bytes()]
+          if with_crlf:
+              raise SystemExit(f"Archivos con CRLF: {with_crlf}")
+          print("Todos los archivos usan LF")
+          PY
+
+      - name: Verificar los planes del equipo
+        run: |
+          set -eu
+          for plan in \
+            docs/equipo/contratos.md \
+            docs/equipo/jaime-angulo.md \
+            docs/equipo/diego-waitoto.md \
+            docs/equipo/yeison-aparicio.md \
+            docs/equipo/axel-gomez.md; do
+            test -s "$plan" || { echo "Falta o está vacío: $plan" >&2; exit 1; }
+            echo "OK $plan"
+          done
+
+      - name: Verificar los diagramas del Prototipo 2
+        run: |
+          set -eu
+          for diagram in \
+            "docs/Vista CyC P2.puml" \
+            "docs/tiers_despliegue P2.puml" \
+            "docs/capas P2.puml" \
+            "docs/descomposicion P2.puml" \
+            "docs/secuencia_cliente_pedido.puml" \
+            "docs/secuencia_cliente_reserva.puml"; do
+            test -s "$diagram" || { echo "Falta o está vacío: $diagram" >&2; exit 1; }
+            echo "OK $diagram"
+          done

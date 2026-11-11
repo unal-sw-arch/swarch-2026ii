@@ -1,0 +1,38 @@
+# Override de Compose solo para las pruebas de humo (nunca para despliegue).
+#
+# - Redis con contraseña: infrastructure/redis/redis.conf tiene protected-mode yes sin
+#   contraseña y Redis rechaza a los demás contenedores. Cuando se corrija se puede
+#   quitar redis-smoke y las dos variables de Redis.
+# - JWKS falso: el Gateway valida los tokens contra el proceso `go run ./tests/smoke`,
+#   que corre en el host (puerto 9999).
+# - Kitchen se publica en 127.0.0.1:8001 solo para probar llamadas directas sin Gateway.
+services:
+  redis-smoke:
+    image: redis:7-alpine
+    container_name: panaderia-p2-redis-smoke
+    command: ["redis-server", "--requirepass", "smoke-redis", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "smoke-redis", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks:
+      - panaderia-net
+
+  kitchen-service:
+    ports:
+      - "127.0.0.1:8001:8001"
+    environment:
+      REDIS_QUEUE_URL: redis://:smoke-redis@redis-smoke:6379/1
+    depends_on:
+      redis-smoke:
+        condition: service_healthy
+
+  api-gateway:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      REDIS_URL: redis://:smoke-redis@redis-smoke:6379/0
+      JWKS_URL: http://host.docker.internal:9999/.well-known/jwks.json
+      RATE_LIMIT_USER_PER_MINUTE: "100"
+      RATE_LIMIT_IP_PER_MINUTE: "5000"

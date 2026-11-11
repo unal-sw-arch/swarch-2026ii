@@ -1,0 +1,88 @@
+@startuml
+!theme plain
+top to bottom direction
+skinparam shadowing false
+skinparam defaultFontSize 13
+skinparam nodesep 22
+skinparam ranksep 38
+skinparam ArrowFontSize 11
+skinparam titleFontSize 18
+skinparam titleFontStyle bold
+skinparam node {
+  FontStyle bold
+}
+skinparam database {
+  FontStyle bold
+}
+skinparam queue {
+  FontStyle bold
+}
+
+title Vista de despliegue - Panadería Express (Prototipo 2)
+
+node "Cliente o empleado\n(navegador web)" as Browser #FFF9C4;line:F9A825
+node "Cocina / despacho\n(KDS/POS de escritorio)" as KDS #FFF9C4;line:F9A825
+
+node "Host Docker" as Host #FAFAFA;line:757575 {
+  node "Red interna panaderia-net" as Net #E3F2FD;line:1565C0 {
+    node "Contenedor web-ssr\n:3000\nNext.js (SSR)" as Web <<Docker>> #BBDEFB;line:1565C0
+    node "Contenedor api-gateway\n:8080\nGo" as GW <<Docker>> #E1BEE7;line:6A1B9A
+
+    node "Contenedor identity-service\n:8002\nKotlin" as Identity <<Docker>> #C8E6C9;line:2E7D32
+    node "Contenedor order-service\n:8000\nPython" as Order <<Docker>> #C8E6C9;line:2E7D32
+    node "Contenedor kitchen-service\n:8001\nGo" as Kitchen <<Docker>> #C8E6C9;line:2E7D32
+    node "Contenedor reporting-service\n:8003\nC#" as Reporting <<Docker>> #C8E6C9;line:2E7D32
+    node "Contenedor worker\nSin puerto\nPython + Celery" as Worker <<Docker>> #B2DFDB;line:00695C
+
+    queue "Contenedor rabbitmq\n:5672 / :15672" as MQ <<Docker>> #FFF9C4;line:F9A825
+
+    database "Contenedor postgres\n:5432" as PG <<Docker>> #FFE0B2;line:E65100
+    database "Contenedor mongodb\n:27017" as Mongo <<Docker>> #FFCDD2;line:C62828
+    database "Contenedor redis\n:6379" as Redis <<Docker>> #F8BBD0;line:AD1457
+    database "Contenedor rustfs\n:9000 / :9001" as RustFS <<Docker>> #D7CCC8;line:4E342E
+  }
+}
+
+' Clientes -> presentación y borde
+Browser -[#00897B]down-> Web : HTTP\nSSR y acciones
+KDS -[#00897B]down-> GW : HTTP / REST\nCola y despacho
+
+' Presentación -> borde
+Web -[#1565C0]down-> GW : HTTP / REST\nServidor Next.js
+
+' Borde -> lógica
+GW -[#1565C0]down-> Identity : HTTP / REST
+GW -[#1565C0]down-> Order : HTTP / REST + JWT
+GW -[#1565C0]down-> Kitchen : HTTP / REST + JWT
+GW -[#1565C0]down-> Reporting : HTTP / REST + JWT
+
+' Lógica -> datos y eventos
+GW -[#AD1457]left-> Redis : Redis / TCP\nRate limiting
+Identity -[#E65100]down-> PG : SQL / TCP
+Identity -[#AD1457]left-> Redis : Redis / TCP\nRefresh tokens
+Order -[#E65100]down-> PG : SQL / TCP
+Order -[#C62828]right-> Mongo : MongoDB / TCP
+Order -[#AD1457]left-> Redis : Redis / TCP\nIdempotencia
+Order -[#6A1B9A]right-> MQ : AMQP
+Kitchen -[#E65100]down-> PG : SQL / TCP
+Kitchen -[#AD1457]down-> Redis : Redis / TCP
+Kitchen -[#6A1B9A]left-> MQ : AMQP
+MQ -[#00695C]down-> Worker : AMQP
+Worker -[#1565C0]right-> Kitchen : HTTP / REST
+Worker -[#C62828]left-> Mongo : MongoDB / TCP
+Worker -[#4E342E]down-> RustFS : S3 / HTTP
+Reporting -[#E65100]down-> PG : SQL / TCP
+Reporting -[#C62828]left-> Mongo : MongoDB / TCP
+Reporting -[#4E342E]down-> RustFS : S3 / HTTP
+
+legend right
+  <color:#00897B>■</color> HTTP / REST (local)
+  <color:#1565C0>■</color> HTTP / REST
+  <color:#6A1B9A>■</color> AMQP
+  <color:#E65100>■</color> SQL / TCP
+  <color:#C62828>■</color> MongoDB / TCP
+  <color:#AD1457>■</color> Redis / TCP
+  <color:#4E342E>■</color> S3 / HTTP
+endlegend
+
+@enduml

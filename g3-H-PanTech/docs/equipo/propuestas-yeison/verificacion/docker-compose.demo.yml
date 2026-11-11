@@ -1,0 +1,166 @@
+# DEMO: levanta TODO para ver tus tres servicios funcionando, sobre la INFRAESTRUCTURA REAL de Jaime
+# (infrastructure/postgres, mongodb, redis, rabbitmq y rustfs) y con los mismos nombres de variables que
+# docker-compose.p2.yml. Solo faltan identity, gateway y kitchen, que aún no existen: se sustituyen por un
+# token firmado con gen_token.py y una cocina simulada (fake-kitchen).
+#   python gen_token.py cliente
+#   docker compose -f docker-compose.demo.yml up --build
+x-keys: &keys
+  volumes: ["./keys:/keys:ro"]
+x-app-env: &app-env
+  SERVICE_TOKEN: dev-token
+  JWT_ISSUER: identity-service
+  JWT_AUDIENCE: panaderia-express
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: panaderia, POSTGRES_PASSWORD: panaderia, POSTGRES_DB: panaderia, TZ: America/Bogota }
+    volumes: ["../../../../infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U panaderia -d panaderia"], interval: 5s, timeout: 5s, retries: 12 }
+
+  mongodb:
+    image: mongo:7
+    environment: { MONGO_INITDB_ROOT_USERNAME: panaderia, MONGO_INITDB_ROOT_PASSWORD: panaderia, MONGO_INITDB_DATABASE: panaderia }
+    volumes: ["../../../../infrastructure/mongodb/init.js:/docker-entrypoint-initdb.d/01-init.js:ro"]
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --eval 'db.adminCommand({ping:1}).ok' | grep 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes: ["../../../../infrastructure/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro"]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 3s, retries: 12 }
+
+  rabbitmq:
+    # Versión fija: las etiquetas flotantes nuevas ya no traen rabbitmqadmin.
+    image: rabbitmq:3.13.7-management-alpine
+    environment: { RABBITMQ_DEFAULT_USER: panaderia, RABBITMQ_DEFAULT_PASS: panaderia, RABBITMQ_DEFAULT_VHOST: / }
+    ports: ["15672:15672"]                   # consola: http://localhost:15672 (panaderia / panaderia)
+    volumes:
+      - ../../../../infrastructure/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ../../../../infrastructure/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    healthcheck: { test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"], interval: 10s, timeout: 5s, retries: 12, start_period: 20s }
+
+  rabbitmq-init:                             # importa exchanges, colas y bindings de definitions.json
+    # Misma imagen fija que el broker: 3.13.7 sí trae rabbitmqadmin (v1).
+    image: rabbitmq:3.13.7-management-alpine
+    restart: "no"
+    depends_on: { rabbitmq: { condition: service_healthy } }
+    environment: { RABBITMQ_DEFAULT_USER: panaderia, RABBITMQ_DEFAULT_PASS: panaderia }
+    volumes: ["../../../../infrastructure/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro"]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until rabbitmqadmin -H rabbitmq -u "$$RABBITMQ_DEFAULT_USER" -p "$$RABBITMQ_DEFAULT_PASS" list vhosts >/dev/null 2>&1; do
+          echo "[rabbitmq-init] Esperando a RabbitMQ..."; sleep 2;
+        done
+        rabbitmqadmin -H rabbitmq -u "$$RABBITMQ_DEFAULT_USER" -p "$$RABBITMQ_DEFAULT_PASS" import /etc/rabbitmq/definitions.json
+        echo "[rabbitmq-init] Definiciones importadas."
+
+  rustfs-perms:
+    image: alpine:3.20
+    command: ["sh", "-c", "chown -R 10001:10001 /data /logs"]
+    volumes: [rustfs_data:/data, rustfs_logs:/logs]
+    restart: "no"
+
+  rustfs:
+    image: rustfs/rustfs:1.0.4
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: panaderia
+      RUSTFS_SECRET_KEY: panaderia123
+      RUSTFS_OBS_LOGGER_LEVEL: info
+      RUSTFS_OBS_LOG_DIRECTORY: /logs
+    # 9001: consola (panaderia / panaderia123). 9000: solo en la demo, para abrir las URLs firmadas de los reportes.
+    ports: ["9001:9001", "9000:9000"]
+    volumes: [rustfs_data:/data, rustfs_logs:/logs]
+    depends_on: { rustfs-perms: { condition: service_completed_successfully } }
+    healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:9000/health"], interval: 10s, timeout: 5s, retries: 12, start_period: 20s }
+
+  fake-kitchen:                              # sustituye a Kitchen Service (Axel): acepta pedidos y 10 s después publica order.ready
+    image: python:3.12-slim
+    command: sh -c "pip install -q pika && python /app/fake_kitchen.py"
+    environment: { RABBITMQ_URL: "amqp://panaderia:panaderia@rabbitmq:5672/", READY_AFTER_SECONDS: "10" }
+    volumes: ["./fake_kitchen.py:/app/fake_kitchen.py:ro"]
+    depends_on: { rabbitmq-init: { condition: service_completed_successfully } }
+
+  order-service:
+    build: ../../../../order-service
+    <<: *keys
+    environment:
+      <<: *app-env
+      PORT: "8000"
+      DATABASE_URL: postgresql+psycopg2://panaderia:panaderia@postgres:5432/panaderia
+      MONGODB_URL: mongodb://panaderia:panaderia@mongodb:27017/panaderia?authSource=admin
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://panaderia:panaderia@rabbitmq:5672/
+      RABBITMQ_EXCHANGE: panaderia.events
+      JWT_PUBLIC_KEY_FILE: /keys/public.pem
+    ports: ["8000:8000"]                     # solo en la demo (en el proyecto solo se publica el gateway)
+    depends_on:
+      postgres: { condition: service_healthy }
+      mongodb: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      rabbitmq-init: { condition: service_completed_successfully }
+    restart: on-failure
+
+  worker:
+    build: ../../../../worker
+    environment:
+      SERVICE_TOKEN: dev-token
+      RABBITMQ_URL: amqp://panaderia:panaderia@rabbitmq:5672/
+      CELERY_BROKER_URL: amqp://panaderia:panaderia@rabbitmq:5672/
+      KITCHEN_URL: http://fake-kitchen:8001
+      ORDER_SERVICE_URL: http://order-service:8000
+      MONGODB_URL: mongodb://panaderia:panaderia@mongodb:27017/panaderia?authSource=admin
+      S3_ENDPOINT: http://rustfs:9000
+      S3_ACCESS_KEY: panaderia
+      S3_SECRET_KEY: panaderia123
+      S3_REGION: us-east-1
+      S3_BUCKET_RECEIPTS: receipts
+      S3_USE_SSL: "false"
+      WORKER_CONCURRENCY: "2"
+      WORKER_MAX_RETRIES: "3"
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      rabbitmq-init: { condition: service_completed_successfully }
+      mongodb: { condition: service_healthy }
+      rustfs: { condition: service_healthy }
+      order-service: { condition: service_healthy }
+      fake-kitchen: { condition: service_started }
+    restart: on-failure
+
+  reporting-service:
+    build: ../../../../reporting-service
+    <<: *keys
+    environment:
+      <<: *app-env
+      PORT: "8003"
+      DATABASE_URL: Host=postgres;Port=5432;Database=panaderia;Username=panaderia;Password=panaderia
+      MONGODB_URL: mongodb://panaderia:panaderia@mongodb:27017/panaderia?authSource=admin
+      S3_ENDPOINT: http://rustfs:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: panaderia
+      S3_SECRET_KEY: panaderia123
+      S3_REGION: us-east-1
+      S3_BUCKET_REPORTS: reports
+      Jwt__PublicKeyFile: /keys/public.pem
+    ports: ["8003:8003"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      mongodb: { condition: service_healthy }
+      rustfs: { condition: service_healthy }
+      order-service: { condition: service_healthy }   # espera a que las migraciones creen las tablas
+    restart: on-failure
+
+volumes:
+  rustfs_data:
+  rustfs_logs:

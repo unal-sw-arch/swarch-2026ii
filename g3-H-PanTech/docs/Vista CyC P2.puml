@@ -1,0 +1,176 @@
+﻿@startuml
+!theme plain
+top to bottom direction
+skinparam componentStyle uml2
+skinparam shadowing false
+skinparam defaultFontSize 13
+skinparam nodesep 14
+skinparam ranksep 42
+skinparam ArrowFontSize 11
+skinparam titleFontSize 18
+skinparam titleFontStyle bold
+
+skinparam component {
+  BackgroundColor<<Presentación web>> #BBDEFB
+  BorderColor<<Presentación web>> #1565C0
+  BackgroundColor<<Presentación escritorio>> #B3E5FC
+  BorderColor<<Presentación escritorio>> #0277BD
+  BackgroundColor<<Servicio>> #C8E6C9
+  BorderColor<<Servicio>> #2E7D32
+  BackgroundColor<<Orquestación>> #E1BEE7
+  BorderColor<<Orquestación>> #6A1B9A
+  BackgroundColor<<Asíncrono>> #B2DFDB
+  BorderColor<<Asíncrono>> #00695C
+  FontStyle bold
+}
+skinparam queue {
+  BackgroundColor<<Broker>> #FFF9C4
+  BorderColor<<Broker>> #F9A825
+  FontStyle bold
+}
+skinparam database {
+  BackgroundColor<<BD relacional>> #FFE0B2
+  BorderColor<<BD relacional>> #E65100
+  BackgroundColor<<BD documental>> #FFCDD2
+  BorderColor<<BD documental>> #C62828
+  BackgroundColor<<BD clave-valor>> #F8BBD0
+  BorderColor<<BD clave-valor>> #AD1457
+  BackgroundColor<<Objetos>> #D7CCC8
+  BorderColor<<Objetos>> #4E342E
+  FontStyle bold
+}
+skinparam actor {
+  BackgroundColor #FFF9C4
+  BorderColor #F9A825
+}
+skinparam note {
+  BackgroundColor transparent
+  BorderColor transparent
+  FontStyle bold
+}
+skinparam interface {
+  BackgroundColor #FFFFFF
+  BorderColor #424242
+}
+
+title Vista C&C (Componentes y Conectores) - Panadería Express (Prototipo 2)
+
+actor "Cliente\n(autoregistro)" as Cliente
+actor "Empleado\n(Mesero / Cocinero / Despachador / Supervisor / Admin)" as Empleado
+
+component "Web SSR\nNext.js + TypeScript" as Web <<Presentación web>>
+component "KDS / POS\nFlutter + Dart" as KDS <<Presentación escritorio>>
+
+component "API Gateway\nGo" as GW <<Orquestación>>
+interface " " as IGW
+component "Identity Service\nKotlin + Spring Boot" as Identity <<Servicio>>
+interface " " as IAuth
+component "Order Service\nPython + FastAPI" as Order <<Servicio>>
+interface " " as IOrder
+component "Kitchen Service\nGo" as Kitchen <<Servicio>>
+interface " " as IKitchen
+component "Reporting Service\nC# + .NET" as Reporting <<Servicio>>
+interface " " as IReport
+
+component "Worker\nPython + Celery" as Worker <<Asíncrono>>
+queue "RabbitMQ" as MQ <<Broker>>
+
+database "PostgreSQL\nrelacional" as PG <<BD relacional>>
+database "MongoDB\ndocumental" as Mongo <<BD documental>>
+database "Redis\nclave-valor" as Redis <<BD clave-valor>>
+database "RustFS\nobjetos" as RustFS <<Objetos>>
+
+' Interfaces provistas (lollipop)
+IGW -down- GW
+IAuth -down- Identity
+IOrder -down- Order
+IKitchen -down- Kitchen
+IReport -down- Reporting
+
+' Etiquetas de las interfaces
+note as NGW
+  API Gateway
+  :8080
+end note
+note as NAuth
+  Identity API
+  :8002
+end note
+note as NOrder
+  Order API
+  :8000
+end note
+note as NKitchen
+  Kitchen API
+  :8001
+end note
+note as NReport
+  Reporting API
+  :8003
+end note
+IGW -[hidden]right- NGW
+IAuth -[hidden]right- NAuth
+IOrder -[hidden]right- NOrder
+IKitchen -[hidden]right- NKitchen
+IReport -[hidden]right- NReport
+
+' Usuarios finales
+Cliente -[#F9A825]down-> Web : Navegador web
+Empleado -[#F9A825]down-> Web : Navegador web
+Empleado -[#F9A825]down-> KDS : Cliente de escritorio
+
+' Presentación -> borde
+Web .[#00897B]down.> IGW : <<HTTP / REST>>\nSSR y acciones del cliente
+KDS .[#00897B]down.> IGW : <<HTTP / REST>>\nCola y despacho
+
+' Borde -> servicios de lógica
+GW .[#1565C0]right.> IAuth : <<HTTP / REST>>\nLogin, registro y sesión
+GW .[#1565C0]down.> IOrder : <<HTTP / REST + JWT>>\nPedidos, reservas y pagos
+GW .[#1565C0]down.> IKitchen : <<HTTP / REST + JWT>>\nCola, estados y ETA
+GW .[#1565C0]down.> IReport : <<HTTP / REST + JWT>>\nHistorial y reportes
+
+' Persistencia
+Identity .[#E65100]down.> PG : <<SQL / TCP>>\nusuarios, roles y auditoría
+Identity .[#AD1457]left.> Redis : <<Redis / TCP>>\nrefresh tokens
+GW .[#AD1457]left.> Redis : <<Redis / TCP>>\nrate limiting
+Order .[#E65100]down.> PG : <<SQL / TCP>>\npedidos, pagos y reservas
+Order .[#C62828]down.> Mongo : <<MongoDB / TCP>>\nmenú y vistas de lectura
+Order .[#AD1457]left.> Redis : <<Redis / TCP>>\nidempotencia y caché
+Kitchen .[#E65100]down.> PG : <<SQL / TCP>>\ntiempos base e historial
+Kitchen .[#AD1457]down.> Redis : <<Redis / TCP>>\ncola priorizada y ETA
+Reporting .[#E65100]down.> PG : <<SQL / TCP>>\nconsultas de historial
+Reporting .[#C62828]down.> Mongo : <<MongoDB / TCP>>\nreportes precalculados
+Reporting .[#4E342E]down.> RustFS : <<S3 / HTTP>>\nexportaciones
+
+' Eventos y procesos asíncronos
+Order .[#6A1B9A]right.> MQ : <<AMQP>>\norder.paid
+Kitchen .[#6A1B9A]right.> MQ : <<AMQP>>\norder.ready
+MQ .[#00695C]down.> Worker : <<AMQP>>\nConsumo de eventos
+Worker .[#1565C0]right.> IKitchen : <<HTTP / REST>>\nEncolar pedido pagado
+Worker .[#C62828]down.> Mongo : <<MongoDB / TCP>>\nActualizar read model
+Worker .[#4E342E]down.> RustFS : <<S3 / HTTP>>\nComprobantes y reportes
+
+note left of Cliente
+  El cliente solo ve sus pedidos y reservas.
+  No accede a la cola, al despacho, al catálogo
+  ni al historial general.
+end note
+
+note bottom of Worker
+  El pago se publica como evento.
+  El worker encola el pedido pagado, actualiza
+  las vistas de lectura y genera comprobantes.
+  El cliente consulta por polling a través del Gateway.
+end note
+
+legend right
+  <color:#00897B>■</color> HTTP / REST
+  <color:#1565C0>■</color> HTTP / REST + JWT
+  <color:#6A1B9A>■</color> AMQP (eventos)
+  <color:#E65100>■</color> SQL / TCP
+  <color:#C62828>■</color> MongoDB / TCP
+  <color:#AD1457>■</color> Redis / TCP
+  <color:#4E342E>■</color> S3 / HTTP
+endlegend
+
+@enduml

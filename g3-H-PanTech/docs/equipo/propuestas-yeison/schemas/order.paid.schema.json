@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "order.paid",
+  "description": "Productor: Order Service. Consumidor: Worker. Los campos fuera del mínimo del contrato (order_type, table_number, items) permiten al Worker encolar en Kitchen sin consultar al Order Service.",
+  "type": "object",
+  "required": ["event_id", "occurred_at", "order_id", "customer_id", "total", "paid_at", "order_type", "table_number", "items"],
+  "properties": {
+    "event_id": { "type": "string" },
+    "occurred_at": { "type": "string" },
+    "order_id": { "type": "string" },
+    "customer_id": { "type": ["string", "null"], "description": "null en pedidos de mostrador" },
+    "total": { "type": "string", "description": "Decimal con 2 decimales, como texto" },
+    "paid_at": { "type": "string" },
+    "order_type": { "type": "string", "enum": ["para_llevar", "en_mesa"] },
+    "table_number": { "type": ["integer", "null"] },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["product_id", "name", "quantity", "prep_minutes", "unit_price"],
+        "properties": {
+          "product_id": { "type": "string" },
+          "name": { "type": "string" },
+          "quantity": { "type": "integer" },
+          "prep_minutes": { "type": "integer" },
+          "unit_price": { "type": "string" }
+        }
+      }
+    }
+  }
+}

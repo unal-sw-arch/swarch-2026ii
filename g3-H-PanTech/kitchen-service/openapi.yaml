@@ -1,0 +1,450 @@
+openapi: 3.0.3
+info:
+  title: Kitchen Service
+  version: 1.0.0
+  description: |
+    Cola priorizada de cocina de Panadería Express (SJF + aging + FIFO, capacidad y ETA).
+
+    Kitchen no se publica al host: los clientes llegan por el API Gateway (`/queue/*`), que valida el
+    JWT y propaga la identidad en los encabezados `X-User-Id`, `X-Permissions`, etc. Kitchen vuelve a
+    validar el permiso. `POST /queue/orders` solo lo llama el Worker, directo, con `X-Service-Token`;
+    el Gateway lo bloquea (403).
+
+    Todos los errores usan el formato de `docs/equipo/contratos.md` §5.
+servers:
+  - url: http://kitchen-service:8001
+    description: Red interna de Docker Compose
+
+tags:
+  - name: Cola
+    description: Encolar y consultar la cola de cocina
+  - name: Estados
+    description: Transiciones pendiente → en_preparacion → listo → entregado
+  - name: Salud
+    description: Liveness y readiness (sin autenticación)
+
+paths:
+  /health:
+    get:
+      tags: [Salud]
+      summary: Liveness
+      operationId: health
+      responses:
+        "200":
+          description: El proceso está vivo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+              example: {status: ok}
+
+  /ready:
+    get:
+      tags: [Salud]
+      summary: Readiness (PostgreSQL, Redis y RabbitMQ)
+      operationId: ready
+      responses:
+        "200":
+          description: Todas las dependencias responden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ready"
+              example: {status: ready}
+        "503":
+          description: Alguna dependencia no responde
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotReady"
+              example: {status: not_ready, dependencies: {postgres: up, redis: up, rabbitmq: down}}
+
+  /queue/orders:
+    post:
+      tags: [Cola]
+      summary: Encolar un pedido pagado
+      operationId: enqueueOrder
+      description: |
+        Lo llama el Worker al recibir `order.paid`. Es idempotente por `order_id`: la primera vez
+        responde 201; si ya existía responde 200 con la comanda original, sin cambios.
+
+        `prep_minutes` del pedido es el máximo de `prep_minutes` de sus ítems (se cocinan en
+        paralelo). Un ítem sin tiempo usa `kitchen.prep_times` y luego `DEFAULT_PREP_MINUTES`.
+        Sin `items` se usa `DEFAULT_PREP_MINUTES`.
+      security:
+        - ServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnqueueRequest"
+            example:
+              order_id: 8f14e45f-ceea-467f-a0e6-1f3d3b6a1c11
+              customer_id: 9a24e45f-ceea-467f-a0e6-1f3d3b6a1c22
+              order_type: para_llevar
+              paid_at: "2026-11-09T14:50:00Z"
+              items:
+                - {product_id: 44444444-4444-4444-8444-444444444444, name: Croissant, quantity: 2, prep_minutes: 5}
+      responses:
+        "201":
+          description: Pedido encolado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueItem"
+        "200":
+          description: El `order_id` ya estaba encolado; se devuelve la comanda existente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueItem"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+
+  /queue:
+    get:
+      tags: [Cola]
+      summary: Consultar la cola
+      operationId: getQueue
+      description: |
+        Pedidos activos (`pendiente`, `en_preparacion`, `listo`), nunca `entregado`. Orden:
+        primero los `en_preparacion`, luego los `pendiente` por `priority_score` ascendente
+        (desempate FIFO por `enqueued_at`) y al final los `listo`. El score se recalcula en cada consulta:
+        `priority_score = prep_minutes - AGING_FACTOR * wait_minutes`.
+
+        Con solo `kitchen:deliver` (despachador) la respuesta se restringe a pedidos `listo`.
+      x-required-permissions: [kitchen:read, kitchen:deliver]
+      security:
+        - UserIdentity: []
+          UserPermissions: []
+      parameters:
+        - name: status
+          in: query
+          description: Filtra por estado. `entregado` siempre devuelve una lista vacía.
+          schema:
+            $ref: "#/components/schemas/Status"
+      responses:
+        "200":
+          description: Cola ordenada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /queue/orders/{id}:
+    get:
+      tags: [Cola]
+      summary: Detalle de una comanda y su ETA
+      operationId: getOrder
+      description: |
+        Con solo `kitchen:deliver`, una comanda que no está `listo` responde 404 (no 403) para
+        no revelar que existe.
+      x-required-permissions: [kitchen:read, kitchen:deliver]
+      security:
+        - UserIdentity: []
+          UserPermissions: []
+      parameters:
+        - $ref: "#/components/parameters/OrderId"
+      responses:
+        "200":
+          description: Comanda con posición y ETA (sin posición ni ETA si ya fue entregada)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueItem"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /queue/orders/{id}/status:
+    patch:
+      tags: [Estados]
+      summary: Cambiar el estado de preparación
+      operationId: updateStatus
+      description: |
+        Solo `pendiente → en_preparacion` y `en_preparacion → listo`. Cualquier otra transición
+        responde 409 `INVALID_STATE`. Pasar a `en_preparacion` con la cocina llena responde 409
+        `KITCHEN_AT_CAPACITY` y el pedido sigue `pendiente`. Cada transición registra una fila en
+        `kitchen.order_status_events` (`changed_by` = `X-User-Id`). Al pasar a `listo` se publica
+        `order.ready` en RabbitMQ.
+      x-required-permissions: [kitchen:update]
+      security:
+        - UserIdentity: []
+          UserPermissions: []
+      parameters:
+        - $ref: "#/components/parameters/OrderId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatusRequest"
+            example: {status: en_preparacion}
+      responses:
+        "200":
+          description: Estado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueItem"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Transición inválida o cocina al máximo de capacidad
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                invalidState:
+                  summary: Transición no permitida
+                  value:
+                    code: INVALID_STATE
+                    message: "Transición inválida: pendiente -> listo"
+                    request_id: c2f1b0a4-3a7e-4f55-9a53-0d6a4f0e2b11
+                    details: {current_status: pendiente, requested_status: listo}
+                atCapacity:
+                  summary: Cocina llena
+                  value:
+                    code: KITCHEN_AT_CAPACITY
+                    message: La cocina está al máximo de capacidad; el pedido sigue pendiente
+                    request_id: c2f1b0a4-3a7e-4f55-9a53-0d6a4f0e2b11
+                    details: {max: 4, in_preparation: 4}
+
+  /queue/orders/{id}/deliver:
+    post:
+      tags: [Estados]
+      summary: Confirmar la entrega
+      operationId: deliverOrder
+      description: Exige estado `listo`. La comanda sale de la cola activa.
+      x-required-permissions: [kitchen:deliver]
+      security:
+        - UserIdentity: []
+          UserPermissions: []
+      parameters:
+        - $ref: "#/components/parameters/OrderId"
+      responses:
+        "200":
+          description: Comanda entregada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueItem"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: La comanda no está en estado `listo`
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: INVALID_STATE
+                message: "Transición inválida: en_preparacion -> entregado"
+                request_id: c2f1b0a4-3a7e-4f55-9a53-0d6a4f0e2b11
+                details: {current_status: en_preparacion, requested_status: entregado}
+
+components:
+  securitySchemes:
+    ServiceToken:
+      type: apiKey
+      in: header
+      name: X-Service-Token
+      description: Valor de `SERVICE_TOKEN`. Solo el Worker.
+    UserIdentity:
+      type: apiKey
+      in: header
+      name: X-User-Id
+      description: UUID del usuario, que el Gateway toma del `sub` del JWT. Sin él, 401.
+    UserPermissions:
+      type: apiKey
+      in: header
+      name: X-Permissions
+      description: Permisos separados por coma (por ejemplo `kitchen:read,kitchen:update`). Sin el permiso requerido, 403.
+
+  parameters:
+    OrderId:
+      name: id
+      in: path
+      required: true
+      description: UUID del pedido. Un valor mal formado responde 404.
+      schema:
+        type: string
+
+  responses:
+    ValidationError:
+      description: Cuerpo o parámetros inválidos (`VALIDATION_ERROR`); `details` indica los campos
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthenticated:
+      description: Falta `X-Service-Token` válido o `X-User-Id` (`UNAUTHENTICATED`)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: La identidad no tiene el permiso requerido (`FORBIDDEN`)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: La comanda no existe o no es visible para esta identidad (`NOT_FOUND`)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Status:
+      type: string
+      enum: [pendiente, en_preparacion, listo, entregado]
+
+    OrderType:
+      type: string
+      enum: [para_llevar, en_mesa]
+
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, enum: [ok]}
+
+    Ready:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, enum: [ready]}
+
+    NotReady:
+      type: object
+      required: [status, dependencies]
+      properties:
+        status: {type: string, enum: [not_ready]}
+        dependencies:
+          type: object
+          description: Estado de cada dependencia
+          additionalProperties:
+            type: string
+            enum: [up, down]
+
+    EnqueueItem:
+      type: object
+      required: [product_id, quantity]
+      properties:
+        product_id: {type: string, format: uuid}
+        name: {type: string}
+        quantity: {type: integer, minimum: 1}
+        prep_minutes:
+          type: integer
+          minimum: 0
+          description: Opcional; sin valor se usa `kitchen.prep_times` y luego `DEFAULT_PREP_MINUTES`
+
+    EnqueueRequest:
+      type: object
+      required: [order_id, customer_id, order_type, paid_at]
+      properties:
+        order_id: {type: string, format: uuid}
+        customer_id: {type: string, format: uuid}
+        order_type: {$ref: "#/components/schemas/OrderType"}
+        paid_at: {type: string, format: date-time}
+        items:
+          type: array
+          description: Opcional. Sin ítems el pedido usa `DEFAULT_PREP_MINUTES`.
+          items: {$ref: "#/components/schemas/EnqueueItem"}
+
+    QueueItemLine:
+      type: object
+      required: [product_id, name, quantity, prep_minutes]
+      properties:
+        product_id: {type: string, format: uuid}
+        name: {type: string}
+        quantity: {type: integer}
+        prep_minutes: {type: integer}
+
+    QueueItem:
+      type: object
+      required: [order_id, customer_id, order_type, status, prep_minutes, priority_score, wait_minutes, position, eta_minutes, enqueued_at, started_at, ready_at, items]
+      properties:
+        order_id: {type: string, format: uuid}
+        customer_id: {type: string, format: uuid}
+        order_type: {$ref: "#/components/schemas/OrderType"}
+        status: {$ref: "#/components/schemas/Status"}
+        prep_minutes: {type: integer, description: Máximo de prep_minutes de los ítems}
+        priority_score:
+          type: number
+          description: "`prep_minutes - AGING_FACTOR * wait_minutes`; menor = primero"
+        wait_minutes: {type: number, description: Minutos en la cola}
+        position:
+          type: integer
+          description: Posición (desde 1) en la cola activa; 0 si ya fue entregada
+        eta_minutes:
+          type: integer
+          description: Minutos hasta que quede lista (simulación por cupos de capacidad); 0 si ya está lista
+        enqueued_at: {type: string, format: date-time}
+        started_at: {type: string, format: date-time, nullable: true}
+        ready_at: {type: string, format: date-time, nullable: true}
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/QueueItemLine"}
+
+    Capacity:
+      type: object
+      required: [max, in_preparation]
+      properties:
+        max: {type: integer, minimum: 1}
+        in_preparation: {type: integer, minimum: 0}
+
+    QueueResponse:
+      type: object
+      required: [items, capacity, generated_at]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/QueueItem"}
+        capacity: {$ref: "#/components/schemas/Capacity"}
+        generated_at: {type: string, format: date-time}
+
+    StatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: "#/components/schemas/Status"
+
+    Error:
+      type: object
+      required: [code, message, request_id, details]
+      properties:
+        code:
+          type: string
+          enum: [VALIDATION_ERROR, UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, INVALID_STATE, KITCHEN_AT_CAPACITY, INTERNAL_ERROR]
+        message: {type: string}
+        request_id: {type: string}
+        details:
+          type: object
+          additionalProperties: true

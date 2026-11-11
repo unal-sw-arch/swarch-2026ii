@@ -1,0 +1,502 @@
+# =============================================================================
+# Panadería Express — Prototipo 2
+# Orquestación de los 12 contenedores del sistema.
+#
+# Uso:
+#   cp .env.p2.example .env.p2
+#   docker compose -f docker-compose.p2.yml --env-file .env.p2 up --build
+#
+# web-ssr (:3000) y api-gateway (:8080) son las entradas de usuario. También se
+# publican RabbitMQ (:15672) y RustFS (:9000 S3, :9001 consola) para gestión y
+# descargas firmadas. Los servicios y bases de datos quedan en panaderia-net.
+#
+# El KDS/POS es una aplicación de escritorio Flutter y no se despliega aquí.
+#
+# Nota sobre healthchecks: los almacenes ya tienen el suyo. Cada servicio de
+# aplicación debe agregar el propio en su PR, usando la herramienta disponible
+# en su imagen base (curl, wget o el runtime del lenguaje).
+# =============================================================================
+
+name: ${COMPOSE_PROJECT_NAME:-panaderia-p2}
+
+services:
+  # ---------------------------------------------------------------------------
+  # Presentación web (SSR)
+  # ---------------------------------------------------------------------------
+  web-ssr:
+    build:
+      context: ./web-ssr
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Panadería Express}
+        NEXT_PUBLIC_POLL_INTERVAL_MS: ${NEXT_PUBLIC_POLL_INTERVAL_MS:-4000}
+    container_name: panaderia-p2-web-ssr
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: ${WEB_SSR_PORT:-3000}
+      API_GATEWAY_URL: ${API_GATEWAY_URL:-http://api-gateway:8080}
+      JWT_COOKIE_NAME: ${JWT_COOKIE_NAME:-panaderia_access}
+      JWT_REFRESH_COOKIE_NAME: ${JWT_REFRESH_COOKIE_NAME:-panaderia_refresh}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Panadería Express}
+      NEXT_PUBLIC_POLL_INTERVAL_MS: ${NEXT_PUBLIC_POLL_INTERVAL_MS:-4000}
+    ports:
+      - "${WEB_SSR_HOST_PORT:-3000}:${WEB_SSR_PORT:-3000}"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${WEB_SSR_PORT:-3000}/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    depends_on:
+      api-gateway:
+        condition: service_started
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Borde: API Gateway
+  # ---------------------------------------------------------------------------
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: panaderia-p2-api-gateway
+    restart: unless-stopped
+    environment:
+      PORT: ${GATEWAY_PORT:-8080}
+      IDENTITY_URL: ${IDENTITY_URL:-http://identity-service:8002}
+      ORDER_URL: ${ORDER_URL:-http://order-service:8000}
+      KITCHEN_URL: ${KITCHEN_URL:-http://kitchen-service:8001}
+      REPORTING_URL: ${REPORTING_URL:-http://reporting-service:8003}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      JWKS_URL: ${JWKS_URL:-http://identity-service:8002/.well-known/jwks.json}
+      JWT_ISSUER: ${JWT_ISSUER:-identity-service}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-panaderia-express}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      RATE_LIMIT_USER_PER_MINUTE: ${RATE_LIMIT_USER_PER_MINUTE:-120}
+      RATE_LIMIT_IP_PER_MINUTE: ${RATE_LIMIT_IP_PER_MINUTE:-300}
+    ports:
+      - "${API_GATEWAY_HOST_PORT:-8080}:${GATEWAY_PORT:-8080}"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:${GATEWAY_PORT:-8080}/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    depends_on:
+      identity-service:
+        condition: service_started
+      order-service:
+        condition: service_started
+      kitchen-service:
+        condition: service_healthy
+      reporting-service:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Lógica: identidad
+  # ---------------------------------------------------------------------------
+  identity-service:
+    build:
+      context: ./identity-service
+      dockerfile: Dockerfile
+    container_name: panaderia-p2-identity-service
+    restart: unless-stopped
+    environment:
+      PORT: ${IDENTITY_PORT:-8002}
+      DATABASE_URL: ${DATABASE_URL_JDBC:-jdbc:postgresql://postgres:5432/panaderia}
+      DATABASE_USER: ${POSTGRES_USER:-panaderia}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-panaderia}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      JWT_ISSUER: ${JWT_ISSUER:-identity-service}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-panaderia-express}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
+      JWT_REFRESH_TTL_SECONDS: ${JWT_REFRESH_TTL_SECONDS:-604800}
+      JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH:-/run/secrets/jwt_private.pem}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH:-/run/secrets/jwt_public.pem}
+    volumes:
+      - identity_keys:/run/secrets
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Lógica: pedidos, pagos, reservas y catálogo
+  # ---------------------------------------------------------------------------
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    container_name: panaderia-p2-order-service
+    restart: unless-stopped
+    environment:
+      PORT: ${ORDER_PORT:-8000}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://panaderia:panaderia@postgres:5432/panaderia}
+      MONGODB_URL: ${MONGODB_URL:-mongodb://panaderia:panaderia@mongodb:27017/panaderia?authSource=admin}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_CACHE_URL: ${REDIS_CACHE_URL:-redis://redis:6379/2}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://panaderia:panaderia@rabbitmq:5672/}
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-panaderia.events}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      rabbitmq-init:
+        condition: service_completed_successfully
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Lógica: cola de cocina
+  # ---------------------------------------------------------------------------
+  kitchen-service:
+    build:
+      context: ./kitchen-service
+      dockerfile: Dockerfile
+    container_name: panaderia-p2-kitchen-service
+    restart: unless-stopped
+    environment:
+      PORT: ${KITCHEN_PORT:-8001}
+      DATABASE_URL: ${DATABASE_URL_GO:-postgres://panaderia:panaderia@postgres:5432/panaderia?sslmode=disable}
+      REDIS_QUEUE_URL: ${REDIS_QUEUE_URL:-redis://redis:6379/1}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://panaderia:panaderia@rabbitmq:5672/}
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-panaderia.events}
+      AGING_FACTOR: ${AGING_FACTOR:-0.5}
+      KITCHEN_CAPACITY: ${KITCHEN_CAPACITY:-4}
+      DEFAULT_PREP_MINUTES: ${DEFAULT_PREP_MINUTES:-5}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:${KITCHEN_PORT:-8001}/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      rabbitmq-init:
+        condition: service_completed_successfully
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Lógica: reportes e historial
+  # ---------------------------------------------------------------------------
+  reporting-service:
+    build:
+      context: ./reporting-service
+      dockerfile: Dockerfile
+    container_name: panaderia-p2-reporting-service
+    restart: unless-stopped
+    environment:
+      PORT: ${REPORTING_PORT:-8003}
+      DATABASE_URL: ${DATABASE_URL_DOTNET:-Host=postgres;Port=5432;Database=panaderia;Username=panaderia;Password=panaderia}
+      MONGODB_URL: ${MONGODB_URL:-mongodb://panaderia:panaderia@mongodb:27017/panaderia?authSource=admin}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://rustfs:9000}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-panaderia}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-panaderia123}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET_REPORTS: ${S3_BUCKET_REPORTS:-reports}
+      S3_USE_SSL: ${S3_USE_SSL:-false}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      # Host con el que se firman las URLs de exportación: el navegador debe
+      # poder resolverlo (localhost:9000), no `rustfs:9000`.
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Asíncrono: Worker
+  # ---------------------------------------------------------------------------
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    container_name: panaderia-p2-worker
+    restart: unless-stopped
+    environment:
+      PYTHONPATH: /app
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://panaderia:panaderia@rabbitmq:5672/}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-amqp://panaderia:panaderia@rabbitmq:5672/}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/3}
+      KITCHEN_URL: ${KITCHEN_URL:-http://kitchen-service:8001}
+      MONGODB_URL: ${MONGODB_URL:-mongodb://panaderia:panaderia@mongodb:27017/panaderia?authSource=admin}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://rustfs:9000}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-panaderia}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-panaderia123}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET_RECEIPTS: ${S3_BUCKET_RECEIPTS:-receipts}
+      S3_USE_SSL: ${S3_USE_SSL:-false}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      WORKER_MAX_RETRIES: ${WORKER_MAX_RETRIES:-3}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-cambia-este-secreto-en-tu-entorno-local}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      rabbitmq-init:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+      kitchen-service:
+        condition: service_started
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Mensajería
+  # ---------------------------------------------------------------------------
+  rabbitmq:
+    # Versión fija: las etiquetas flotantes 3.13.x más nuevas de Alpine ya no
+    # incluyen rabbitmqadmin, que es lo que usa el job de importación.
+    image: rabbitmq:3.13.7-management-alpine
+    container_name: panaderia-p2-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-panaderia}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-panaderia}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST:-/}
+    ports:
+      - "${RABBITMQ_MANAGEMENT_HOST_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./infrastructure/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./infrastructure/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Job de importación de definiciones de RabbitMQ.
+  # Espera a que el broker cree el vhost "/" y el usuario por defecto, y luego
+  # importa exchanges, colas y bindings. No forma parte de los 12 contenedores
+  # permanentes.
+  # ---------------------------------------------------------------------------
+  rabbitmq-init:
+    # Misma imagen fija que el broker: 3.13.7 sí trae rabbitmqadmin (v1).
+    image: rabbitmq:3.13.7-management-alpine
+    container_name: panaderia-p2-rabbitmq-init
+    restart: "no"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-panaderia}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-panaderia}
+    volumes:
+      - ./infrastructure/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until rabbitmqadmin -H rabbitmq -u "$$RABBITMQ_DEFAULT_USER" -p "$$RABBITMQ_DEFAULT_PASS" list vhosts >/dev/null 2>&1; do
+          echo "[rabbitmq-init] Esperando a RabbitMQ...";
+          sleep 2;
+        done
+        rabbitmqadmin -H rabbitmq -u "$$RABBITMQ_DEFAULT_USER" -p "$$RABBITMQ_DEFAULT_PASS" import /etc/rabbitmq/definitions.json
+        echo "[rabbitmq-init] Definiciones importadas."
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Datos: PostgreSQL
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: panaderia-p2-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-panaderia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-panaderia}
+      POSTGRES_DB: ${POSTGRES_DB:-panaderia}
+      TZ: America/Bogota
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-panaderia} -d ${POSTGRES_DB:-panaderia}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Datos: MongoDB
+  # ---------------------------------------------------------------------------
+  mongodb:
+    image: mongo:7
+    container_name: panaderia-p2-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-panaderia}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-panaderia}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-panaderia}
+    volumes:
+      - mongo_data:/data/db
+      - ./infrastructure/mongodb/init.js:/docker-entrypoint-initdb.d/01-init.js:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --eval 'db.adminCommand({ping:1}).ok' | grep 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Datos: Redis
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: panaderia-p2-redis
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      - redis_data:/data
+      - ./infrastructure/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Datos: RustFS (almacenamiento de objetos compatible con S3)
+  #
+  # RustFS reemplaza a MinIO porque MinIO dejó de publicar imágenes oficiales
+  # en Docker Hub y Quay en 2026. La API es compatible con S3, así que los
+  # servicios usan el mismo SDK y las mismas operaciones.
+  # ---------------------------------------------------------------------------
+  rustfs-perms:
+    image: alpine:3.20
+    container_name: panaderia-p2-rustfs-perms
+    command: ["sh", "-c", "chown -R 10001:10001 /data /logs"]
+    volumes:
+      - rustfs_data:/data
+      - rustfs_logs:/logs
+    restart: "no"
+    networks:
+      - panaderia-net
+
+  rustfs:
+    image: rustfs/rustfs:1.0.4
+    container_name: panaderia-p2-rustfs
+    restart: unless-stopped
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:-panaderia}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:-panaderia123}
+      RUSTFS_OBS_LOGGER_LEVEL: info
+      RUSTFS_OBS_LOG_DIRECTORY: /logs
+    ports:
+      # 9000 se publica para que el navegador abra las URLs firmadas de las
+      # exportaciones.
+      - "${RUSTFS_S3_HOST_PORT:-9000}:9000"
+      - "${RUSTFS_CONSOLE_HOST_PORT:-9001}:9001"
+    volumes:
+      - rustfs_data:/data
+      - rustfs_logs:/logs
+    depends_on:
+      rustfs-perms:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - panaderia-net
+
+  # ---------------------------------------------------------------------------
+  # Job de inicialización de RustFS (no se ejecuta en el arranque normal).
+  # Crea los buckets y aplica la política pública del catálogo.
+  # Uso:
+  #   docker compose -f docker-compose.p2.yml --env-file .env.p2 \
+  #     --profile init run --rm rustfs-init
+  # ---------------------------------------------------------------------------
+  rustfs-init:
+    image: amazon/aws-cli:2.39.6
+    container_name: panaderia-p2-rustfs-init
+    profiles: ["init"]
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-panaderia}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-panaderia123}
+      AWS_DEFAULT_REGION: ${S3_REGION:-us-east-1}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://rustfs:9000}
+      S3_BUCKET_RECEIPTS: ${S3_BUCKET_RECEIPTS:-receipts}
+      S3_BUCKET_PRODUCTS: ${S3_BUCKET_PRODUCTS:-products}
+      S3_BUCKET_REPORTS: ${S3_BUCKET_REPORTS:-reports}
+    volumes:
+      - ./infrastructure/rustfs/init.sh:/init/init.sh:ro
+    entrypoint: ["/bin/sh", "/init/init.sh"]
+    networks:
+      - panaderia-net
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:
+  rustfs_data:
+  rustfs_logs:
+  rabbitmq_data:
+  identity_keys:
+
+networks:
+  panaderia-net:
+    name: ${NETWORK_NAME:-panaderia-net}
+    driver: bridge

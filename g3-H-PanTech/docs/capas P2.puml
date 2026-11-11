@@ -1,0 +1,94 @@
+@startuml
+!theme plain
+top to bottom direction
+skinparam componentStyle uml2
+skinparam shadowing false
+skinparam defaultFontSize 13
+skinparam nodesep 18
+skinparam ranksep 40
+skinparam ArrowFontSize 11
+skinparam titleFontSize 18
+skinparam titleFontStyle bold
+
+skinparam package {
+  FontStyle bold
+  BackgroundColor transparent
+  BorderColor #9E9E9E
+}
+skinparam component {
+  BackgroundColor<<Presentación>> #BBDEFB
+  BorderColor<<Presentación>> #1565C0
+  BackgroundColor<<Borde>> #E1BEE7
+  BorderColor<<Borde>> #6A1B9A
+  BackgroundColor<<Lógica>> #C8E6C9
+  BorderColor<<Lógica>> #2E7D32
+  BackgroundColor<<Asíncrono>> #B2DFDB
+  BorderColor<<Asíncrono>> #00695C
+  FontStyle bold
+}
+skinparam queue {
+  BackgroundColor #FFF9C4
+  BorderColor #F9A825
+  FontStyle bold
+}
+skinparam database {
+  BackgroundColor #FFE0B2
+  BorderColor #E65100
+  FontStyle bold
+}
+
+title Vista de capas - Panadería Express (Prototipo 2)
+
+package "Capa 1 - Presentación" as P #E3F2FD;line:1565C0;text:1565C0 {
+  component "Web SSR\nNext.js + TypeScript" as Web <<Presentación>>
+  component "KDS / POS\nFlutter + Dart" as KDS <<Presentación>>
+}
+
+package "Capa 2 - Borde" as E #F3E5F5;line:6A1B9A;text:6A1B9A {
+  component "API Gateway\nGo" as GW <<Borde>>
+}
+
+package "Capa 3 - Lógica de negocio" as L #E8F5E9;line:2E7D32;text:2E7D32 {
+  component "Identity Service\nKotlin + Spring Boot" as Identity <<Lógica>>
+  component "Order Service\nPython + FastAPI" as Order <<Lógica>>
+  component "Kitchen Service\nGo" as Kitchen <<Lógica>>
+  component "Reporting Service\nC# + .NET" as Reporting <<Lógica>>
+  component "Worker\nPython + Celery" as Worker <<Asíncrono>>
+}
+
+package "Capa 4 - Infraestructura" as I #FFF3E0;line:E65100;text:E65100 {
+  queue "RabbitMQ" as MQ
+  database "PostgreSQL" as PG
+  database "MongoDB" as Mongo
+  database "Redis" as Redis
+  database "RustFS" as RustFS
+}
+
+' Dependencias permitidas entre capas
+Web -[#00897B]down-> E : HTTP / REST (local)
+KDS -[#00897B]down-> E : HTTP / REST (local)
+E -[#1565C0]down-> L : HTTP / REST + JWT
+L -[#E65100]down-> I : SQL / MongoDB / Redis / S3 / AMQP
+
+note right of E
+  Regla de dependencias:
+  presentación -> borde -> lógica -> infraestructura.
+  Ninguna capa superior accede directamente a los datos.
+  La comunicación asíncrona se hace por RabbitMQ.
+end note
+
+note right of I
+  PostgreSQL: identidad, pedidos, pagos y reservas.
+  MongoDB: menú, historial y read models.
+  Redis: caché, sesión y cola priorizada.
+  RustFS: comprobantes, imágenes y exportaciones.
+  RabbitMQ: eventos order.paid, order.ready y reservation.*.
+end note
+
+legend right
+  <color:#00897B>■</color> HTTP / REST (local)
+  <color:#1565C0>■</color> HTTP / REST
+  <color:#E65100>■</color> Persistencia y mensajería
+endlegend
+
+@enduml

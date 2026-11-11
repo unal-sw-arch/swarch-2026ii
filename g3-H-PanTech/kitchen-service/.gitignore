@@ -1,0 +1,9 @@
+# Binarios y artefactos de Go
+bin/
+*.exe
+*.test
+*.out
+coverage.*
+
+# Entorno local
+.env
