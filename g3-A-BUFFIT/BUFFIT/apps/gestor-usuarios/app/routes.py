@@ -81,7 +81,50 @@ def get_user_by_id(user_id):
     return jsonify(user.to_dict()), 200
 
 
-@users_bp.route("/", methods=["GET"])
+@users_bp.route("/toggle/<string:user_id>/<string:action>", methods=["PATCH"])
+def toggle_user(user_id, action):
+    """Modificar Usuario (Requiere rol Administrador)."""
+    _, requester_role = get_gateway_headers()
+
+    if requester_role != "Administrador":
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de Administrador."}), 403
+
+    user = User.query.get(user_id)
+    data=request.get_json() or {}
+    reason = data.get("reason")
+    if user:
+        user.is_active= False if action =='desactivar' else True
+        user.notes_state= '' if action == 'activar' else str(reason)
+        try:
+            db.session.commit()
+            return jsonify({"message" : f"Usuario {action}do con exito"}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": "Error al actualizar la base de datos."}), 500
+    else:
+        return jsonify({"error": "Error usuario no encontrado."}),404
+
+@users_bp.route("/delete/<string:user_id>", methods=["DELETE"])
+def delete_user(user_id):
+    """Eliminar usuario (Requiere rol Administrador)."""
+    _, requester_role = get_gateway_headers()
+
+    if requester_role != "Administrador":
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de Administrador."}), 403
+
+    user = User.query.get(user_id)
+    if user:
+        db.session.delete(user)
+        try:
+            db.session.commit()
+            return jsonify({"message" : "Usuario eliminado con exito"}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": "Error al actualizar la base de datos."}), 500
+    else:
+        return jsonify({"error": "Error usuario no encontrado."}),404
+
+@users_bp.route("/get", methods=["GET"])
 def get_all_users():
     """Listado completo (Requiere rol Administrador)."""
     _, requester_role = get_gateway_headers()

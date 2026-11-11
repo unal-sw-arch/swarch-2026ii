@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import users, orders, inventory  # <-- Correcto mapeo C&C
+from app.routers import users, orders, inventory, statistics  # <-- Correcto mapeo C&C
 from app.config import settings
 
 app = FastAPI(
@@ -21,6 +21,7 @@ app.add_middleware(
 app.include_router(users.router)      # userPort -> Gestor de Usuarios
 app.include_router(orders.router)     # orderPort -> Gestor de Pedidos
 app.include_router(inventory.router)  # inventoryPort -> Gestor de Inventario
+app.include_router(statistics.router) # statsPort -> Gestor de Estadisticas
 
 @app.get("/health")
 def health_check():

@@ -4,9 +4,15 @@ from app.database import db
 
 # Precios fijos según el tipo de usuario (puedes ajustar los montos si es necesario)
 PRICE_MAP = {
-    "APOYO_ALIMENTARIO": 0.0,  # Apoyo económico completo
-    "ESTUDIANTE": 3500.0,       # Reducción de costo fijo para estudiantes
-    "GENERAL": 12000.0         # Tarifa plena para otros usuarios / externos
+    "APOYO_ALIMENTARIO": 0.0,  # Subsidio completo: paga 0
+    "ESTUDIANTE": 8400.0,       # Con carnet universitario
+    "GENERAL": 16500.0         # Sin carnet: tarifa plena (también es el precio de referencia del subsidio)
+}
+
+STATUS_LABELS = {
+    "CONFIRMED": "Sin entregar",
+    "DELIVERED": "Entregada",
+    "CANCELLED": "Cancelada",
 }
 
 class Order(db.Model):
@@ -32,6 +38,7 @@ class Order(db.Model):
             "pickup_time_slot": self.pickup_time_slot,
             "total_price": self.total_price,
             "status": self.status,
+            "status_label": STATUS_LABELS.get(self.status, self.status),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "items": [item.to_dict() for item in self.items]
         }
