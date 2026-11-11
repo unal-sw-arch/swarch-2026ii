@@ -7,32 +7,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.parosurvivors.serviya.feedback.application.ports.input.ServiceFeedbackServicePort;
-import com.parosurvivors.serviya.feedback.domain.ServiceFeedback;
-import com.parosurvivors.serviya.metrics.application.ports.input.OffererMetricsServicePort;
-import com.parosurvivors.serviya.metrics.application.ports.input.ServiceMetricsServicePort;
-import com.parosurvivors.serviya.metrics.domain.OffererMetrics;
-import com.parosurvivors.serviya.metrics.domain.ServiceMetrics;
-import com.parosurvivors.serviya.profiles.application.ports.input.OffererProfileServicePort;
-import com.parosurvivors.serviya.profiles.application.ports.input.UserProfileServicePort;
-import com.parosurvivors.serviya.profiles.domain.OffererProfile;
-import com.parosurvivors.serviya.profiles.domain.OffererProfileSummary;
-import com.parosurvivors.serviya.profiles.domain.UserProfile;
 import com.parosurvivors.serviya.services.application.dto.command.CreateServiceCommand;
 import com.parosurvivors.serviya.services.application.dto.command.UpdateServiceCommand;
 import com.parosurvivors.serviya.services.application.dto.query.SearchServiceQuery;
 import com.parosurvivors.serviya.services.application.mappers.ServiceCommandMapper;
-import com.parosurvivors.serviya.services.application.ports.input.ServiceAvailabilityServicePort;
-import com.parosurvivors.serviya.services.application.ports.input.MarketplaceCategoryPort;
 import com.parosurvivors.serviya.services.application.ports.output.ServicePersistencePort;
-import com.parosurvivors.serviya.services.domain.Category;
-import com.parosurvivors.serviya.services.domain.ServiceDetail;
-import com.parosurvivors.serviya.services.domain.ServiceAvailability;
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
-import com.parosurvivors.serviya.shared.exceptions.UnauthorizedException;
+import com.parosurvivors.serviya.shared.exceptions.ForbiddenException;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,20 +28,12 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @ExtendWith(MockitoExtension.class)
 class MarketplaceServiceTest {
 
     @Mock private ServicePersistencePort persistencePort;
-    @Mock private MarketplaceCategoryPort categoryPort;
-    @Mock private OffererProfileServicePort offererProfileService;
-    @Mock private OffererMetricsServicePort offererMetricsService;
-    @Mock private ServiceMetricsServicePort serviceMetricsService;
-    @Mock private ServiceFeedbackServicePort serviceFeedbackService;
-    @Mock private UserProfileServicePort userProfileService;
-    @Mock private ServiceAvailabilityServicePort serviceAvailabilityService;
     @Mock private ServiceCommandMapper commandMapper;
 
     @InjectMocks private MarketplaceService service;
@@ -82,26 +57,6 @@ class MarketplaceServiceTest {
                 .createdAt(LocalDateTime.now().minusDays(5))
                 .updatedAt(LocalDateTime.now().minusDays(1))
                 .build();
-    }
-
-    private Category sampleCategory() {
-        return Category.builder().id(CATEGORY_ID).name("Hogar").build();
-    }
-
-    private void stubDetailDependencies(com.parosurvivors.serviya.services.domain.Service svc) {
-        when(categoryPort.getById(svc.getCategoryId())).thenReturn(Optional.of(sampleCategory()));
-        when(offererProfileService.getPublicProfile(svc.getOffererId()))
-                .thenReturn(OffererProfile.builder().userId(OFFERER_ID).specialty("Plomeria").build());
-        when(offererProfileService.getProfileSummary(svc.getOffererId()))
-                .thenReturn(new OffererProfileSummary(OFFERER_ID, "Juan Perez", "photo.jpg", "Plomeria", new BigDecimal("4.50")));
-        when(offererMetricsService.getMainMetrics(svc.getOffererId()))
-                .thenReturn(OffererMetrics.builder().offererId(OFFERER_ID).build());
-        when(serviceMetricsService.getMetrics(svc.getId()))
-                .thenReturn(ServiceMetrics.builder().serviceId(SERVICE_ID).build());
-        when(serviceFeedbackService.getRecentServiceFeedback(svc.getId(), 3))
-                .thenReturn(List.of());
-        when(serviceAvailabilityService.getByServiceId(svc.getId()))
-                .thenReturn(List.of());
     }
 
     // ==================== create ====================
@@ -181,80 +136,6 @@ class MarketplaceServiceTest {
         assertThat(result.get(0).getId()).isEqualTo(SERVICE_ID);
     }
 
-    // ==================== getByOffererId ====================
-
-    @Test
-    void getByOffererIdGroupsServicesWithCategories() {
-        com.parosurvivors.serviya.services.domain.Service svc = sampleService();
-        when(persistencePort.findByOffererId(OFFERER_ID)).thenReturn(List.of(svc));
-        when(categoryPort.getById(CATEGORY_ID)).thenReturn(Optional.of(sampleCategory()));
-
-        List<ServiceDetail> result = service.getByOffererId(OFFERER_ID);
-
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getService()).isEqualTo(svc);
-        assertThat(result.get(0).getCategory().getName()).isEqualTo("Hogar");
-    }
-
-    @Test
-    void getByOffererIdThrowsWhenNoServices() {
-        when(persistencePort.findByOffererId(OFFERER_ID)).thenReturn(List.of());
-
-        assertThatThrownBy(() -> service.getByOffererId(OFFERER_ID))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("no tiene servicios");
-    }
-
-    @Test
-    void getByOffererIdThrowsWhenCategoryMissing() {
-        com.parosurvivors.serviya.services.domain.Service svc = sampleService();
-        when(persistencePort.findByOffererId(OFFERER_ID)).thenReturn(List.of(svc));
-        when(categoryPort.getById(CATEGORY_ID)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.getByOffererId(OFFERER_ID))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Categoria");
-    }
-
-    // ==================== getDetailById ====================
-
-    @Test
-    void getDetailByIdAssemblesFullDetail() {
-        com.parosurvivors.serviya.services.domain.Service svc = sampleService();
-        when(persistencePort.findById(SERVICE_ID)).thenReturn(Optional.of(svc));
-        stubDetailDependencies(svc);
-
-        Optional<ServiceDetail> result = service.getDetailById(SERVICE_ID);
-
-        assertThat(result).isPresent();
-        assertThat(result.get().getService()).isEqualTo(svc);
-        assertThat(result.get().getCategory().getName()).isEqualTo("Hogar");
-        assertThat(result.get().getOffererProfile()).isNotNull();
-        assertThat(result.get().getOffererSummary()).isNotNull();
-        assertThat(result.get().getFeedbackUsers()).isEmpty();
-        assertThat(result.get().getAvailability()).isEmpty();
-    }
-
-    @Test
-    void getDetailByIdThrowsWhenServiceNotFound() {
-        when(persistencePort.findById(99L)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.getDetailById(99L))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Servicio no encontrado");
-    }
-
-    @Test
-    void getDetailByIdThrowsWhenCategoryNotFound() {
-        com.parosurvivors.serviya.services.domain.Service svc = sampleService();
-        when(persistencePort.findById(SERVICE_ID)).thenReturn(Optional.of(svc));
-        when(categoryPort.getById(CATEGORY_ID)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.getDetailById(SERVICE_ID))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Categoria");
-    }
-
     // ==================== search ====================
 
     @Test
@@ -263,29 +144,13 @@ class MarketplaceServiceTest {
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
         org.springframework.data.domain.Page<com.parosurvivors.serviya.services.domain.Service> page =
                 new org.springframework.data.domain.PageImpl<>(List.of(sampleService()));
-        when(persistencePort.search(query, pageable)).thenReturn(page);
+        when(persistencePort.search(any(SearchServiceQuery.class), any())).thenReturn(page);
 
         org.springframework.data.domain.Page<com.parosurvivors.serviya.services.domain.Service> result =
                 service.search(query, pageable);
 
         assertThat(result.getContent()).hasSize(1);
         verify(persistencePort).search(query, pageable);
-    }
-
-    // ==================== getMetricsForServices ====================
-
-    @Test
-    void getMetricsForServicesDelegatesToMetricsService() {
-        List<Long> ids = List.of(1L, 2L);
-        Map<Long, ServiceMetrics> metrics = Map.of(
-                1L, ServiceMetrics.builder().serviceId(1L).build(),
-                2L, ServiceMetrics.builder().serviceId(2L).build());
-        when(serviceMetricsService.getMetricsByServiceIds(ids)).thenReturn(metrics);
-
-        Map<Long, ServiceMetrics> result = service.getMetricsForServices(ids);
-
-        assertThat(result).hasSize(2);
-        verify(serviceMetricsService).getMetricsByServiceIds(ids);
     }
 
     // ==================== update ====================
@@ -427,7 +292,7 @@ class MarketplaceServiceTest {
 
     private void assertNotOwner(ThrowingCallable assertThrown) {
         assertThatThrownBy(assertThrown)
-                .isInstanceOf(UnauthorizedException.class)
+                .isInstanceOf(ForbiddenException.class)
                 .hasMessageContaining("propietario");
     }
 

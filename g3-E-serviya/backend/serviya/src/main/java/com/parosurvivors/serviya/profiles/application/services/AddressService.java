@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
-import com.parosurvivors.serviya.shared.exceptions.UnauthorizedException;
+import com.parosurvivors.serviya.shared.exceptions.ForbiddenException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -86,7 +86,7 @@ public class AddressService implements AddressServicePort {
             return;
         }
         if (requesterId == null || !requesterId.equals(address.getUserId())) {
-            throw new UnauthorizedException("El usuario no es el propietario de la dirección");
+            throw new ForbiddenException("El usuario no es el propietario de la dirección");
         }
     }
 }

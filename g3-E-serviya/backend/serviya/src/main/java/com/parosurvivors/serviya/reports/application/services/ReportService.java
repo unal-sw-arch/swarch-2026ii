@@ -1,14 +1,16 @@
 package com.parosurvivors.serviya.reports.application.services;
 
-import com.parosurvivors.serviya.feedback.application.ports.input.ClientFeedbackServicePort;
-import com.parosurvivors.serviya.feedback.application.ports.input.ServiceFeedbackServicePort;
-import com.parosurvivors.serviya.profiles.application.ports.input.UserProfileServicePort;
-import com.parosurvivors.serviya.profiles.domain.UserProfile;
+import com.parosurvivors.serviya.feedback.api.FeedbackQueryApi;
+import com.parosurvivors.serviya.feedback.api.dto.TagCatalogEntry;
+import com.parosurvivors.serviya.notifications.api.Channel;
+import com.parosurvivors.serviya.notifications.api.NotificationCommand;
+import com.parosurvivors.serviya.notifications.api.NotificationCommandApi;
+import com.parosurvivors.serviya.profiles.api.ProfileQueryApi;
+import com.parosurvivors.serviya.profiles.api.dto.AddressSnapshot;
 import com.parosurvivors.serviya.reports.application.dto.result.FeedbackReportDetail;
 import com.parosurvivors.serviya.reports.application.dto.result.PartySummary;
 import com.parosurvivors.serviya.reports.application.dto.result.ReportDetailResult;
 import com.parosurvivors.serviya.reports.application.dto.result.RequestReportDetail;
-import com.parosurvivors.serviya.notifications.application.ports.input.NotificationServicePort;
 import com.parosurvivors.serviya.reports.application.ports.input.ReportActionServicePort;
 import com.parosurvivors.serviya.reports.application.ports.input.ReportServicePort;
 import com.parosurvivors.serviya.reports.application.ports.output.ClientFeedbackReportPersistencePort;
@@ -21,11 +23,17 @@ import com.parosurvivors.serviya.reports.domain.ReportPriority;
 import com.parosurvivors.serviya.reports.domain.ReportStatus;
 import com.parosurvivors.serviya.reports.domain.ReportSummary;
 import com.parosurvivors.serviya.reports.domain.ReportType;
-import com.parosurvivors.serviya.requests.application.dto.result.AdminRequestDetailResult;
-import com.parosurvivors.serviya.requests.application.ports.input.ServiceRequestQueryServicePort;
+import com.parosurvivors.serviya.requests.api.RequestQueryApi;
+import com.parosurvivors.serviya.requests.api.dto.RequestDetailSnapshot;
+import com.parosurvivors.serviya.services.api.ServiceQueryApi;
+import com.parosurvivors.serviya.services.api.dto.ServiceSnapshot;
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -40,14 +48,14 @@ public class ReportService implements ReportServicePort {
     private final RequestReportPersistencePort requestReportPersistencePort;
     private final ServiceFeedbackReportPersistencePort serviceFeedbackReportPersistencePort;
     private final ClientFeedbackReportPersistencePort clientFeedbackReportPersistencePort;
-    // Puertos de lectura de otros módulos para enriquecer el detalle (composición solo-lectura).
-    private final UserProfileServicePort userProfileServicePort;
-    private final ServiceRequestQueryServicePort serviceRequestQueryServicePort;
-    private final ServiceFeedbackServicePort serviceFeedbackServicePort;
-    private final ClientFeedbackServicePort clientFeedbackServicePort;
-    // Finalización de reportes (transición + trazabilidad + notificación al reporter).
+    // APIs publicas de otros modulos para enriquecer el detalle (composicion solo-lectura).
+    private final ProfileQueryApi profileQueryApi;
+    private final RequestQueryApi requestQueryApi;
+    private final ServiceQueryApi serviceQueryApi;
+    private final FeedbackQueryApi feedbackQueryApi;
+    // Finalizacion de reportes (transicion + trazabilidad + notificacion al reporter).
     private final ReportActionServicePort reportActionServicePort;
-    private final NotificationServicePort notificationServicePort;
+    private final NotificationCommandApi notificationCommandApi;
 
     @Override
     public Report createBaseReport(Long reporterId, Long reportedUserId, String type, String category, String reason) {
@@ -139,51 +147,74 @@ public class ReportService implements ReportServicePort {
         if (userId == null) {
             return null;
         }
-        try {
-            UserProfile profile = userProfileServicePort.getProfileInfo(userId);
-            return new PartySummary(userId, profile.getFullName(), profile.getProfilePhotoUrl());
-        } catch (ResourceNotFoundException e) {
-            return new PartySummary(userId, null, null);
-        }
+        return profileQueryApi.findProfile(userId)
+                .map(profile -> new PartySummary(userId, profile.fullName(), profile.profilePhotoUrl()))
+                .orElseGet(() -> new PartySummary(userId, null, null));
     }
 
-    /** Datos básicos de la solicitud reportada; si ya no existe, solo el id. */
+    /** Datos basicos de la solicitud reportada; si ya no existe, solo el id. */
     private RequestReportDetail buildRequestDetail(Long requestId) {
         if (requestId == null) {
             return null;
         }
-        try {
-            AdminRequestDetailResult r = serviceRequestQueryServicePort.getRequestDetailForAdmin(requestId);
-            return new RequestReportDetail(
-                    r.id(),
-                    r.serviceTitle(),
-                    r.scheduledDate(),
-                    r.status() != null ? r.status().name() : null,
-                    r.requestedPrice(),
-                    r.city());
-        } catch (ResourceNotFoundException e) {
-            return new RequestReportDetail(requestId, null, null, null, null, null);
-        }
+        return requestQueryApi.findDetail(requestId)
+                .map(request -> new RequestReportDetail(
+                        request.id(),
+                        serviceQueryApi.findById(request.serviceId())
+                                .map(ServiceSnapshot::title)
+                                .orElse(null),
+                        request.scheduledDate(),
+                        request.status(),
+                        request.requestedPrice(),
+                        request.addressId() == null ? null
+                                : profileQueryApi.findAddress(request.addressId())
+                                        .map(AddressSnapshot::city)
+                                        .orElse(null)))
+                .orElseGet(() -> new RequestReportDetail(requestId, null, null, null, null, null));
     }
 
-    /** Contenido del feedback de servicio reportado; si fue revertido (feedbackId null tras SET NULL, o borrado), solo kind. */
+    /** Contenido del feedback de servicio reportado; si fue revertido, solo kind. */
     private FeedbackReportDetail buildServiceFeedbackDetail(Long feedbackId) {
         if (feedbackId == null) {
             return new FeedbackReportDetail(null, "SERVICE", null, null, List.of(), null);
         }
-        return serviceFeedbackServicePort.getServiceFeedbackById(feedbackId)
-                .map(f -> new FeedbackReportDetail(feedbackId, "SERVICE", f.rating(), f.comment(), f.tags(), f.createdAt()))
+        return feedbackQueryApi.findServiceFeedback(feedbackId)
+                .map(f -> new FeedbackReportDetail(
+                        feedbackId,
+                        "SERVICE",
+                        f.rating(),
+                        f.comment(),
+                        tagNames(feedbackQueryApi.getServiceTags(), f.tagIds()),
+                        f.createdAt()))
                 .orElseGet(() -> new FeedbackReportDetail(feedbackId, "SERVICE", null, null, List.of(), null));
     }
 
-    /** Contenido del feedback de cliente reportado; si fue revertido (feedbackId null tras SET NULL, o borrado), solo kind. */
+    /** Contenido del feedback de cliente reportado; si fue revertido, solo kind. */
     private FeedbackReportDetail buildClientFeedbackDetail(Long feedbackId) {
         if (feedbackId == null) {
             return new FeedbackReportDetail(null, "CLIENT", null, null, List.of(), null);
         }
-        return clientFeedbackServicePort.getClientFeedbackById(feedbackId)
-                .map(f -> new FeedbackReportDetail(feedbackId, "CLIENT", f.rating(), f.comment(), f.tags(), f.createdAt()))
+        return feedbackQueryApi.findClientFeedback(feedbackId)
+                .map(f -> new FeedbackReportDetail(
+                        feedbackId,
+                        "CLIENT",
+                        f.rating(),
+                        f.comment(),
+                        tagNames(feedbackQueryApi.getClientTags(), f.tagIds()),
+                        f.createdAt()))
                 .orElseGet(() -> new FeedbackReportDetail(feedbackId, "CLIENT", null, null, List.of(), null));
+    }
+
+    private List<String> tagNames(List<TagCatalogEntry> catalog, List<Long> tagIds) {
+        if (tagIds == null || tagIds.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, String> names = catalog.stream()
+                .collect(Collectors.toMap(TagCatalogEntry::id, TagCatalogEntry::name));
+        return tagIds.stream()
+                .map(names::get)
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     @Override
@@ -234,28 +265,27 @@ public class ReportService implements ReportServicePort {
     }
 
     private void notifyReporterResolved(Report report, ReportActionType actionType) {
-        // notify (no createNotification) para registrar la entrega; channelIds null -> canal INTERNAL por defecto.
-        notificationServicePort.notify(
+        notificationCommandApi.notify(new NotificationCommand(
                 report.getReporterId(),
                 "REPORT_RESOLVED",
                 "Tu reporte fue resuelto",
                 "Tu reporte #" + report.getId() + " fue revisado: " + describeResolution(actionType) + ".",
                 "REPORT",
                 report.getId(),
-                null,
-                null);
+                Set.of(Channel.INTERNAL),
+                Map.of()));
     }
 
     private void notifyReporterClosed(Report report) {
-        notificationServicePort.notify(
+        notificationCommandApi.notify(new NotificationCommand(
                 report.getReporterId(),
                 "REPORT_CLOSED",
                 "Tu reporte fue cerrado",
                 "Tu reporte #" + report.getId() + " fue revisado y se cerró sin acciones adicionales.",
                 "REPORT",
                 report.getId(),
-                null,
-                null);
+                Set.of(Channel.INTERNAL),
+                Map.of()));
     }
 
     /** Frase legible de la resolución para la notificación al reporter, según la acción tomada. */

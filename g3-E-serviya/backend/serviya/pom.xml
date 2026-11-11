@@ -38,6 +38,12 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
+		<!-- Resource server (Fase 4): el monolito valida el access token ES256 via JWKS/clave publica,
+		     con la MISMA config que el gateway. Sustituye la verificacion propia (JwtAuthenticationFilter). -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
@@ -97,6 +103,22 @@
 			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- H2 en memoria: lo usa ServiyaApplicationTests para levantar el contexto sin MySQL. -->
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- ArchUnit: reglas de arquitectura ejecutables (fronteras entre modulos, capas y ciclos).
+		     Se ejecutan con el resto de tests unitarios; no necesitan contexto de Spring ni BD. -->
+		<dependency>
+			<groupId>com.tngtech.archunit</groupId>
+			<artifactId>archunit-junit5</artifactId>
+			<!-- 1.4.1 is built against JUnit Platform 1.12.2, the version managed by
+			     Spring Boot 3.5.5. Newer ArchUnit releases require a newer platform. -->
+			<version>1.4.1</version>
+			<scope>test</scope>
+		</dependency>
 
 		<!-- Testcontainers: prueba de concurrencia del lock contra un Redis real y efímero. Versión
 		     gestionada por el BOM de Spring Boot. La prueba se SALTA (no falla) si no hay Docker
@@ -130,6 +152,14 @@
 			<artifactId>jjwt-jackson</artifactId>
 			<version>0.12.6</version>
 			<scope>runtime</scope>
+		</dependency>
+
+		<!-- Nimbus JOSE+JWT: construye el JWKS (claves publicas ES256) que publica JwksController (Fase 1
+		     de centralizacion de auth). Version gestionada por el BOM de Spring Boot 3.5.5. -->
+		<dependency>
+			<groupId>com.nimbusds</groupId>
+			<artifactId>nimbus-jose-jwt</artifactId>
+			<version>9.48</version>
 		</dependency>
 
 		<dependency>

@@ -34,6 +34,8 @@ export {
     moderationApi,
     feedbackApi,
     adminServiceApi,
+    chatApi,
+    chatWsUrl,
     saveToken,
     getToken,
     clearToken,

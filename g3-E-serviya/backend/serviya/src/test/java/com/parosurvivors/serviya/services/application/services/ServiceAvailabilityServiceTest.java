@@ -7,8 +7,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.parosurvivors.serviya.profiles.application.ports.input.OffererAvailabilityServicePort;
-import com.parosurvivors.serviya.profiles.domain.OffererAvailability;
 import com.parosurvivors.serviya.services.application.dto.command.CreateServiceAvailabilityCommand;
 import com.parosurvivors.serviya.services.application.dto.command.UpdateServiceAvailabilityCommand;
 import com.parosurvivors.serviya.services.application.ports.output.ServiceAvailabilityPersistencePort;
@@ -28,12 +26,10 @@ import java.util.List;
 class ServiceAvailabilityServiceTest {
 
     @Mock private ServiceAvailabilityPersistencePort persistencePort;
-    @Mock private OffererAvailabilityServicePort offererAvailabilityService;
 
     @InjectMocks private ServiceAvailabilityService service;
 
     private static final Long SERVICE_ID = 1L;
-    private static final Long OFFERER_ID = 10L;
     private static final Long AVAILABILITY_ID = 5L;
 
     // ==================== create ====================
@@ -193,38 +189,5 @@ class ServiceAvailabilityServiceTest {
         List<ServiceAvailability> result = service.getByServiceId(SERVICE_ID);
 
         assertThat(result).isEmpty();
-    }
-
-    // ==================== applyGeneralTemplate ====================
-
-    @Test
-    void applyGeneralTemplateDeletesExistingAndCreatesFromOfferer() {
-        ServiceAvailability existing1 = ServiceAvailability.builder().id(1L).serviceId(SERVICE_ID).build();
-        ServiceAvailability existing2 = ServiceAvailability.builder().id(2L).serviceId(SERVICE_ID).build();
-        when(persistencePort.findByServiceId(SERVICE_ID)).thenReturn(List.of(existing1, existing2));
-
-        OffererAvailability slot1 = OffererAvailability.builder()
-                .weekDay(1).startTime(LocalTime.of(8, 0)).endTime(LocalTime.of(17, 0)).active(true).build();
-        OffererAvailability slot2 = OffererAvailability.builder()
-                .weekDay(3).startTime(LocalTime.of(9, 0)).endTime(LocalTime.of(18, 0)).active(true).build();
-        OffererAvailability inactiveSlot = OffererAvailability.builder()
-                .weekDay(5).startTime(LocalTime.of(10, 0)).endTime(LocalTime.of(20, 0)).active(false).build();
-        when(offererAvailabilityService.getSchedule(OFFERER_ID)).thenReturn(List.of(slot1, slot2, inactiveSlot));
-
-        when(persistencePort.save(any())).thenAnswer(inv -> {
-            ServiceAvailability a = inv.getArgument(0);
-            a.setId(System.nanoTime());
-            return a;
-        });
-
-        service.applyGeneralTemplate(SERVICE_ID, OFFERER_ID);
-
-        verify(persistencePort).deleteById(1L);
-        verify(persistencePort).deleteById(2L);
-        ArgumentCaptor<ServiceAvailability> captor = ArgumentCaptor.forClass(ServiceAvailability.class);
-        verify(persistencePort, org.mockito.Mockito.times(2)).save(captor.capture());
-        assertThat(captor.getAllValues()).hasSize(2);
-        assertThat(captor.getAllValues().get(0).getWeekDay()).isEqualTo((byte) 1);
-        assertThat(captor.getAllValues().get(1).getWeekDay()).isEqualTo((byte) 3);
     }
 }

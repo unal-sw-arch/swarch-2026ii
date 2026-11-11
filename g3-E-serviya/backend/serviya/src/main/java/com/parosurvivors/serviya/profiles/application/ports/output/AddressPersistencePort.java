@@ -10,5 +10,6 @@ public interface AddressPersistencePort {
     Address update(Address address);
     Optional<Address> findById(Long id);
     List<Address> findByUserId(Long userId);
+    List<Long> findUserIdsWithinDistance(double latitude, double longitude, double maxDistanceKm);
     void deleteById(Long id);
 }

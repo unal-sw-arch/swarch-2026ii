@@ -2,6 +2,7 @@ package com.parosurvivors.serviya.metrics.application.ports.output;
 
 import com.parosurvivors.serviya.metrics.domain.ServiceMetrics;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -11,4 +12,5 @@ public interface ServiceMetricsPersistencePort {
     ServiceMetrics update(ServiceMetrics metrics);
     Optional<ServiceMetrics> findByServiceId(Long serviceId);
     List<ServiceMetrics> findByServiceIdIn(Collection<Long> serviceIds);
+    List<Long> findServiceIdsByAverageRating(BigDecimal minRating, BigDecimal maxRating);
 }

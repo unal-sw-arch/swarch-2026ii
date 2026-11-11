@@ -1,6 +1,5 @@
 package com.parosurvivors.serviya.admin.infrastructure.adapters.input;
 
-import com.parosurvivors.serviya.users.application.dto.query.SearchUsersQuery;
 import com.parosurvivors.serviya.admin.application.dto.query.AdminFeedbackSearchQuery;
 import com.parosurvivors.serviya.admin.application.ports.input.AdminServicePort;
 import com.parosurvivors.serviya.admin.infrastructure.adapters.input.api.AdminApi;
@@ -9,16 +8,15 @@ import com.parosurvivors.serviya.admin.infrastructure.dto.form.GrantRoleForm;
 import com.parosurvivors.serviya.admin.infrastructure.dto.form.CreateUserByAdminForm;
 import com.parosurvivors.serviya.admin.infrastructure.dto.form.UpdateUserByAdminForm;
 import com.parosurvivors.serviya.admin.infrastructure.dto.response.AdminFeedbackSearchResponse;
+import com.parosurvivors.serviya.admin.infrastructure.dto.response.AdminRequestDetailResponse;
+import com.parosurvivors.serviya.admin.infrastructure.dto.response.RoleResponse;
 import com.parosurvivors.serviya.admin.infrastructure.dto.response.UserAdminDetailResponse;
 import com.parosurvivors.serviya.admin.infrastructure.dto.response.UserRoleAssignmentResponse;
 import com.parosurvivors.serviya.admin.infrastructure.dto.response.UserSummaryResponse;
 import com.parosurvivors.serviya.admin.infrastructure.mappers.AdminWebMapper;
-import com.parosurvivors.serviya.requests.infrastructure.dto.response.AdminRequestDetailResponse;
-import com.parosurvivors.serviya.requests.infrastructure.mappers.ServiceRequestWebMapper;
 import com.parosurvivors.serviya.shared.security.CurrentUser;
-import com.parosurvivors.serviya.users.application.ports.input.RoleServicePort;
-import com.parosurvivors.serviya.users.application.ports.input.UserRoleServicePort;
-import com.parosurvivors.serviya.users.infrastructure.dto.response.RoleResponse;
+import com.parosurvivors.serviya.users.api.UserQueryApi;
+import com.parosurvivors.serviya.users.api.dto.UserSearchCriteria;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -38,7 +36,7 @@ import java.util.List;
 
 /**
  * Adaptador de entrada (REST) de administracion de usuarios y roles. Placeholder funcional;
- * documentacion en {@link AdminApi}. Mapea Form/Query->Command/Query y dominio/Result->Response.
+ * documentacion en {@link AdminApi}. Mapea Form/Query->Command/Query y Result->Response.
  */
 @RestController
 @RequestMapping("/api/v1/admin")
@@ -46,14 +44,12 @@ import java.util.List;
 public class AdminController implements AdminApi {
 
     private final AdminServicePort adminService;
-    private final UserRoleServicePort userRoleService;
-    private final RoleServicePort roleService;
+    private final UserQueryApi userQueryApi;
     private final AdminWebMapper mapper;
-    private final ServiceRequestWebMapper serviceRequestWebMapper;
 
     @Override
     @GetMapping("/users")
-    public ResponseEntity<Page<UserSummaryResponse>> searchUsers(SearchUsersQuery filters, Pageable pageable) {
+    public ResponseEntity<Page<UserSummaryResponse>> searchUsers(UserSearchCriteria filters, Pageable pageable) {
         return ResponseEntity.ok(adminService.searchUsers(filters, pageable).map(mapper::toResponse));
     }
 
@@ -67,7 +63,7 @@ public class AdminController implements AdminApi {
     @GetMapping("/service-requests/{id}")
     public ResponseEntity<AdminRequestDetailResponse> getRequestDetailForAdmin(@PathVariable Long id) {
         // Vista administrativa (ambas partes). El gate de rol ADMIN lo aplica SecurityConfig (/api/v1/admin/**).
-        return ResponseEntity.ok(serviceRequestWebMapper.toResponse(adminService.getRequestDetailForAdmin(id)));
+        return ResponseEntity.ok(mapper.toResponse(adminService.getRequestDetailForAdmin(id)));
     }
 
     @Override
@@ -101,14 +97,14 @@ public class AdminController implements AdminApi {
     @Override
     @GetMapping("/roles")
     public ResponseEntity<List<RoleResponse>> getRoles() {
-        return ResponseEntity.ok(mapper.toRoleResponses(roleService.getRoles()));
+        return ResponseEntity.ok(mapper.toRoleResponses(userQueryApi.getAllRoles()));
     }
 
     /** RF-067: roles actuales del usuario CON la fecha en que se concedio cada uno. */
     @Override
     @GetMapping("/users/{id}/roles")
     public ResponseEntity<List<UserRoleAssignmentResponse>> getUserRoles(@PathVariable Long id) {
-        return ResponseEntity.ok(mapper.toAssignmentResponses(userRoleService.getUserRoleAssignments(id)));
+        return ResponseEntity.ok(mapper.toAssignmentResponses(userQueryApi.getRoleAssignments(id)));
     }
 
     /** RF-068: edicion parcial de un usuario por el administrador. */

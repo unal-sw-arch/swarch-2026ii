@@ -38,6 +38,13 @@ spring:
     publisher-confirm-type: simple
     connection-timeout: 5s
 
+logging:
+  # Correlation-id (X-Request-Id) en cada línea de log (T6.4): AuditContextFilter lo pone en el MDC y aquí
+  # se inyecta en el patrón, justo tras el nivel, para seguir una petición de punta a punta (gateway ->
+  # monolito) por el mismo id. ':-' = vacío si la petición no trae el header.
+  pattern:
+    level: "%5p [%X{requestId:-}]"
+
 server:
   error:
     include-stacktrace: never
@@ -86,13 +93,10 @@ app:
     policies:
       # --- Nivel 1: techo global de la API (api-default), por user/ip. OPEN: no tumbar la API si Redis cae.
       api-default:       { algorithm: TOKEN_BUCKET, capacity: 200, refill-per-second: 5, failure-mode: OPEN }
-      # --- Nivel 2 (auth públicos): login OPEN (disponibilidad del acceso); registro/reset CLOSED (abuso/Brevo).
-      login-ip:          { algorithm: SLIDING_WINDOW, capacity: 10, window: 15m, failure-mode: OPEN }
-      register-ip:       { algorithm: SLIDING_WINDOW, capacity: 5, window: 60m, failure-mode: CLOSED }
-      reset-ip:          { algorithm: SLIDING_WINDOW, capacity: 5, window: 15m, failure-mode: CLOSED }
+      # --- Nivel 2 (auth públicos por IP): login/registro/reset-*-ip MOVIDAS AL GATEWAY (T4.9/P3.7,
+      #     serviya.ratelimit.auth). Aquí solo queda reset-email (domain-aware: necesita el cuerpo parseado,
+      #     se aplica en AuthController, CLOSED por abuso/Brevo).
       reset-email:       { algorithm: SLIDING_WINDOW, capacity: 3, window: 60m, failure-mode: CLOSED }
-      reset-validate-ip: { algorithm: SLIDING_WINDOW, capacity: 20, window: 15m, failure-mode: CLOSED }
-      reset-confirm-ip:  { algorithm: SLIDING_WINDOW, capacity: 10, window: 15m, failure-mode: CLOSED }
       # --- Nivel 2 (autenticados que NOTIFICAN por correo): OPEN + modo degradado de notificaciones (D-07/1a).
       request-write:     { algorithm: SLIDING_WINDOW, capacity: 30, window: 10m, failure-mode: OPEN }
       proposal-write:    { algorithm: SLIDING_WINDOW, capacity: 20, window: 15m, failure-mode: OPEN }
@@ -161,6 +165,26 @@ management:
 # Filtro de palabras (RNF-006): se censuran en todo texto libre antes de persistir
 # (descripcion de perfil, motivo de reportes, resenas). Ampliar la lista NO requiere recompilar.
 serviya:
+  # Emisión de access tokens ES256 + JWKS (Fase 1, guia-implementacion-auth.md). Las claves se inyectan por
+  # entorno (nunca en el repo); el gestor de secretos de prod queda como deuda (P1.1 / D-14).
+  security:
+    jwt:
+      private-key: ${JWT_PRIVATE_KEY:}
+      public-key: ${JWT_PUBLIC_KEY:}
+      key-id: ${JWT_KEY_ID:}
+      issuer: ${JWT_ISSUER:https://auth.serviya.local}
+      audience: ${JWT_AUDIENCE:marketplace-api}
+      access-ttl: ${JWT_ACCESS_TTL:15m}
+      typ: ${JWT_TYP:at+jwt}
+      # Refresh token (Fase 2): familia rotativa, cookie HttpOnly. Secure=false en dev (http); true en prod.
+      refresh-ttl: ${JWT_REFRESH_TTL:30d}
+      refresh-grace: ${JWT_REFRESH_GRACE:15s}
+      refresh-cookie-name: ${JWT_REFRESH_COOKIE_NAME:serviya_refresh}
+      refresh-cookie-path: ${JWT_REFRESH_COOKIE_PATH:/api/v1/auth}
+      refresh-cookie-secure: ${JWT_REFRESH_COOKIE_SECURE:false}
+      refresh-cookie-same-site: ${JWT_REFRESH_COOKIE_SAME_SITE:Strict}
+      # Revocación min_iat (Axis B): TTL de la clave = access-ttl + esta tolerancia de reloj.
+      revocation-clock-skew: ${JWT_REVOCATION_CLOCK_SKEW:60s}
   word-filter:
     blocked-words: >-
       idiota,imbecil,estupido,estupida,maldito,maldita,mierda,puta,puto,
@@ -175,6 +199,13 @@ serviya:
     outbox:
       relay-enabled: ${NOTIFICATIONS_OUTBOX_RELAY_ENABLED:true}
       poll-interval-ms: ${NOTIFICATIONS_OUTBOX_POLL_MS:1000}
+      batch-size: 100
+      confirm-timeout-ms: 5000
+  # Outbox de eventos de dominio (requests/users -> chat) por RabbitMQ.
+  events:
+    outbox:
+      relay-enabled: ${EVENTS_OUTBOX_RELAY_ENABLED:true}
+      poll-interval-ms: ${EVENTS_OUTBOX_POLL_MS:1000}
       batch-size: 100
       confirm-timeout-ms: 5000
   # Por entorno: dev http://localhost:5173/reset-password | docker http://localhost:8081/reset-password

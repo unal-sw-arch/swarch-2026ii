@@ -12,7 +12,7 @@ import com.parosurvivors.serviya.profiles.application.mappers.OffererAvailabilit
 import com.parosurvivors.serviya.profiles.application.ports.output.OffererAvailabilityPersistencePort;
 import com.parosurvivors.serviya.profiles.domain.OffererAvailability;
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
-import com.parosurvivors.serviya.shared.exceptions.UnauthorizedException;
+import com.parosurvivors.serviya.shared.exceptions.ForbiddenException;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -76,7 +76,7 @@ class OffererAvailabilityServiceTest {
         slotExistsFor(OWNER_ID);
 
         assertThatThrownBy(() -> service.deleteSlot(SLOT_ID, INTRUDER_ID, false))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
 
         verify(persistencePort, never()).deleteById(anyLong());
     }
@@ -86,7 +86,7 @@ class OffererAvailabilityServiceTest {
         slotExistsFor(OWNER_ID);
 
         assertThatThrownBy(() -> service.deleteSlot(SLOT_ID, null, false))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
 
         verify(persistencePort, never()).deleteById(anyLong());
     }
@@ -126,7 +126,7 @@ class OffererAvailabilityServiceTest {
         slotExistsFor(OWNER_ID);
 
         assertThatThrownBy(() -> service.activateSlot(SLOT_ID, INTRUDER_ID, false))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
 
         verify(persistencePort, never()).update(any(OffererAvailability.class));
     }
@@ -155,7 +155,7 @@ class OffererAvailabilityServiceTest {
         slotExistsFor(OWNER_ID);
 
         assertThatThrownBy(() -> service.deactivateSlot(SLOT_ID, INTRUDER_ID, false))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
 
         verify(persistencePort, never()).update(any(OffererAvailability.class));
     }

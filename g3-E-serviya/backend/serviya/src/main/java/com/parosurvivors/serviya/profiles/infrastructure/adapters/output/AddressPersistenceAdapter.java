@@ -44,6 +44,11 @@ public class AddressPersistenceAdapter implements AddressPersistencePort {
     }
 
     @Override
+    public List<Long> findUserIdsWithinDistance(double latitude, double longitude, double maxDistanceKm) {
+        return repository.findUserIdsWithinDistance(latitude, longitude, maxDistanceKm);
+    }
+
+    @Override
     public void deleteById(Long id) {
         repository.deleteById(id);
     }

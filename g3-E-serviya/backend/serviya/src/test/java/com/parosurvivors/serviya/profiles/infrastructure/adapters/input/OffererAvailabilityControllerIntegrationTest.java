@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.parosurvivors.serviya.profiles.application.ports.input.OffererAvailabilityServicePort;
 import com.parosurvivors.serviya.profiles.infrastructure.mappers.OffererAvailabilityWebMapper;
-import com.parosurvivors.serviya.shared.exceptions.UnauthorizedException;
+import com.parosurvivors.serviya.shared.exceptions.ForbiddenException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -93,32 +93,32 @@ class OffererAvailabilityControllerIntegrationTest {
     }
 
     @Test
-    void deleteSlot_returns401_whenServiceRejectsNonOwner() throws Exception {
-        doThrow(new UnauthorizedException("El usuario no es el propietario de la franja horaria"))
+    void deleteSlot_returns403_whenServiceRejectsNonOwner() throws Exception {
+        doThrow(new ForbiddenException("El usuario no es el propietario de la franja horaria"))
                 .when(offererAvailabilityService)
                 .deleteSlot(anyLong(), anyLong(), anyBoolean());
 
         mockMvc.perform(delete("/api/v1/offerers/me/availability/slots/" + SLOT_ID))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 
     @Test
-    void activateSlot_returns401_whenServiceRejectsNonOwner() throws Exception {
-        doThrow(new UnauthorizedException("El usuario no es el propietario de la franja horaria"))
+    void activateSlot_returns403_whenServiceRejectsNonOwner() throws Exception {
+        doThrow(new ForbiddenException("El usuario no es el propietario de la franja horaria"))
                 .when(offererAvailabilityService)
                 .activateSlot(anyLong(), anyLong(), anyBoolean());
 
         mockMvc.perform(post("/api/v1/offerers/me/availability/slots/" + SLOT_ID + "/activate"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 
     @Test
-    void deactivateSlot_returns401_whenServiceRejectsNonOwner() throws Exception {
-        doThrow(new UnauthorizedException("El usuario no es el propietario de la franja horaria"))
+    void deactivateSlot_returns403_whenServiceRejectsNonOwner() throws Exception {
+        doThrow(new ForbiddenException("El usuario no es el propietario de la franja horaria"))
                 .when(offererAvailabilityService)
                 .deactivateSlot(anyLong(), anyLong(), anyBoolean());
 
         mockMvc.perform(post("/api/v1/offerers/me/availability/slots/" + SLOT_ID + "/deactivate"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 }

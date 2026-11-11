@@ -1,7 +1,6 @@
 package com.parosurvivors.serviya.metrics.application.ports.input;
 
 import com.parosurvivors.serviya.metrics.domain.OffererMetrics;
-import com.parosurvivors.serviya.requests.domain.RequestStatus;
 
 /**
  * Puerto de entrada de OffererMetricsService. Consulta (devuelve dominio; el resumen lo arma el
@@ -33,7 +32,7 @@ public interface OffererMetricsServicePort {
      * (accepted/completed/cancelled/not_provided). RESCHEDULED NO cuenta para el oferente:
      * el que reprograma es el cliente; la participación del oferente se cuenta como propuestas enviadas.
      */
-    void applyRequestStatusChanged(Long offererId, RequestStatus newStatus);
+    void applyRequestStatusChanged(Long offererId, String newStatus);
 
     /** Solicitud original recibida por el oferente (evento de creación, no reprogramaciones). */
     void incrementRequestsReceived(Long offererId);

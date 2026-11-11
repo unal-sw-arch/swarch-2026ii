@@ -3,7 +3,6 @@ package com.parosurvivors.serviya.metrics.application.services;
 import com.parosurvivors.serviya.metrics.application.ports.input.OffererMetricsServicePort;
 import com.parosurvivors.serviya.metrics.application.ports.output.OffererMetricsPersistencePort;
 import com.parosurvivors.serviya.metrics.domain.OffererMetrics;
-import com.parosurvivors.serviya.requests.domain.RequestStatus;
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
@@ -96,13 +95,16 @@ public class OffererMetricsService implements OffererMetricsServicePort {
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void applyRequestStatusChanged(Long offererId, RequestStatus newStatus) {
+    public void applyRequestStatusChanged(Long offererId, String newStatus) {
+        if (newStatus == null) {
+            return;
+        }
         OffererMetrics metrics = findOrCreate(offererId);
         switch (newStatus) {
-            case ACCEPTED -> metrics.incrementAccepted();
-            case COMPLETED -> metrics.incrementCompleted();
-            case CANCELLED -> metrics.incrementCancelled();
-            case NOT_PROVIDED -> metrics.incrementNotProvided();
+            case "ACCEPTED" -> metrics.incrementAccepted();
+            case "COMPLETED" -> metrics.incrementCompleted();
+            case "CANCELLED" -> metrics.incrementCancelled();
+            case "NOT_PROVIDED" -> metrics.incrementNotProvided();
             // PENDING / REJECTED / PRESUMABLY_COMPLETED / RESCHEDULED no tienen contador de oferente.
             default -> {
                 return;

@@ -14,7 +14,8 @@ import com.parosurvivors.serviya.users.infrastructure.dto.response.RoleResponse;
 import com.parosurvivors.serviya.users.infrastructure.mappers.UserWebMapper;
 import com.parosurvivors.serviya.users.infrastructure.repositories.UserRepository;
 import com.parosurvivors.serviya.users.infrastructure.dto.response.UserProfileResponse;
-import com.parosurvivors.serviya.profiles.infrastructure.repositories.UserProfileRepository;
+import com.parosurvivors.serviya.profiles.api.ProfileQueryApi;
+import com.parosurvivors.serviya.profiles.api.dto.ProfileSnapshot;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -45,7 +46,7 @@ public class AccountController implements AccountApi {
     private final UserAuthenticationServicePort authService;
     private final UserWebMapper mapper;
     private final UserRepository userRepository;
-    private final UserProfileRepository userProfileRepository;
+    private final ProfileQueryApi profileQueryApi;
 
     /**
      * Obtener información pública de un usuario por ID (acceso sin autenticación).
@@ -54,16 +55,16 @@ public class AccountController implements AccountApi {
     public ResponseEntity<UserProfileResponse> getUserProfile(@PathVariable Long userId) {
         var user = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-        var userProfile = userProfileRepository.findByUserId(userId)
+        ProfileSnapshot userProfile = profileQueryApi.findProfile(userId)
             .orElseThrow(() -> new RuntimeException("Perfil de usuario no encontrado"));
-        
+
         return ResponseEntity.ok(new UserProfileResponse(
             user.getId(),
-            userProfile.getFullName(),
+            userProfile.fullName(),
             user.getEmail(),
-            userProfile.getProfilePhotoUrl(),
-            userProfile.getPhoneNumber(),
-            userProfile.getBio()
+            userProfile.profilePhotoUrl(),
+            userProfile.phoneNumber(),
+            userProfile.bio()
         ));
     }
 

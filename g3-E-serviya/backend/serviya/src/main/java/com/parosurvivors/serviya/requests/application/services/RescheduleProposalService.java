@@ -1,10 +1,9 @@
 package com.parosurvivors.serviya.requests.application.services;
 
 import com.parosurvivors.serviya.notifications.application.ports.input.NotificationServicePort;
-import com.parosurvivors.serviya.profiles.application.ports.output.AddressPersistencePort;
-import com.parosurvivors.serviya.profiles.application.ports.output.UserProfilePersistencePort;
-import com.parosurvivors.serviya.profiles.domain.Address;
-import com.parosurvivors.serviya.profiles.domain.UserProfile;
+import com.parosurvivors.serviya.profiles.api.ProfileQueryApi;
+import com.parosurvivors.serviya.profiles.api.dto.AddressSnapshot;
+import com.parosurvivors.serviya.profiles.api.dto.ProfileSnapshot;
 import com.parosurvivors.serviya.requests.application.dto.command.CreateRescheduleProposalCommand;
 import com.parosurvivors.serviya.requests.application.dto.item.RescheduleProposalItem;
 import com.parosurvivors.serviya.requests.application.dto.query.SearchRescheduleProposalsQuery;
@@ -19,16 +18,15 @@ import com.parosurvivors.serviya.requests.domain.ProposalStatus;
 import com.parosurvivors.serviya.requests.domain.RequestStatus;
 import com.parosurvivors.serviya.requests.domain.RescheduleProposal;
 import com.parosurvivors.serviya.requests.domain.ServiceRequest;
-import com.parosurvivors.serviya.services.application.ports.output.CategoryPersistencePort;
-import com.parosurvivors.serviya.services.application.ports.output.ServicePersistencePort;
-import com.parosurvivors.serviya.services.domain.Category;
-import com.parosurvivors.serviya.services.domain.Service;
+import com.parosurvivors.serviya.services.api.ServiceQueryApi;
+import com.parosurvivors.serviya.services.api.dto.CategorySnapshot;
+import com.parosurvivors.serviya.services.api.dto.ServiceSnapshot;
 import com.parosurvivors.serviya.shared.events.application.ports.output.DomainEventPublisherPort;
 import com.parosurvivors.serviya.shared.events.domain.RequestStatusChangedEvent;
 import com.parosurvivors.serviya.shared.events.domain.RescheduleProposalCreatedEvent;
 import com.parosurvivors.serviya.shared.exceptions.InvalidStateException;
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
-import com.parosurvivors.serviya.shared.exceptions.UnauthorizedException;
+import com.parosurvivors.serviya.shared.exceptions.ForbiddenException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -56,10 +54,8 @@ public class RescheduleProposalService implements RescheduleProposalServicePort 
     private final ServiceRequestPersistencePort serviceRequestPersistencePort;
     private final ServiceRequestReadPort serviceRequestReadPort;
     private final RescheduleProposalCommandMapper commandMapper;
-    private final ServicePersistencePort servicePersistencePort;
-    private final CategoryPersistencePort categoryPersistencePort;
-    private final UserProfilePersistencePort userProfilePersistencePort;
-    private final AddressPersistencePort addressPersistencePort;
+    private final ServiceQueryApi serviceQueryApi;
+    private final ProfileQueryApi profileQueryApi;
     private final NotificationServicePort notificationServicePort;
     private final DomainEventPublisherPort eventPublisher;
 
@@ -102,12 +98,12 @@ public class RescheduleProposalService implements RescheduleProposalServicePort 
         // La participación del oferente en el flujo de reprogramación es proponer: cuenta la propuesta.
         eventPublisher.publish(new RescheduleProposalCreatedEvent(
                 saved.getId(), request.getId(), request.getOffererId(), request.getClientId()));
-        userProfilePersistencePort.findByUserId(command.offererId())
+        profileQueryApi.findProfile(command.offererId())
                 .ifPresent(offerer -> notificationServicePort.notify(
                         request.getClientId(),
                         "reschedule_proposed",
                         "Propuesta de reprogramación",
-                        offerer.getFullName() + " propuso reprogramar tu servicio para el "
+                        offerer.fullName() + " propuso reprogramar tu servicio para el "
                                 + command.proposedDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
                         "SERVICE_REQUEST",
                         command.requestId(),
@@ -149,12 +145,12 @@ public class RescheduleProposalService implements RescheduleProposalServicePort 
         // flujo libre donde el reemplazo PENDING se acepta después).
         publishStatusChanged(request, previous);
         publishStatusChanged(saved, null);
-        userProfilePersistencePort.findByUserId(clientId)
+        profileQueryApi.findProfile(clientId)
                 .ifPresent(client -> notificationServicePort.notify(
                         request.getOffererId(),
                         "reschedule_accepted",
                         "Reprogramación aceptada",
-                        client.getFullName() + " aceptó la propuesta de reprogramación.",
+                        client.fullName() + " aceptó la propuesta de reprogramación.",
                         "SERVICE_REQUEST",
                         request.getId(),
                         null,
@@ -171,12 +167,12 @@ public class RescheduleProposalService implements RescheduleProposalServicePort 
 
         proposal.reject();
         rescheduleProposalPersistencePort.update(proposal);
-        userProfilePersistencePort.findByUserId(clientId)
+        profileQueryApi.findProfile(clientId)
                 .ifPresent(client -> notificationServicePort.notify(
                         request.getOffererId(),
                         "reschedule_rejected",
                         "Reprogramación rechazada",
-                        client.getFullName() + " rechazó la propuesta de reprogramación.",
+                        client.fullName() + " rechazó la propuesta de reprogramación.",
                         "SERVICE_REQUEST",
                         request.getId(),
                         null,
@@ -192,12 +188,12 @@ public class RescheduleProposalService implements RescheduleProposalServicePort 
 
         proposal.cancel();
         rescheduleProposalPersistencePort.update(proposal);
-        userProfilePersistencePort.findByUserId(offererId)
+        profileQueryApi.findProfile(offererId)
                 .ifPresent(offerer -> notificationServicePort.notify(
                         request.getClientId(),
                         "reschedule_cancelled",
                         "Propuesta retirada",
-                        offerer.getFullName() + " retiró la propuesta de reprogramación.",
+                        offerer.fullName() + " retiró la propuesta de reprogramación.",
                         "SERVICE_REQUEST",
                         request.getId(),
                         null,
@@ -237,15 +233,15 @@ public class RescheduleProposalService implements RescheduleProposalServicePort 
         requireParticipant(proposal.getClientId(), proposal.getOffererId(), viewerId);
 
         ServiceRequest request = loadRequest(proposal.getRequestId());
-        Service service = servicePersistencePort.findById(request.getServiceId()).orElse(null);
+        ServiceSnapshot service = serviceQueryApi.findById(request.getServiceId()).orElse(null);
         String categoryName = service == null ? null
-                : categoryPersistencePort.findById(service.getCategoryId()).map(Category::getName).orElse(null);
+                : serviceQueryApi.findCategory(service.categoryId()).map(CategorySnapshot::name).orElse(null);
         String addressLabel = request.getAddressId() == null ? null
-                : addressPersistencePort.findById(request.getAddressId()).map(Address::getCity).orElse(null);
+                : profileQueryApi.findAddress(request.getAddressId()).map(AddressSnapshot::city).orElse(null);
         // La contraparte es la otra parte relativa al que consulta.
         Long counterpartyUserId = viewerId.equals(proposal.getClientId())
                 ? proposal.getOffererId() : proposal.getClientId();
-        UserProfile counterparty = userProfilePersistencePort.findByUserId(counterpartyUserId).orElse(null);
+        ProfileSnapshot counterparty = profileQueryApi.findProfile(counterpartyUserId).orElse(null);
 
         return new RescheduleProposalDetailResult(
                 proposal.getId(), proposal.getStatus().name(), proposal.getReason(), proposal.getProposedDate(),
@@ -253,12 +249,12 @@ public class RescheduleProposalService implements RescheduleProposalServicePort 
                 request.getId(), request.getStatus().name(), request.getScheduledDate(), request.getRequestedPrice(),
                 addressLabel, request.getPreviousRequestId(),
                 request.getServiceId(),
-                service == null ? null : service.getTitle(), categoryName,
-                service == null ? null : service.getPriceHourly(),
-                service == null ? null : service.getAverageDurationMinutes(),
+                service == null ? null : service.title(), categoryName,
+                service == null ? null : service.priceHourly(),
+                service == null ? null : service.averageDurationMinutes(),
                 counterpartyUserId,
-                counterparty == null ? null : counterparty.getFullName(),
-                counterparty == null ? null : counterparty.getProfilePhotoUrl());
+                counterparty == null ? null : counterparty.fullName(),
+                counterparty == null ? null : counterparty.profilePhotoUrl());
     }
 
     @Override
@@ -297,7 +293,7 @@ public class RescheduleProposalService implements RescheduleProposalServicePort 
 
     private void requireOwnership(Long ownerId, Long actorId) {
         if (ownerId == null || !ownerId.equals(actorId)) {
-            throw new UnauthorizedException("El usuario no es el propietario del recurso");
+            throw new ForbiddenException("El usuario no es el propietario del recurso");
         }
     }
 
@@ -306,7 +302,7 @@ public class RescheduleProposalService implements RescheduleProposalServicePort 
         boolean isParticipant = actorId != null
                 && (actorId.equals(clientId) || actorId.equals(offererId));
         if (!isParticipant) {
-            throw new UnauthorizedException("El usuario no participa en la solicitud");
+            throw new ForbiddenException("El usuario no participa en la solicitud");
         }
     }
 
@@ -317,7 +313,7 @@ public class RescheduleProposalService implements RescheduleProposalServicePort 
                 request.getClientId(),
                 request.getOffererId(),
                 request.getServiceId(),
-                previous,
-                request.getStatus()));
+                previous != null ? previous.name() : null,
+                request.getStatus() != null ? request.getStatus().name() : null));
     }
 }

@@ -10,9 +10,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.parosurvivors.serviya.profiles.application.dto.command.CreateUserProfileCommand;
-import com.parosurvivors.serviya.profiles.application.ports.input.OffererProfileServicePort;
-import com.parosurvivors.serviya.profiles.application.ports.input.UserProfileServicePort;
+import com.parosurvivors.serviya.profiles.api.ProfileCommandApi;
+import com.parosurvivors.serviya.profiles.api.dto.AddressSnapshot;
+import com.parosurvivors.serviya.shared.events.application.ChatEventPublisher;
 import com.parosurvivors.serviya.shared.exceptions.InvalidStateException;
 import com.parosurvivors.serviya.users.application.dto.command.CreateUserAccountCommand;
 import com.parosurvivors.serviya.users.application.ports.input.ConsentServicePort;
@@ -38,9 +38,8 @@ class UserCreationServiceTest {
     @Mock UserServicePort userServicePort;
     @Mock UserRoleServicePort userRoleServicePort;
     @Mock ConsentServicePort consentServicePort;
-    @Mock UserProfileServicePort userProfileServicePort;
-    @Mock com.parosurvivors.serviya.profiles.application.ports.input.AddressServicePort addressServicePort;
-    @Mock OffererProfileServicePort offererProfileServicePort;
+    @Mock ProfileCommandApi profileCommandApi;
+    @Mock ChatEventPublisher chatEventPublisher;
 
     @InjectMocks UserCreationService service;
 
@@ -63,7 +62,7 @@ class UserCreationServiceTest {
         verify(userServicePort).createUser("new.user@example.com", "password123");
         // Delega en assignRole(userId, RoleName) — la existencia del rol la valida ese mecanismo, no aqui.
         verify(userRoleServicePort).assignRole(42L, RoleName.CLIENT);
-        verify(userProfileServicePort).createProfile(any(CreateUserProfileCommand.class));
+        verify(profileCommandApi).createProfile(any());
         verify(consentServicePort).createConsent(42L, true);
     }
 
@@ -112,7 +111,7 @@ class UserCreationServiceTest {
 
         assertThat(result.getRoles()).containsExactly(RoleName.OFFERER);
         verify(userRoleServicePort).assignRole(7L, RoleName.OFFERER);
-        verify(offererProfileServicePort).createOffererProfile(7L);
+        verify(profileCommandApi).createOffererProfile(7L);
     }
 
     private CreateUserAccountCommand commandWithAddress() {
@@ -128,13 +127,13 @@ class UserCreationServiceTest {
     void crea_la_direccion_del_registro_y_la_deja_como_principal() {
         when(userServicePort.createUser(anyString(), anyString()))
                 .thenReturn(User.builder().id(7L).email("new.user@example.com").build());
-        when(addressServicePort.createAddress(any()))
-                .thenReturn(com.parosurvivors.serviya.profiles.domain.Address.builder().id(99L).userId(7L).build());
+        when(profileCommandApi.createAddress(any()))
+                .thenReturn(new AddressSnapshot(99L, 7L, null, null, null, null, null));
 
         service.createUserAccount(commandWithAddress());
 
-        verify(addressServicePort).createAddress(any());
-        verify(userProfileServicePort).updateMainAddress(7L, 99L);
+        verify(profileCommandApi).createAddress(any());
+        verify(profileCommandApi).updateMainAddress(7L, 99L);
     }
 
     /** La direccion es OPCIONAL: sin ella el alta funciona igual y no se toca el modulo de direcciones. */
@@ -145,7 +144,7 @@ class UserCreationServiceTest {
 
         service.createUserAccount(command("CLIENT", true));
 
-        verify(addressServicePort, never()).createAddress(any());
-        verify(userProfileServicePort, never()).updateMainAddress(anyLong(), anyLong());
+        verify(profileCommandApi, never()).createAddress(any());
+        verify(profileCommandApi, never()).updateMainAddress(anyLong(), anyLong());
     }
 }

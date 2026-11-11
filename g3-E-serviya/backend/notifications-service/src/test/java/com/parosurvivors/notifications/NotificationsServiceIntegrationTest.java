@@ -3,6 +3,7 @@ package com.parosurvivors.notifications;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -10,11 +11,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.parosurvivors.notifications.application.ports.input.NotificationDeliveryServicePort;
 import com.parosurvivors.notifications.infrastructure.messaging.NotificationMessagingConfig;
 import com.parosurvivors.notifications.infrastructure.messaging.PayloadSealerTest;
-import com.parosurvivors.notifications.infrastructure.security.JwtTokenVerifierTest;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.List;
 import java.util.UUID;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.core.Message;
@@ -38,7 +38,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * en la bandeja REST del usuario. Se SALTA si no hay Docker.
  */
 @SpringBootTest(properties = {
-        "serviya.security.jwt-secret=" + JwtTokenVerifierTest.SECRET,
+        // Resource server ES256: el decoder se construye con un JWKS ficticio (nunca se consulta, porque
+        // los tests autentican con el post-procesador jwt(), que inyecta el principal sin verificar firma).
+        "serviya.security.jwt.jwks-uri=http://localhost:1/.well-known/jwks.json",
+        "serviya.security.jwt.issuer=https://auth.serviya.local",
+        "serviya.security.jwt.audience=marketplace-api",
         "serviya.security.encryption-key=serviya-test-notifications-at-rest-key-0123456789",
         "serviya.messaging.payload-key=" + PayloadSealerTest.KEY,
         "serviya.notifications.cron.retry-failed=-",          // sin scheduler: el test dispara el reintento
@@ -67,8 +71,9 @@ class NotificationsServiceIntegrationTest {
         jdbc.update("DELETE FROM notifications");
     }
 
-    private static String bearer(long userId) throws Exception {
-        return "Bearer " + JwtTokenVerifierTest.monolithToken(JwtTokenVerifierTest.SECRET, userId, List.of("CLIENT"), 60_000);
+    /** Autentica la petición como ese usuario (resource server): inyecta un Jwt con {@code sub=userId}. */
+    private static RequestPostProcessor as(long userId) {
+        return jwt().jwt(token -> token.subject(String.valueOf(userId)));
     }
 
     private void publish(String json) {
@@ -99,33 +104,33 @@ class NotificationsServiceIntegrationTest {
         Thread.sleep(500); // margen para que el duplicado también se haya procesado
         assertThat(countNotifications()).isEqualTo(1);
 
-        mvc.perform(get("/api/v1/notifications").header("Authorization", bearer(42L)))
+        mvc.perform(get("/api/v1/notifications").with(as(42L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(1))
                 .andExpect(jsonPath("$.content[0].title").value("Solicitud aceptada"))
                 .andExpect(jsonPath("$.content[0].deliveryStatus").value("SENT"));
 
         // Otro usuario no ve la notificación ni puede marcarla (sin IDOR).
-        mvc.perform(get("/api/v1/notifications").header("Authorization", bearer(7L)))
+        mvc.perform(get("/api/v1/notifications").with(as(7L)))
                 .andExpect(jsonPath("$.content.length()").value(0));
         Long deliveryId = jdbc.queryForObject("SELECT id FROM notification_deliveries", Long.class);
-        mvc.perform(post("/api/v1/notifications/{id}/read", deliveryId).header("Authorization", bearer(7L)))
+        mvc.perform(post("/api/v1/notifications/{id}/read", deliveryId).with(as(7L)))
                 .andExpect(status().isNotFound());
 
         // Regresión del bug de @Version del monolito: actualizar una entrega existente debe funcionar.
-        mvc.perform(post("/api/v1/notifications/{id}/read", deliveryId).header("Authorization", bearer(42L)))
+        mvc.perform(post("/api/v1/notifications/{id}/read", deliveryId).with(as(42L)))
                 .andExpect(status().isNoContent());
-        mvc.perform(get("/api/v1/notifications").param("read", "true").header("Authorization", bearer(42L)))
+        mvc.perform(get("/api/v1/notifications").param("read", "true").with(as(42L)))
                 .andExpect(jsonPath("$.content[0].deliveryStatus").value("READ"));
     }
 
     @Test
     void inbox_requiresAuthentication_andUnknownRoutesAreDenied() throws Exception {
         mvc.perform(get("/api/v1/notifications")).andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/v1/notification-channels").header("Authorization", bearer(1L)))
+        mvc.perform(get("/api/v1/notification-channels").with(as(1L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].name").value(org.hamcrest.Matchers.containsInAnyOrder("INTERNAL", "EMAIL")));
-        mvc.perform(get("/api/v1/anything-else").header("Authorization", bearer(1L))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/anything-else").with(as(1L))).andExpect(status().isForbidden());
     }
 
     @Test

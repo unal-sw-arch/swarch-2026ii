@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.parosurvivors.serviya.shared.events.application.ports.output.DomainEventPublisherPort;
 import com.parosurvivors.serviya.shared.events.domain.RoleAssignedEvent;
 import com.parosurvivors.serviya.shared.exceptions.InvalidStateException;
+import com.parosurvivors.serviya.users.application.ports.input.SessionRevocationServicePort;
 import com.parosurvivors.serviya.users.application.ports.output.RolePersistencePort;
 import com.parosurvivors.serviya.users.application.ports.output.UserRolePersistencePort;
 import com.parosurvivors.serviya.users.domain.Role;
@@ -31,6 +32,8 @@ class UserRoleServiceTest {
     @Mock UserRolePersistencePort userRolePersistencePort;
     @Mock RolePersistencePort rolePersistencePort;
     @Mock DomainEventPublisherPort domainEventPublisher;
+    @Mock SessionRevocationServicePort sessionRevocationService;
+    @Mock com.parosurvivors.serviya.shared.audit.SecurityAuditServicePort auditService;
 
     @InjectMocks UserRoleService service;
 
@@ -83,5 +86,30 @@ class UserRoleServiceTest {
     void rechaza_un_rol_inexistente() {
         assertThatThrownBy(() -> service.acquireRole(USER_ID, "SUPERUSER"))
                 .isInstanceOf(InvalidStateException.class);
+    }
+
+    /** Quitar un rol (P2.5) retira la fila y cierra la sesion (min_iat + familias de refresh). */
+    @Test
+    void al_quitar_rol_retira_la_fila_y_revoca_las_sesiones() {
+        offererRoleExists();
+        when(userRolePersistencePort.existsByUserIdAndRoleId(USER_ID, OFFERER_ID)).thenReturn(true);
+
+        service.revokeRole(USER_ID, RoleName.OFFERER);
+
+        verify(userRolePersistencePort).removeRole(USER_ID, OFFERER_ID);
+        verify(sessionRevocationService).revokeAllSessions(USER_ID);
+    }
+
+    /** Si el usuario no tiene el rol, ni se retira la fila ni se cierra la sesion. */
+    @Test
+    void no_revoca_sesiones_si_el_usuario_no_tenia_el_rol() {
+        offererRoleExists();
+        when(userRolePersistencePort.existsByUserIdAndRoleId(USER_ID, OFFERER_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.revokeRole(USER_ID, RoleName.OFFERER))
+                .isInstanceOf(InvalidStateException.class);
+
+        verify(userRolePersistencePort, never()).removeRole(USER_ID, OFFERER_ID);
+        verify(sessionRevocationService, never()).revokeAllSessions(org.mockito.ArgumentMatchers.any());
     }
 }

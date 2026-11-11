@@ -9,19 +9,18 @@ import com.parosurvivors.serviya.requests.application.ports.output.ServiceReques
 import com.parosurvivors.serviya.requests.application.ports.output.ServiceRequestReadPort;
 import com.parosurvivors.serviya.requests.domain.RequestStatus;
 import com.parosurvivors.serviya.requests.domain.ServiceRequest;
-import com.parosurvivors.serviya.services.application.ports.output.ServicePersistencePort;
-import com.parosurvivors.serviya.services.domain.Service;
+import com.parosurvivors.serviya.services.api.ServiceQueryApi;
+import com.parosurvivors.serviya.services.api.dto.ServiceAvailabilitySnapshot;
+import com.parosurvivors.serviya.services.api.dto.ServiceSnapshot;
+import com.parosurvivors.serviya.shared.events.application.ChatEventPublisher;
 import com.parosurvivors.serviya.shared.events.application.ports.output.DomainEventPublisherPort;
 import com.parosurvivors.serviya.shared.events.domain.RequestCreatedEvent;
 import com.parosurvivors.serviya.shared.events.domain.RequestStatusChangedEvent;
-import com.parosurvivors.serviya.profiles.application.ports.output.AddressPersistencePort;
-import com.parosurvivors.serviya.profiles.application.ports.output.UserProfilePersistencePort;
-import com.parosurvivors.serviya.profiles.domain.Address;
-import com.parosurvivors.serviya.services.application.ports.output.ServiceAvailabilityPersistencePort;
-import com.parosurvivors.serviya.services.domain.ServiceAvailability;
+import com.parosurvivors.serviya.profiles.api.ProfileQueryApi;
+import com.parosurvivors.serviya.profiles.api.dto.AddressSnapshot;
 import com.parosurvivors.serviya.shared.exceptions.BusinessRuleException;
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
-import com.parosurvivors.serviya.shared.exceptions.UnauthorizedException;
+import com.parosurvivors.serviya.shared.exceptions.ForbiddenException;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -47,16 +46,15 @@ public class ServiceRequestCommandService implements ServiceRequestCommandServic
     private final RescheduleProposalServicePort rescheduleProposalService;
     private final NotificationServicePort notificationServicePort;
     private final ServiceRequestCommandMapper commandMapper;
-    private final ServicePersistencePort servicePersistencePort;
-    private final ServiceAvailabilityPersistencePort serviceAvailabilityPersistencePort;
-    private final AddressPersistencePort addressPersistencePort;
-    private final UserProfilePersistencePort userProfilePersistencePort;
+    private final ServiceQueryApi serviceQueryApi;
+    private final ProfileQueryApi profileQueryApi;
     private final DomainEventPublisherPort eventPublisher;
+    private final ChatEventPublisher chatEventPublisher;
 
     @Override
     @Transactional
     public ServiceRequest createRequest(CreateServiceRequestCommand command) {
-        Service service = servicePersistencePort.findById(command.serviceId())
+        ServiceSnapshot service = serviceQueryApi.findById(command.serviceId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Servicio no encontrado con id: " + command.serviceId()));
 
@@ -64,9 +62,9 @@ public class ServiceRequestCommandService implements ServiceRequestCommandServic
         checkWithinRadius(command.serviceId(), command.addressId());
 
         ServiceRequest serviceRequest = commandMapper.toDomain(command);
-        serviceRequest.setOffererId(service.getOffererId());
+        serviceRequest.setOffererId(service.offererId());
         serviceRequest.setStatus(RequestStatus.PENDING);
-        serviceRequest.setRequestedPrice(service.getPriceHourly());
+        serviceRequest.setRequestedPrice(service.priceHourly());
         LocalDateTime now = LocalDateTime.now();
         serviceRequest.setCreatedAt(now);
         serviceRequest.setUpdatedStatusAt(now);
@@ -74,13 +72,17 @@ public class ServiceRequestCommandService implements ServiceRequestCommandServic
         // Solicitud original: alimenta requests_sent (cliente) y requests_received (oferente).
         eventPublisher.publish(new RequestCreatedEvent(
                 saved.getId(), saved.getClientId(), saved.getOffererId(), saved.getServiceId()));
-        userProfilePersistencePort.findByUserId(command.clientId())
+        // Evento de integracion para el chat: abre la conversacion REQUEST.
+        chatEventPublisher.requestCreated(
+                saved.getId(), saved.getClientId(), saved.getOffererId(), saved.getServiceId(),
+                saved.getStatus() == null ? null : saved.getStatus().name(), saved.getCreatedAt());
+        profileQueryApi.findProfile(command.clientId())
                 .ifPresent(client -> notificationServicePort.notify(
-                        service.getOffererId(),
+                        service.offererId(),
                         "new_request",
                         "Nueva solicitud de servicio",
-                        "Has recibido una solicitud de " + client.getFullName()
-                                + " para el servicio \"" + service.getTitle() + "\"",
+                        "Has recibido una solicitud de " + client.fullName()
+                                + " para el servicio \"" + service.title() + "\"",
                         "SERVICE_REQUEST",
                         saved.getId(),
                         null,
@@ -90,8 +92,8 @@ public class ServiceRequestCommandService implements ServiceRequestCommandServic
 
     @Override
     public boolean checkServiceAvailability(Long serviceId, LocalDateTime scheduledDate) {
-        List<ServiceAvailability> availabilities = serviceAvailabilityPersistencePort
-                .findByServiceId(serviceId);
+        List<ServiceAvailabilitySnapshot> availabilities = serviceQueryApi
+                .getAvailabilities(serviceId);
 
         if (availabilities.isEmpty()) {
             return true;
@@ -102,11 +104,11 @@ public class ServiceRequestCommandService implements ServiceRequestCommandServic
         LocalTime scheduledTime = scheduledDate.toLocalTime();
         boolean isAvailable = false;
 
-        for (ServiceAvailability availability : availabilities) {
-            if (availability.isActive()
-                && availability.getWeekDay() == dayIndex
-                && !scheduledTime.isBefore(availability.getStartTime())
-                && !scheduledTime.isAfter(availability.getEndTime())
+        for (ServiceAvailabilitySnapshot availability : availabilities) {
+            if (availability.active()
+                && availability.weekDay() == dayIndex
+                && !scheduledTime.isBefore(availability.startTime())
+                && !scheduledTime.isAfter(availability.endTime())
             ) {
                 isAvailable = true;
                 break;
@@ -122,36 +124,35 @@ public class ServiceRequestCommandService implements ServiceRequestCommandServic
 
     @Override
     public boolean checkWithinRadius(Long serviceId, Long clientAddressId) {
-        Service service = servicePersistencePort.findById(serviceId)
+        ServiceSnapshot service = serviceQueryApi.findById(serviceId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Servicio no encontrado con id: " + serviceId));
 
-        if (service.getOperationRadiusKm() == null
-                || service.getOperationRadiusKm().compareTo(java.math.BigDecimal.ZERO) == 0) {
+        if (service.operationRadiusKm() == null
+                || service.operationRadiusKm().compareTo(java.math.BigDecimal.ZERO) == 0) {
             return true;
         }
 
-        Address clientAddress = addressPersistencePort.findById(clientAddressId)
+        AddressSnapshot clientAddress = profileQueryApi.findAddress(clientAddressId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Dirección del cliente no encontrada: " + clientAddressId));
 
-        Address offererAddress = userProfilePersistencePort
-                .findByUserId(service.getOffererId())
+        AddressSnapshot offererAddress = profileQueryApi
+                .findProfile(service.offererId())
                 .flatMap(profile -> {
-                    if (profile.getPrimaryAddressId() == null) return java.util.Optional.empty();
-                    return addressPersistencePort.findById(profile.getPrimaryAddressId());
+                    if (profile.primaryAddressId() == null) return java.util.Optional.empty();
+                    return profileQueryApi.findAddress(profile.primaryAddressId());
                 })
                 .orElseThrow(() -> new BusinessRuleException(
                         "El oferente no tiene una dirección principal configurada"));
 
-        double distance = clientAddress.distanceKmTo(
-                offererAddress.getLatitude(), offererAddress.getLongitude());
+        double distance = distanceKmBetween(clientAddress, offererAddress);
 
-        if (distance > service.getOperationRadiusKm().doubleValue()) {
+        if (distance > service.operationRadiusKm().doubleValue()) {
             throw new BusinessRuleException(
                     "La dirección del cliente está fuera del radio de operación del servicio "
                             + "(" + String.format("%.2f", distance) + " km vs "
-                            + service.getOperationRadiusKm() + " km permitidos)");
+                            + service.operationRadiusKm() + " km permitidos)");
         }
         return true;
     }
@@ -165,12 +166,12 @@ public class ServiceRequestCommandService implements ServiceRequestCommandServic
         request.accept(offererId);
         serviceRequestPersistencePort.update(request);
         publishStatusChanged(request, previous);
-        userProfilePersistencePort.findByUserId(offererId)
+        profileQueryApi.findProfile(offererId)
                 .ifPresent(offerer -> notificationServicePort.notify(
                         request.getClientId(),
                         "request_accepted",
                         "Solicitud aceptada",
-                        "Tu solicitud de servicio fue aceptada por " + offerer.getFullName(),
+                        "Tu solicitud de servicio fue aceptada por " + offerer.fullName(),
                         "SERVICE_REQUEST",
                         requestId,
                         null,
@@ -186,12 +187,12 @@ public class ServiceRequestCommandService implements ServiceRequestCommandServic
         request.reject(offererId);
         serviceRequestPersistencePort.update(request);
         publishStatusChanged(request, previous);
-        userProfilePersistencePort.findByUserId(offererId)
+        profileQueryApi.findProfile(offererId)
                 .ifPresent(offerer -> notificationServicePort.notify(
                         request.getClientId(),
                         "request_rejected",
                         "Solicitud rechazada",
-                        "Tu solicitud de servicio fue rechazada por " + offerer.getFullName(),
+                        "Tu solicitud de servicio fue rechazada por " + offerer.fullName(),
                         "SERVICE_REQUEST",
                         requestId,
                         null,
@@ -211,12 +212,12 @@ public class ServiceRequestCommandService implements ServiceRequestCommandServic
         // PRESUMABLY_COMPLETED no tiene contador de métricas (los listeners lo ignoran); se publica
         // uniformemente para trazabilidad y para habilitar el feedback de ambas partes.
         publishStatusChanged(request, previous);
-        userProfilePersistencePort.findByUserId(offererId)
+        profileQueryApi.findProfile(offererId)
                 .ifPresent(offerer -> notificationServicePort.notify(
                         request.getClientId(),
                         "service_completed",
                         "Servicio realizado",
-                        offerer.getFullName() + " declaró el servicio como realizado. Confirma si fue así para calificar.",
+                        offerer.fullName() + " declaró el servicio como realizado. Confirma si fue así para calificar.",
                         "SERVICE_REQUEST",
                         requestId,
                         null,
@@ -232,12 +233,12 @@ public class ServiceRequestCommandService implements ServiceRequestCommandServic
         request.confirmCompletion(clientId);
         serviceRequestPersistencePort.update(request);
         publishStatusChanged(request, previous);
-        userProfilePersistencePort.findByUserId(clientId)
+        profileQueryApi.findProfile(clientId)
                 .ifPresent(client -> notificationServicePort.notify(
                         request.getOffererId(),
                         "completion_confirmed",
                         "Servicio confirmado",
-                        client.getFullName() + " confirmó que el servicio fue completado.",
+                        client.fullName() + " confirmó que el servicio fue completado.",
                         "SERVICE_REQUEST",
                         requestId,
                         null,
@@ -360,12 +361,12 @@ public class ServiceRequestCommandService implements ServiceRequestCommandServic
         ServiceRequest saved = serviceRequestPersistencePort.save(replacement);
         // Solo la solicitud original cambia de estado (RESCHEDULED); el reemplazo nace PENDING (sin contador).
         publishStatusChanged(request, previous);
-        userProfilePersistencePort.findByUserId(clientId)
+        profileQueryApi.findProfile(clientId)
                 .ifPresent(client -> notificationServicePort.notify(
                         request.getOffererId(),
                         "request_rescheduled",
                         "Servicio reprogramado",
-                        client.getFullName() + " reprogramó el servicio para el "
+                        client.fullName() + " reprogramó el servicio para el "
                                 + newDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
                         "SERVICE_REQUEST",
                         requestId,
@@ -393,13 +394,19 @@ public class ServiceRequestCommandService implements ServiceRequestCommandServic
                 request.getClientId(),
                 request.getOffererId(),
                 request.getServiceId(),
-                previous,
-                request.getStatus()));
+                previous != null ? previous.name() : null,
+                request.getStatus() != null ? request.getStatus().name() : null));
+        chatEventPublisher.requestStatusChanged(
+                request.getId(),
+                request.getUpdatedBy(),
+                previous != null ? previous.name() : null,
+                request.getStatus() != null ? request.getStatus().name() : null,
+                request.getUpdatedStatusAt());
     }
 
     private void requireOwnership(Long ownerId, Long actorId) {
         if (ownerId == null || !ownerId.equals(actorId)) {
-            throw new UnauthorizedException("El usuario no es el propietario del recurso");
+            throw new ForbiddenException("El usuario no es el propietario del recurso");
         }
     }
 
@@ -408,7 +415,26 @@ public class ServiceRequestCommandService implements ServiceRequestCommandServic
         boolean isParticipant = actorId != null
                 && (actorId.equals(request.getClientId()) || actorId.equals(request.getOffererId()));
         if (!isParticipant) {
-            throw new UnauthorizedException("El usuario no participa en la solicitud");
+            throw new ForbiddenException("El usuario no participa en la solicitud");
         }
+    }
+
+    /** Haversine entre dos direcciones; misma formula que usaba {@code Address.distanceKmTo}. */
+    private static double distanceKmBetween(AddressSnapshot from, AddressSnapshot to) {
+        if (from.latitude() == null || from.longitude() == null
+                || to.latitude() == null || to.longitude() == null) {
+            throw new IllegalStateException("Faltan coordenadas para calcular la distancia");
+        }
+        final double earthRadiusKm = 6371.0;
+        double lat1 = Math.toRadians(from.latitude().doubleValue());
+        double lat2 = Math.toRadians(to.latitude().doubleValue());
+        double deltaLat = Math.toRadians(to.latitude().subtract(from.latitude()).doubleValue());
+        double deltaLon = Math.toRadians(to.longitude().subtract(from.longitude()).doubleValue());
+
+        double a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2)
+                + Math.cos(lat1) * Math.cos(lat2)
+                * Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return earthRadiusKm * c;
     }
 }

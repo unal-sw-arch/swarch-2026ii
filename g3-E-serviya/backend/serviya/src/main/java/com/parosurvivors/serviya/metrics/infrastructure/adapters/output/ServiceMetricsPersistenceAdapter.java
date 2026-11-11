@@ -8,6 +8,7 @@ import com.parosurvivors.serviya.metrics.infrastructure.repositories.ServiceMetr
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -42,5 +43,10 @@ public class ServiceMetricsPersistenceAdapter implements ServiceMetricsPersisten
         return repository.findByServiceIdIn(serviceIds).stream()
                 .map(mapper::toDomain)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Long> findServiceIdsByAverageRating(BigDecimal minRating, BigDecimal maxRating) {
+        return repository.findServiceIdsByAverageRating(minRating, maxRating);
     }
 }

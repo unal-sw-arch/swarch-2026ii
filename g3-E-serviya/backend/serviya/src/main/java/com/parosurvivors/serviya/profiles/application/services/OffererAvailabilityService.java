@@ -6,7 +6,7 @@ import com.parosurvivors.serviya.profiles.application.ports.input.OffererAvailab
 import com.parosurvivors.serviya.profiles.application.ports.output.OffererAvailabilityPersistencePort;
 import com.parosurvivors.serviya.profiles.domain.OffererAvailability;
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
-import com.parosurvivors.serviya.shared.exceptions.UnauthorizedException;
+import com.parosurvivors.serviya.shared.exceptions.ForbiddenException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -97,7 +97,7 @@ public class OffererAvailabilityService implements OffererAvailabilityServicePor
             return;
         }
         if (requesterId == null || !requesterId.equals(slot.getOffererId())) {
-            throw new UnauthorizedException("El usuario no es el propietario de la franja horaria");
+            throw new ForbiddenException("El usuario no es el propietario de la franja horaria");
         }
     }
 

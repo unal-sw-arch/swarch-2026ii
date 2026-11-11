@@ -9,10 +9,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.parosurvivors.serviya.notifications.application.ports.input.NotificationServicePort;
-import com.parosurvivors.serviya.profiles.application.ports.output.AddressPersistencePort;
-import com.parosurvivors.serviya.profiles.application.ports.output.UserProfilePersistencePort;
-import com.parosurvivors.serviya.profiles.domain.Address;
-import com.parosurvivors.serviya.profiles.domain.UserProfile;
+import com.parosurvivors.serviya.profiles.api.ProfileQueryApi;
+import com.parosurvivors.serviya.profiles.api.dto.AddressSnapshot;
+import com.parosurvivors.serviya.profiles.api.dto.ProfileSnapshot;
 import com.parosurvivors.serviya.requests.application.dto.command.CreateRescheduleProposalCommand;
 import com.parosurvivors.serviya.requests.application.mappers.RescheduleProposalCommandMapper;
 import com.parosurvivors.serviya.requests.application.ports.output.RescheduleProposalPersistencePort;
@@ -23,14 +22,13 @@ import com.parosurvivors.serviya.requests.domain.ProposalStatus;
 import com.parosurvivors.serviya.requests.domain.RequestStatus;
 import com.parosurvivors.serviya.requests.domain.RescheduleProposal;
 import com.parosurvivors.serviya.requests.domain.ServiceRequest;
-import com.parosurvivors.serviya.services.application.ports.output.CategoryPersistencePort;
-import com.parosurvivors.serviya.services.application.ports.output.ServicePersistencePort;
-import com.parosurvivors.serviya.services.domain.Category;
-import com.parosurvivors.serviya.services.domain.Service;
+import com.parosurvivors.serviya.services.api.ServiceQueryApi;
+import com.parosurvivors.serviya.services.api.dto.CategorySnapshot;
+import com.parosurvivors.serviya.services.api.dto.ServiceSnapshot;
 import com.parosurvivors.serviya.shared.events.application.ports.output.DomainEventPublisherPort;
 import com.parosurvivors.serviya.shared.exceptions.InvalidStateException;
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
-import com.parosurvivors.serviya.shared.exceptions.UnauthorizedException;
+import com.parosurvivors.serviya.shared.exceptions.ForbiddenException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -50,10 +48,8 @@ class RescheduleProposalServiceTest {
     @Mock ServiceRequestPersistencePort serviceRequestPersistencePort;
     @Mock ServiceRequestReadPort serviceRequestReadPort;
     @Mock RescheduleProposalCommandMapper commandMapper;
-    @Mock ServicePersistencePort servicePersistencePort;
-    @Mock CategoryPersistencePort categoryPersistencePort;
-    @Mock UserProfilePersistencePort userProfilePersistencePort;
-    @Mock AddressPersistencePort addressPersistencePort;
+    @Mock ServiceQueryApi serviceQueryApi;
+    @Mock ProfileQueryApi profileQueryApi;
     @Mock NotificationServicePort notificationServicePort;
     @Mock DomainEventPublisherPort eventPublisher;
 
@@ -80,7 +76,7 @@ class RescheduleProposalServiceTest {
                 .thenReturn(Collections.emptyList());
         when(commandMapper.toDomain(command)).thenReturn(unmapped);
         when(rescheduleProposalPersistencePort.save(any())).thenReturn(saved);
-        when(userProfilePersistencePort.findByUserId(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
+        when(profileQueryApi.findProfile(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
 
         RescheduleProposal result = service.createProposal(command);
 
@@ -108,7 +104,7 @@ class RescheduleProposalServiceTest {
                 REQUEST_ID, CLIENT_ID, "Conflicto", LocalDateTime.of(2026, 8, 15, 10, 0));
 
         assertThatThrownBy(() -> service.createProposal(command))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
     }
 
     @Test
@@ -155,7 +151,7 @@ class RescheduleProposalServiceTest {
         when(rescheduleProposalReadPort.findById(PROPOSAL_ID)).thenReturn(Optional.of(proposal));
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
         when(serviceRequestPersistencePort.save(any())).thenReturn(replacement);
-        when(userProfilePersistencePort.findByUserId(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
+        when(profileQueryApi.findProfile(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
 
         ServiceRequest result = service.acceptProposal(PROPOSAL_ID, CLIENT_ID);
 
@@ -175,7 +171,7 @@ class RescheduleProposalServiceTest {
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
 
         assertThatThrownBy(() -> service.acceptProposal(PROPOSAL_ID, OFFERER_ID))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
     }
 
     @Test
@@ -196,7 +192,7 @@ class RescheduleProposalServiceTest {
         ServiceRequest request = acceptedRequest();
         when(rescheduleProposalReadPort.findById(PROPOSAL_ID)).thenReturn(Optional.of(proposal));
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
-        when(userProfilePersistencePort.findByUserId(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
+        when(profileQueryApi.findProfile(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
 
         service.rejectProposal(PROPOSAL_ID, CLIENT_ID);
 
@@ -214,7 +210,7 @@ class RescheduleProposalServiceTest {
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
 
         assertThatThrownBy(() -> service.rejectProposal(PROPOSAL_ID, OFFERER_ID))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
     }
 
     // =====================================================
@@ -227,7 +223,7 @@ class RescheduleProposalServiceTest {
         ServiceRequest request = acceptedRequest();
         when(rescheduleProposalReadPort.findById(PROPOSAL_ID)).thenReturn(Optional.of(proposal));
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
-        when(userProfilePersistencePort.findByUserId(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
+        when(profileQueryApi.findProfile(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
 
         service.cancelProposal(PROPOSAL_ID, OFFERER_ID);
 
@@ -245,7 +241,7 @@ class RescheduleProposalServiceTest {
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
 
         assertThatThrownBy(() -> service.cancelProposal(PROPOSAL_ID, CLIENT_ID))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
     }
 
     // =====================================================
@@ -316,7 +312,7 @@ class RescheduleProposalServiceTest {
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
 
         assertThatThrownBy(() -> service.getProposalsByRequest(REQUEST_ID, 999L))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
     }
 
     @Test
@@ -339,10 +335,10 @@ class RescheduleProposalServiceTest {
 
         when(rescheduleProposalReadPort.findById(PROPOSAL_ID)).thenReturn(Optional.of(proposal));
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
-        when(servicePersistencePort.findById(REQUEST_ID)).thenReturn(Optional.of(domainService()));
-        when(categoryPersistencePort.findById(1L)).thenReturn(Optional.of(category()));
-        when(userProfilePersistencePort.findByUserId(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
-        when(addressPersistencePort.findById(40L)).thenReturn(Optional.of(address()));
+        when(serviceQueryApi.findById(REQUEST_ID)).thenReturn(Optional.of(domainService()));
+        when(serviceQueryApi.findCategory(1L)).thenReturn(Optional.of(category()));
+        when(profileQueryApi.findProfile(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
+        when(profileQueryApi.findAddress(40L)).thenReturn(Optional.of(address()));
 
         var result = service.getProposalDetail(PROPOSAL_ID, CLIENT_ID);
 
@@ -357,7 +353,7 @@ class RescheduleProposalServiceTest {
         when(rescheduleProposalReadPort.findById(PROPOSAL_ID)).thenReturn(Optional.of(proposal));
 
         assertThatThrownBy(() -> service.getProposalDetail(PROPOSAL_ID, 999L))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
     }
 
     @Test
@@ -412,38 +408,42 @@ class RescheduleProposalServiceTest {
                 .build();
     }
 
-    private Service domainService() {
-        return Service.builder()
-                .id(1L)
-                .title("Plomeria")
-                .categoryId(1L)
-                .priceHourly(new BigDecimal("25.00"))
-                .build();
+    private ServiceSnapshot domainService() {
+        return new ServiceSnapshot(
+                1L,
+                20L,
+                "Plomeria",
+                null,
+                List.of(),
+                new BigDecimal("25.00"),
+                1L,
+                null,
+                true,
+                null,
+                null,
+                null,
+                null);
     }
 
-    private Category category() {
-        return Category.builder().id(1L).name("Hogar").build();
+    private CategorySnapshot category() {
+        return new CategorySnapshot(1L, "Hogar");
     }
 
-    private UserProfile clientProfile() {
-        return UserProfile.builder()
-                .userId(CLIENT_ID)
-                .fullName("Juan Perez")
-                .build();
+    private ProfileSnapshot clientProfile() {
+        return profile(CLIENT_ID, "Juan Perez", null);
     }
 
-    private UserProfile offererProfile() {
-        return UserProfile.builder()
-                .userId(OFFERER_ID)
-                .fullName("Maria Garcia")
-                .profilePhotoUrl("photo.jpg")
-                .build();
+    private ProfileSnapshot offererProfile() {
+        return profile(OFFERER_ID, "Maria Garcia", "photo.jpg");
     }
 
-    private Address address() {
-        return Address.builder()
-                .id(40L)
-                .city("Medellin")
-                .build();
+    private ProfileSnapshot profile(Long userId, String fullName, String photoUrl) {
+        return new ProfileSnapshot(
+                null, userId, fullName, null, null, null,
+                null, photoUrl, null, null, null);
+    }
+
+    private AddressSnapshot address() {
+        return new AddressSnapshot(40L, CLIENT_ID, null, "Medellin", null, null, null);
     }
 }

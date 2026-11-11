@@ -4,23 +4,23 @@ import com.parosurvivors.serviya.admin.application.dto.command.CreateUserByAdmin
 import com.parosurvivors.serviya.admin.application.dto.command.UpdateUserByAdminCommand;
 import com.parosurvivors.serviya.admin.application.dto.query.AdminFeedbackSearchQuery;
 import com.parosurvivors.serviya.admin.application.dto.result.AdminFeedbackSearchResult;
+import com.parosurvivors.serviya.admin.application.dto.result.AdminRequestDetailResult;
+import com.parosurvivors.serviya.admin.application.dto.result.AdminUserSummaryResult;
 import com.parosurvivors.serviya.admin.application.dto.result.UserAdminDetailResult;
-import com.parosurvivors.serviya.requests.application.dto.result.AdminRequestDetailResult;
-import com.parosurvivors.serviya.users.application.dto.item.UserSummaryItem;
-import com.parosurvivors.serviya.users.application.dto.query.SearchUsersQuery;
+import com.parosurvivors.serviya.users.api.dto.UserSearchCriteria;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 /**
  * Puerto de entrada de AdminService — administración de usuarios (contexto backoffice, rol ADMIN).
  * Recibe Command/Query y devuelve read-models (Item/Result); nunca tipos web.
- * La búsqueda reutiliza el Query e Item del módulo users (dueño del dato).
+ * La búsqueda y el detalle se componen con las APIs públicas de users/profiles/metrics/reports.
  * Ver documents/project-structure/estructura-servicios.docx (módulo 9).
  */
 public interface AdminServicePort {
 
     /** Crea una cuenta con cualquier rol (incl. ADMIN) y devuelve el read-model de listado (sin foto aun). */
-    UserSummaryItem createUserByAdmin(CreateUserByAdminCommand command);
+    AdminUserSummaryResult createUserByAdmin(CreateUserByAdminCommand command);
 
     /** Concede cualquier rol (por nombre) a un usuario existente. adminId proviene del JWT. */
     void grantRoleByAdmin(Long adminId, Long userId, String roleName);
@@ -34,11 +34,11 @@ public interface AdminServicePort {
     /** RF-068: edicion parcial de un usuario por el administrador (PII cifrada, documento inmutable). */
     void updateUserByAdmin(Long adminId, Long userId, UpdateUserByAdminCommand command);
 
-    Page<UserSummaryItem> searchUsers(SearchUsersQuery query, Pageable pageable);
+    Page<AdminUserSummaryResult> searchUsers(UserSearchCriteria query, Pageable pageable);
 
     UserAdminDetailResult getUserAdminDetail(Long userId);
 
-    /** Detalle administrativo de una solicitud (ambas partes). Delega en el módulo requests. */
+    /** Detalle administrativo de una solicitud (ambas partes), compuesto con las APIs publicas. */
     AdminRequestDetailResult getRequestDetailForAdmin(Long requestId);
 
     /** Banea a un usuario con el motivo indicado por el admin (RF-063). El usuario es notificado por doble canal. */

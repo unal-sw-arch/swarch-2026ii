@@ -78,6 +78,11 @@ public class ServiceFeedbackPersistenceAdapter implements ServiceFeedbackPersist
     }
 
     @Override
+    public Double findAverageRating() {
+        return repository.findAverageRating();
+    }
+
+    @Override
     public void deleteById(Long id) {
         repository.deleteById(id);
     }

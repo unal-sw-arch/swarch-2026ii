@@ -37,6 +37,8 @@ public interface ServiceRequestReadPort {
 
     List<ServiceRequest> findByStatus(RequestStatus status);
 
+    long countByStatus(RequestStatus status);
+
     Optional<ServiceRequest> findByPreviousRequestId(Long previousRequestId);
 
     /** Solicitudes en las que el usuario participa (cliente u oferente) con estado en {@code statuses}. */

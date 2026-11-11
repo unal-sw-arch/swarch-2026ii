@@ -1,7 +1,8 @@
 package com.parosurvivors.serviya.reports.application.services;
 
-import com.parosurvivors.serviya.notifications.application.ports.input.NotificationServicePort;
-import com.parosurvivors.serviya.notifications.domain.ChannelName;
+import com.parosurvivors.serviya.notifications.api.Channel;
+import com.parosurvivors.serviya.notifications.api.NotificationCommand;
+import com.parosurvivors.serviya.notifications.api.NotificationCommandApi;
 import com.parosurvivors.serviya.reports.application.dto.command.CreateRequestReportCommand;
 import com.parosurvivors.serviya.reports.application.dto.result.ReportDetailResult;
 import com.parosurvivors.serviya.reports.application.ports.input.ReportServicePort;
@@ -9,11 +10,13 @@ import com.parosurvivors.serviya.reports.application.ports.input.RequestReportSe
 import com.parosurvivors.serviya.reports.application.ports.output.RequestReportPersistencePort;
 import com.parosurvivors.serviya.reports.domain.Report;
 import com.parosurvivors.serviya.reports.domain.RequestReport;
-import com.parosurvivors.serviya.requests.application.dto.result.ServiceRequestDetailResult;
-import com.parosurvivors.serviya.requests.application.ports.input.ServiceRequestQueryServicePort;
+import com.parosurvivors.serviya.requests.api.RequestQueryApi;
+import com.parosurvivors.serviya.requests.api.dto.RequestDetailSnapshot;
+import com.parosurvivors.serviya.shared.contract.Roles;
+import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
+import com.parosurvivors.serviya.shared.exceptions.ForbiddenException;
 import com.parosurvivors.serviya.shared.textfilter.application.ports.output.WordFilterPort;
-import com.parosurvivors.serviya.users.application.ports.input.UserRoleServicePort;
-import com.parosurvivors.serviya.users.domain.RoleName;
+import com.parosurvivors.serviya.users.api.UserQueryApi;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,9 +39,9 @@ public class RequestReportService implements RequestReportServicePort {
 
     private final RequestReportPersistencePort requestReportPersistencePort;
     private final ReportServicePort reportServicePort;
-    private final ServiceRequestQueryServicePort serviceRequestQueryServicePort;
-    private final UserRoleServicePort userRoleServicePort;
-    private final NotificationServicePort notificationServicePort;
+    private final RequestQueryApi requestQueryApi;
+    private final UserQueryApi userQueryApi;
+    private final NotificationCommandApi notificationCommandApi;
     private final WordFilterPort wordFilterPort;
 
     /**
@@ -46,9 +49,9 @@ public class RequestReportService implements RequestReportServicePort {
      *
      * <p>Reglas aplicadas:
      * <ul>
-     *   <li><b>Ownership</b>: {@code getRequestDetailForParty} lanza UnauthorizedException si quien
-     *       reporta no es el cliente ni el oferente de esa solicitud, asi que solo las partes pueden
-     *       reportarla.</li>
+     *   <li><b>Ownership</b>: {@code RequestQueryApi.findDetail} + comprobacion de participante
+     *       lanza ForbiddenException si quien reporta no es el cliente ni el oferente de esa
+     *       solicitud, asi que solo las partes pueden reportarla.</li>
      *   <li><b>Reportado derivado, no confiado</b>: el usuario reportado es la CONTRAPARTE que
      *       devuelve la solicitud, nunca el {@code reportedUserId} que venga del cliente (que podria
      *       manipularse para incriminar a un tercero).</li>
@@ -61,10 +64,18 @@ public class RequestReportService implements RequestReportServicePort {
     @Transactional
     public RequestReport createReport(CreateRequestReportCommand command) {
         // Ownership + contraparte real de la solicitud (lanza si el reportante no participa).
-        ServiceRequestDetailResult request = serviceRequestQueryServicePort
-                .getRequestDetailForParty(command.requestId(), command.reporterId());
+        RequestDetailSnapshot request = requestQueryApi.findDetail(command.requestId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Solicitud no encontrada: " + command.requestId()));
+        boolean isParticipant = command.reporterId().equals(request.clientId())
+                || command.reporterId().equals(request.offererId());
+        if (!isParticipant) {
+            throw new ForbiddenException("El usuario no participa en la solicitud");
+        }
 
-        Long reportedUserId = request.counterpartyId();
+        Long reportedUserId = command.reporterId().equals(request.clientId())
+                ? request.offererId()
+                : request.clientId();
 
         Report baseReport = reportServicePort.createBaseReport(
                 command.reporterId(),
@@ -85,17 +96,17 @@ public class RequestReportService implements RequestReportServicePort {
 
     /** Avisa a la cola de administradores para que el reporte entre en moderacion (queda Pending). */
     private void notifyAdmins(Long reportId, Long requestId) {
-        List<Long> adminIds = userRoleServicePort.findUserIdsByRole(RoleName.ADMIN);
+        List<Long> adminIds = userQueryApi.findUserIdsByRole(Roles.ADMIN);
         for (Long adminId : adminIds) {
-            notificationServicePort.notify(
+            notificationCommandApi.notify(new NotificationCommand(
                     adminId,
                     NOTIFICATION_TYPE,
                     "Nuevo reporte de incumplimiento",
                     "Se reporto un incumplimiento en la solicitud #" + requestId + ". Requiere revision.",
                     "REPORT",
                     reportId,
-                    Set.of(ChannelName.INTERNAL),
-                    Map.of());
+                    Set.of(Channel.INTERNAL),
+                    Map.of()));
         }
     }
 

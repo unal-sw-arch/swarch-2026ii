@@ -1,0 +1,500 @@
+{
+  "components" : {
+    "schemas" : {
+      "ConversationDetailResponse" : {
+        "properties" : {
+          "context_id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "context_status" : {
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "last_message_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "last_seq" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "my_last_read_seq" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "participants" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Participant"
+            },
+            "type" : "array"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "unread_count" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }
+      },
+      "ConversationPageResponse" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ConversationSummaryResponse"
+            },
+            "type" : "array"
+          },
+          "next_cursor" : {
+            "type" : "string"
+          }
+        }
+      },
+      "ConversationSummaryResponse" : {
+        "properties" : {
+          "context_id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "context_status" : {
+            "type" : "string"
+          },
+          "counterpart" : {
+            "$ref" : "#/components/schemas/Counterpart"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "last_message" : {
+            "$ref" : "#/components/schemas/LastMessage"
+          },
+          "last_message_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "unread_count" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }
+      },
+      "Counterpart" : {
+        "properties" : {
+          "display_name" : {
+            "type" : "string"
+          },
+          "user_id" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }
+      },
+      "LastMessage" : {
+        "properties" : {
+          "body" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "sender_id" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }
+      },
+      "MessagePageResponse" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MessageResponse"
+            },
+            "type" : "array"
+          }
+        }
+      },
+      "MessageResponse" : {
+        "properties" : {
+          "body" : {
+            "type" : "string"
+          },
+          "conversation_id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "flags" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "sender_id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "seq" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }
+      },
+      "Participant" : {
+        "properties" : {
+          "last_read_seq" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "role" : {
+            "type" : "string"
+          },
+          "user_id" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }
+      },
+      "ReadForm" : {
+        "properties" : {
+          "seq" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }
+      },
+      "SendMessageForm" : {
+        "properties" : {
+          "body" : {
+            "type" : "string"
+          },
+          "client_message_id" : {
+            "type" : "string"
+          }
+        }
+      },
+      "SendMessageResponse" : {
+        "properties" : {
+          "duplicate" : {
+            "type" : "boolean"
+          },
+          "message" : {
+            "$ref" : "#/components/schemas/MessageResponse"
+          },
+          "warnings" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }
+      }
+    },
+    "securitySchemes" : {
+      "bearer" : {
+        "bearerFormat" : "JWT (ES256)",
+        "scheme" : "bearer",
+        "type" : "http"
+      }
+    }
+  },
+  "info" : {
+    "description" : "Chat 1 a 1 cliente–oferente. Errores en formato RFC 9457 con un campo `code` estable. El tiempo real va por WebSocket en /api/chat/v1/ws (ver docs/asyncapi.yaml).",
+    "title" : "ServiYa chat-service",
+    "version" : "v1"
+  },
+  "openapi" : "3.1.0",
+  "paths" : {
+    "/api/chat/v1/conversations" : {
+      "get" : {
+        "operationId" : "list",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "request_status",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "type",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConversationPageResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "conversation-controller" ]
+      }
+    },
+    "/api/chat/v1/conversations/by-request/{requestId}" : {
+      "get" : {
+        "operationId" : "byRequest",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "requestId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConversationDetailResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "conversation-controller" ]
+      }
+    },
+    "/api/chat/v1/conversations/{conversationId}/messages" : {
+      "get" : {
+        "operationId" : "history",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "conversationId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before_seq",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "after_seq",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MessagePageResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "message-controller" ]
+      },
+      "post" : {
+        "operationId" : "send",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "conversationId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SendMessageForm"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SendMessageResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "message-controller" ]
+      }
+    },
+    "/api/chat/v1/conversations/{id}" : {
+      "get" : {
+        "operationId" : "detail",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConversationDetailResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "conversation-controller" ]
+      }
+    },
+    "/api/chat/v1/conversations/{id}/read" : {
+      "post" : {
+        "operationId" : "read",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadForm"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "additionalProperties" : { },
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "conversation-controller" ]
+      }
+    },
+    "/api/chat/v1/ws-tickets" : {
+      "post" : {
+        "operationId" : "issue",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "additionalProperties" : { },
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "ws-ticket-controller" ]
+      }
+    }
+  },
+  "security" : [ {
+    "bearer" : [ ]
+  } ]
+}

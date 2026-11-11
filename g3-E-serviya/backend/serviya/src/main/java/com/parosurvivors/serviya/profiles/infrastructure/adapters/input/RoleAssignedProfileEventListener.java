@@ -2,8 +2,8 @@ package com.parosurvivors.serviya.profiles.infrastructure.adapters.input;
 
 import com.parosurvivors.serviya.profiles.application.ports.output.OffererProfilePersistencePort;
 import com.parosurvivors.serviya.profiles.domain.OffererProfile;
+import com.parosurvivors.serviya.shared.contract.Roles;
 import com.parosurvivors.serviya.shared.events.domain.RoleAssignedEvent;
-import com.parosurvivors.serviya.users.domain.RoleName;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -30,7 +30,7 @@ public class RoleAssignedProfileEventListener {
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     public void onRoleAssigned(RoleAssignedEvent event) {
-        if (!RoleName.OFFERER.name().equals(event.roleName())) {
+        if (!Roles.OFFERER.equals(event.roleName())) {
             return; // CLIENT/ADMIN no tienen perfil de oferente.
         }
         if (offererProfilePersistencePort.findByUserId(event.userId()).isPresent()) {

@@ -7,23 +7,44 @@ spring:
         webflux:
           # ORDEN = prioridad: las rutas de servicios extraídos van ANTES del comodín del monolito.
           routes:
+            # --- chat-service (greenfield, documento documents/microservicios/chat) ---
+            # El WebSocket va ANTES que el REST y que el catch-all. Spring Cloud Gateway reenvía
+            # Upgrade/Connection con el esquema ws://.
+            - id: chat-websocket
+              uri: ${CHAT_WS_URI:ws://chat-service:8000}
+              order: -20
+              predicates:
+                - Path=/api/chat/v1/ws
+            - id: chat-service
+              uri: ${CHAT_SERVICE_URI:http://chat-service:8000}
+              order: -10
+              predicates:
+                - Path=/api/chat/**
             # --- notifications-service (extraído, ESTADO §7.4 paso 1) ---
             - id: notifications-service
               uri: ${NOTIFICATIONS_SERVICE_URI:http://localhost:8082}
+              order: 0
               predicates:
                 - Path=/api/v1/notifications,/api/v1/notifications/**,/api/v1/notification-channels
             # --- monolito (todo lo que aún no se ha extraído) ---
             - id: monolith
               uri: ${MONOLITH_URI:http://localhost:8079}
+              order: 100
               predicates:
                 - Path=/**
+          # El filtro que retira Origin para las rutas normales (evita duplicar CORS) vive en
+          # OriginHeaderFilter: debe PRESERVAR Origin en el handshake WebSocket del chat, que
+          # valida el origen. No usar el default-filter RemoveRequestHeader=Origin.
+          # El gateway es la autoridad CORS y de correlación. Deduplica X-Request-Id si el servicio
+          # de atrás también lo devuelve.
+          # La retirada de Origin la hace OriginHeaderFilter (preserva Origin en el handshake WS del chat),
+          # NO el default-filter RemoveRequestHeader=Origin. Aquí solo se deduplica X-Request-Id.
           default-filters:
-            # El gateway es la ÚNICA autoridad CORS: no reenvía Origin, así los servicios de detrás no aplican
-            # su propia política (el monolito rechazaría con 403 un origen que solo se añadió aquí) ni duplican
-            # las cabeceras Access-Control-* en la respuesta.
-            - RemoveRequestHeader=Origin
-          # CORS centralizado en el borde (antes lo resolvía solo el monolito). Mismos orígenes que tenía
-          # SecurityConfig del monolito; configurables por entorno sin recompilar.
+            - DedupeResponseHeader=X-Request-Id, RETAIN_FIRST
+          # CORS centralizado en el borde (T3.8): el gateway es la ÚNICA autoridad CORS; los servicios de
+          # detrás no aplican la suya. Allowlist por entorno vía GATEWAY_CORS_ALLOWED_ORIGINS (default =
+          # orígenes de desarrollo). En prod se fija al dominio real https (P3.6, placeholder). NUNCA "*":
+          # con allow-credentials true (necesario para la cookie de refresh) el navegador exige un origen concreto.
           globalcors:
             add-to-simple-url-handler-mapping: true
             cors-configurations:
@@ -35,14 +56,52 @@ spring:
           httpclient:
             connect-timeout: 2000
             response-timeout: 30s
+  # redis-coord: SOLO para leer min_iat (Fase 3, T3.5). Timeout corto (hot-path); conexión perezosa de
+  # Lettuce ⇒ el gateway arranca aunque redis-coord no esté. En prod, credenciales del usuario ACL
+  # svc-gateway-coord por SPRING_DATA_REDIS_USERNAME/PASSWORD.
+  data:
+    redis:
+      host: ${REDIS_COORD_HOST:localhost}
+      port: ${REDIS_COORD_PORT:6379}
+      username: ${REDIS_COORD_USER:}
+      password: ${REDIS_COORD_PASSWORD:}
+      timeout: ${REDIS_COORD_TIMEOUT:250ms}
 
 server:
   port: ${SERVER_PORT:8080}
 
+# Validación del access token ES256 (Fase 3). El JWKS se lee del emisor por la red interna (no público).
+# Carga perezosa de claves ⇒ el gateway arranca aunque el JWKS no esté disponible todavía (T3.12).
+serviya:
+  security:
+    jwt:
+      jwks-uri: ${JWT_JWKS_URI:http://localhost:8079/.well-known/jwks.json}
+      issuer: ${JWT_ISSUER:https://auth.serviya.local}
+      audience: ${JWT_AUDIENCE:marketplace-api}
+      clock-skew: ${JWT_CLOCK_SKEW:60s}
+  # Techo global api-default (T3.9): mismo token bucket que el monolito (capacidad/ráfaga, 5/s sostenido),
+  # modo OPEN (no tumba la API si redis-coord cae). Las cuotas por endpoint se quedan en los servicios.
+  ratelimit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    api-default:
+      capacity: ${RATE_LIMIT_API_DEFAULT_CAPACITY:200}
+      refill-per-second: ${RATE_LIMIT_API_DEFAULT_REFILL:5}
+    # Cuotas de auth por IP (ventana deslizante) portadas del monolito (T4.9/P3.7). login OPEN (prima la
+    # disponibilidad del acceso); registro/reset CLOSED (abuso/coste/Brevo). reset-email sigue en el monolito.
+    auth:
+      login-ip:          { capacity: 10, window: 15m, fail-open: true }
+      register-ip:       { capacity: 5,  window: 60m, fail-open: false }
+      reset-ip:          { capacity: 5,  window: 15m, fail-open: false }
+      reset-validate-ip: { capacity: 20, window: 15m, fail-open: false }
+      reset-confirm-ip:  { capacity: 10, window: 15m, fail-open: false }
+
 management:
+  # Puerto de gestión SEPARADO y NO publicado al host (como el monolito y notif): así /prometheus y el
+  # health detallado no se exponen por el 8080 público ni chocan con las rutas reenviadas, y solo la red
+  # interna (el futuro Prometheus) los alcanza.
+  server:
+    port: ${MANAGEMENT_PORT:9090}
   endpoints:
     web:
-      # Se sirve en /gateway-actuator para no chocar con rutas reenviadas. Solo health.
-      base-path: /gateway-actuator
       exposure:
-        include: health
+        include: health,prometheus

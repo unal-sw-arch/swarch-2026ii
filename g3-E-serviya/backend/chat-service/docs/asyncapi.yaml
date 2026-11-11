@@ -1,0 +1,439 @@
+asyncapi: 3.0.0
+info:
+  title: ServiYa chat-service — eventos y protocolo WebSocket
+  version: 1.0.0
+  description: |
+    Contrato asíncrono del chat (RNF-CHAT-21). El REST está en `openapi.json`.
+
+    - **WebSocket** `/api/chat/v1/ws?ticket=<ticket>`: una conexión por cliente que multiplexa todas sus
+      conversaciones. Frames JSON `{"type", "id"?, "payload"}`; `id` es opcional y el servidor lo devuelve en la
+      respuesta (`message.ack`, `sync.result`, `pong`, `error`) para correlacionar.
+      Cierres: `4401` ticket inválido/usado/vencido, `4403` usuario suspendido o eliminado, `1013` servicio de
+      tickets no disponible (reintentar), `1009` frame > 8 KB, `1001` la instancia se apaga (reconectar).
+      El servidor envía ping de protocolo cada 25 s.
+    - **RabbitMQ**: el chat consume eventos de Solicitudes y Usuarios y publica eventos `chat.*` y el comando
+      `notification.requested.v1`. Entrega al menos una vez: los consumidores deben ser idempotentes por `event_id`.
+      Todos los ids de ServiYa son enteros de 64 bits.
+
+servers:
+  gateway:
+    host: localhost:8080
+    protocol: ws
+    description: Siempre a través del API gateway (en producción, wss).
+  broker:
+    host: rabbitmq:5672
+    protocol: amqp
+    description: Vhost `/`. El chat conecta como el usuario `chat` (infra/rabbitmq/setup-topology.sh).
+
+channels:
+  chatSocket:
+    address: /api/chat/v1/ws
+    servers: [{ $ref: '#/servers/gateway' }]
+    bindings:
+      ws:
+        query:
+          type: object
+          required: [ticket]
+          properties:
+            ticket: { type: string, description: 'De POST /api/chat/v1/ws-tickets; un solo uso, ~30 s.' }
+    messages:
+      messageSend: { $ref: '#/components/messages/messageSend' }
+      conversationRead: { $ref: '#/components/messages/conversationRead' }
+      sync: { $ref: '#/components/messages/sync' }
+      ping: { $ref: '#/components/messages/ping' }
+      messageAck: { $ref: '#/components/messages/messageAck' }
+      messageNew: { $ref: '#/components/messages/messageNew' }
+      readUpdated: { $ref: '#/components/messages/readUpdated' }
+      conversationCreated: { $ref: '#/components/messages/conversationCreated' }
+      statusChanged: { $ref: '#/components/messages/statusChanged' }
+      syncResult: { $ref: '#/components/messages/syncResult' }
+      pong: { $ref: '#/components/messages/pong' }
+      error: { $ref: '#/components/messages/error' }
+
+  requestEvents:
+    address: serviya.requests
+    servers: [{ $ref: '#/servers/broker' }]
+    description: Exchange topic del módulo de Solicitudes. El chat lo lee con la cola `chat-service.requests` (binding `requests.service_request.*`, DLQ `chat-service.requests.dlq`); los tipos que no usa se confirman y se ignoran.
+    messages:
+      serviceRequestCreated: { $ref: '#/components/messages/serviceRequestCreated' }
+      serviceRequestStatusChanged: { $ref: '#/components/messages/serviceRequestStatusChanged' }
+  userEvents:
+    address: serviya.users
+    servers: [{ $ref: '#/servers/broker' }]
+    description: Exchange topic de Usuarios. Cola `chat-service.users` (binding `users.user.*`, DLQ `chat-service.users.dlq`).
+    messages:
+      userRegistered: { $ref: '#/components/messages/userRegistered' }
+      userUpdated: { $ref: '#/components/messages/userUpdated' }
+      userStatus: { $ref: '#/components/messages/userStatus' }
+  chatEvents:
+    address: serviya.chat
+    servers: [{ $ref: '#/servers/broker' }]
+    description: Eventos de dominio del chat para Métricas. Nunca llevan el contenido de los mensajes (DP-04).
+    messages:
+      chatConversationCreated: { $ref: '#/components/messages/chatConversationCreated' }
+      chatConversationReadOnly: { $ref: '#/components/messages/chatConversationReadOnly' }
+      chatMessageSent: { $ref: '#/components/messages/chatMessageSent' }
+  notificationCommands:
+    address: serviya.notifications
+    servers: [{ $ref: '#/servers/broker' }]
+    description: Contrato EXISTENTE de notifications-service (routing key `notification.requested.v1`). El chat compone el aviso; Notificaciones solo lo entrega (ADR-011).
+    messages:
+      notificationRequested: { $ref: '#/components/messages/notificationRequested' }
+
+operations:
+  sendFrames:
+    action: send
+    channel: { $ref: '#/channels/chatSocket' }
+    summary: Cliente → servidor.
+    messages:
+      - $ref: '#/channels/chatSocket/messages/messageSend'
+      - $ref: '#/channels/chatSocket/messages/conversationRead'
+      - $ref: '#/channels/chatSocket/messages/sync'
+      - $ref: '#/channels/chatSocket/messages/ping'
+  receiveFrames:
+    action: receive
+    channel: { $ref: '#/channels/chatSocket' }
+    summary: Servidor → cliente.
+    messages:
+      - $ref: '#/channels/chatSocket/messages/messageAck'
+      - $ref: '#/channels/chatSocket/messages/messageNew'
+      - $ref: '#/channels/chatSocket/messages/readUpdated'
+      - $ref: '#/channels/chatSocket/messages/conversationCreated'
+      - $ref: '#/channels/chatSocket/messages/statusChanged'
+      - $ref: '#/channels/chatSocket/messages/syncResult'
+      - $ref: '#/channels/chatSocket/messages/pong'
+      - $ref: '#/channels/chatSocket/messages/error'
+  consumeRequestEvents:
+    action: receive
+    channel: { $ref: '#/channels/requestEvents' }
+  consumeUserEvents:
+    action: receive
+    channel: { $ref: '#/channels/userEvents' }
+  publishChatEvents:
+    action: send
+    channel: { $ref: '#/channels/chatEvents' }
+  requestNotifications:
+    action: send
+    channel: { $ref: '#/channels/notificationCommands' }
+
+components:
+  schemas:
+    Id: { type: integer, format: int64 }
+    Frame:
+      type: object
+      required: [type, payload]
+      properties:
+        type: { type: string }
+        id: { type: string, description: 'Opcional, lo elige el cliente; se devuelve en la respuesta.' }
+        payload: { type: object }
+    Message:
+      type: object
+      properties:
+        conversation_id: { $ref: '#/components/schemas/Id' }
+        message_id: { $ref: '#/components/schemas/Id' }
+        seq: { type: integer, format: int64, description: 'Orden total y sin huecos dentro de la conversación.' }
+        sender_id: { $ref: '#/components/schemas/Id' }
+        kind: { type: string, enum: [TEXT, SYSTEM, ATTACHMENT] }
+        body: { type: string, description: 'Texto plano: renderizar SIEMPRE como texto, nunca como HTML.' }
+        flags: { type: array, items: { type: string, enum: [CONTACT_INFO] } }
+        created_at: { type: string, format: date-time }
+    Envelope:
+      type: object
+      required: [event_id, event_type, event_version, occurred_at, producer, data]
+      description: |
+        Sobre común acordado (decisiones-infraestructura-implementacion.md §4). `occurred_at` (UTC) es el instante real
+        del hecho; el chat lo usa para descartar eventos fuera de orden. Los consumidores ignoran campos desconocidos y
+        son idempotentes por `event_id` (que también va como `message_id` de RabbitMQ).
+      properties:
+        event_id: { type: string, format: uuid }
+        event_type: { type: string }
+        event_version: { type: integer, const: 1 }
+        occurred_at: { type: string, format: date-time }
+        producer: { type: string, examples: [serviya-monolith, chat-service] }
+        subject: { type: string, examples: ['service_request/123', 'user/45', 'conversation/9'] }
+        correlation_id: { type: string }
+        causation_id: { type: [string, 'null'], description: 'event_id del evento que provocó este, si lo hubo.' }
+        data: { type: object }
+
+  messages:
+    # ---------- WebSocket: cliente → servidor ----------
+    messageSend:
+      name: message.send
+      summary: 'Enviar un mensaje. Reintentar SIEMPRE con el mismo client_message_id: el servidor reconoce el reenvío.'
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Frame'
+          - properties:
+              payload:
+                type: object
+                required: [conversation_id, client_message_id, body]
+                properties:
+                  conversation_id: { $ref: '#/components/schemas/Id' }
+                  client_message_id: { type: string, maxLength: 36, description: 'UUID generado por el cliente.' }
+                  body: { type: string, maxLength: 2000 }
+    conversationRead:
+      name: conversation.read
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Frame'
+          - properties:
+              payload:
+                type: object
+                required: [conversation_id, seq]
+                properties:
+                  conversation_id: { $ref: '#/components/schemas/Id' }
+                  seq: { type: integer, format: int64 }
+    sync:
+      name: sync
+      summary: Tras reconectar, pedir lo que llegó después del último seq conocido de cada conversación.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Frame'
+          - properties:
+              payload:
+                type: object
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      type: object
+                      required: [conversation_id, last_seq]
+                      properties:
+                        conversation_id: { $ref: '#/components/schemas/Id' }
+                        last_seq: { type: integer, format: int64 }
+    ping:
+      name: ping
+      payload: { $ref: '#/components/schemas/Frame' }
+
+    # ---------- WebSocket: servidor → cliente ----------
+    messageAck:
+      name: message.ack
+      summary: Solo se envía DESPUÉS de que el mensaje quedó guardado. `warnings` puede traer CONTACT_INFO (aviso, no error).
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Frame'
+          - properties:
+              payload:
+                type: object
+                properties:
+                  client_message_id: { type: string }
+                  conversation_id: { $ref: '#/components/schemas/Id' }
+                  message_id: { $ref: '#/components/schemas/Id' }
+                  seq: { type: integer, format: int64 }
+                  created_at: { type: string, format: date-time }
+                  warnings: { type: array, items: { type: string, enum: [CONTACT_INFO] } }
+                  duplicate: { type: boolean, description: 'true si era un reenvío ya guardado.' }
+    messageNew:
+      name: message.new
+      summary: Mensaje nuevo. Lo reciben el otro participante y las OTRAS sesiones del emisor (deduplicar por message_id).
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Frame'
+          - properties:
+              payload: { $ref: '#/components/schemas/Message' }
+    readUpdated:
+      name: conversation.read_updated
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Frame'
+          - properties:
+              payload:
+                type: object
+                properties:
+                  conversation_id: { $ref: '#/components/schemas/Id' }
+                  user_id: { $ref: '#/components/schemas/Id' }
+                  seq: { type: integer, format: int64 }
+    conversationCreated:
+      name: conversation.created
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Frame'
+          - properties:
+              payload:
+                type: object
+                properties:
+                  conversation_id: { $ref: '#/components/schemas/Id' }
+                  type: { type: string, enum: [REQUEST, DIRECT, SUPPORT] }
+                  context_id: { $ref: '#/components/schemas/Id' }
+                  status: { type: string, enum: [ACTIVE, READ_ONLY, RESOLVED] }
+                  context_status: { type: string }
+                  participant_ids: { type: array, items: { $ref: '#/components/schemas/Id' } }
+    statusChanged:
+      name: conversation.status_changed
+      summary: Cambió el estado de la solicitud asociada; con READ_ONLY el cliente deshabilita la escritura.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Frame'
+          - properties:
+              payload:
+                type: object
+                properties:
+                  conversation_id: { $ref: '#/components/schemas/Id' }
+                  status: { type: string, enum: [ACTIVE, READ_ONLY, RESOLVED] }
+                  context_status: { type: string }
+    syncResult:
+      name: sync.result
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Frame'
+          - properties:
+              payload:
+                type: object
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        conversation_id: { $ref: '#/components/schemas/Id' }
+                        messages: { type: array, items: { $ref: '#/components/schemas/Message' } }
+                        has_more: { type: boolean, description: 'Hay más de 200: seguir con REST after_seq.' }
+    pong:
+      name: pong
+      payload: { $ref: '#/components/schemas/Frame' }
+    error:
+      name: error
+      summary: 'Error de una operación; la conexión sigue abierta. Códigos: CHAT_NOT_PARTICIPANT, CHAT_CONVERSATION_NOT_FOUND, CHAT_CONVERSATION_READ_ONLY, CHAT_USER_SUSPENDED, CHAT_RATE_LIMITED, CHAT_MESSAGE_EMPTY, CHAT_MESSAGE_TOO_LONG, CHAT_INVALID_CLIENT_MESSAGE_ID, CHAT_BAD_FRAME, CHAT_UNKNOWN_TYPE, CHAT_INTERNAL_ERROR.'
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Frame'
+          - properties:
+              payload:
+                type: object
+                properties:
+                  code: { type: string }
+                  message: { type: string }
+                  ref_id: { type: string, description: 'id del frame que lo causó.' }
+
+    # ---------- RabbitMQ: consumidos ----------
+    serviceRequestCreated:
+      name: requests.service_request.created
+      summary: Abre la conversación de la solicitud (DP-01). Lo publica el monolito por su outbox (`ChatEventPublisher`).
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - properties:
+              data:
+                type: object
+                required: [request_id, client_id, offerer_id, status]
+                properties:
+                  request_id: { $ref: '#/components/schemas/Id' }
+                  client_id: { $ref: '#/components/schemas/Id' }
+                  offerer_id: { $ref: '#/components/schemas/Id' }
+                  service_id: { $ref: '#/components/schemas/Id' }
+                  status: { type: string }
+    serviceRequestStatusChanged:
+      name: requests.service_request.status_changed
+      summary: 'Publicar en CADA transición. Terminales (pasan a solo lectura): REJECTED, CANCELLED, COMPLETED, RESCHEDULED, NOT_PROVIDED.'
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - properties:
+              data:
+                type: object
+                required: [request_id, status]
+                properties:
+                  request_id: { $ref: '#/components/schemas/Id' }
+                  previous_status: { type: string }
+                  status: { type: string }
+                  changed_by: { $ref: '#/components/schemas/Id' }
+    userRegistered:
+      name: users.user.registered
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - properties:
+              data:
+                type: object
+                required: [user_id, display_name]
+                properties:
+                  user_id: { $ref: '#/components/schemas/Id' }
+                  display_name: { type: string }
+                  avatar_url: { type: string }
+    userUpdated:
+      name: users.user.updated
+      summary: Solo los campos que cambiaron. `avatar_url` vacío borra el avatar.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - properties:
+              data:
+                type: object
+                required: [user_id]
+                properties:
+                  user_id: { $ref: '#/components/schemas/Id' }
+                  display_name: { type: string }
+                  avatar_url: { type: string }
+    userStatus:
+      name: users.user.suspended | users.user.reactivated | users.user.deleted
+      summary: Suspendido no puede enviar (RF-CHAT-30); eliminado se anonimiza y no vuelve.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - properties:
+              data:
+                type: object
+                required: [user_id]
+                properties:
+                  user_id: { $ref: '#/components/schemas/Id' }
+
+    # ---------- RabbitMQ: publicados ----------
+    chatConversationCreated:
+      name: chat.conversation.created
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - properties:
+              data:
+                type: object
+                properties:
+                  conversation_id: { $ref: '#/components/schemas/Id' }
+                  type: { type: string }
+                  context_id: { $ref: '#/components/schemas/Id' }
+                  participant_ids: { type: array, items: { $ref: '#/components/schemas/Id' } }
+    chatConversationReadOnly:
+      name: chat.conversation.read_only
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - properties:
+              data:
+                type: object
+                properties:
+                  conversation_id: { $ref: '#/components/schemas/Id' }
+                  reason: { type: string, examples: [REQUEST_CANCELLED] }
+    chatMessageSent:
+      name: chat.message.sent
+      summary: Para Métricas. SIN contenido ni vista previa (DP-04).
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - properties:
+              data:
+                type: object
+                properties:
+                  conversation_id: { $ref: '#/components/schemas/Id' }
+                  message_id: { $ref: '#/components/schemas/Id' }
+                  seq: { type: integer, format: int64 }
+                  sender_id: { $ref: '#/components/schemas/Id' }
+                  recipient_ids: { type: array, items: { $ref: '#/components/schemas/Id' } }
+                  recipient_online: { type: boolean }
+                  flags: { type: array, items: { type: string, enum: [CONTACT_INFO] } }
+    notificationRequested:
+      name: notification.requested.v1
+      summary: Formato v1 existente (camelCase, NO usa el sobre común). El chat no envía `sealed`.
+      payload:
+        type: object
+        required: [schemaVersion, eventId, occurredAt, userId, type, title, message, channels]
+        properties:
+          schemaVersion: { type: integer, const: 1 }
+          eventId: { type: string, format: uuid }
+          occurredAt: { type: string, format: date-time }
+          userId: { $ref: '#/components/schemas/Id' }
+          type: { type: string, const: chat_message }
+          title: { type: string, examples: ['Nuevo mensaje'] }
+          message: { type: string, examples: ['Tienes un mensaje nuevo de Ana Cliente'] }
+          entityType: { type: string, const: CONVERSATION }
+          entityId: { $ref: '#/components/schemas/Id' }
+          channels: { type: array, items: { type: string, enum: [INTERNAL] } }
+          sealed: { type: 'null' }

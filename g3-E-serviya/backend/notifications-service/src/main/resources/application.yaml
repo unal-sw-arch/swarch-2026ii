@@ -54,6 +54,12 @@ spring:
           multiplier: 2
           max-interval: 10s
 
+logging:
+  # Correlation-id (X-Request-Id) en cada línea de log (T6.4): CorrelationIdMdcFilter lo pone en el MDC y
+  # aquí se inyecta en el patrón, tras el nivel, para seguir una petición de punta a punta por el mismo id.
+  pattern:
+    level: "%5p [%X{requestId:-}]"
+
 server:
   port: ${SERVER_PORT:8082}
   error:
@@ -62,10 +68,14 @@ server:
   forward-headers-strategy: native
 
 management:
+  # Puerto de gestión SEPARADO y NO publicado al host (como el monolito): /prometheus solo es alcanzable
+  # por la red interna (donde un futuro Prometheus lo scrapea), nunca por el borde público.
+  server:
+    port: ${MANAGEMENT_PORT:9090}
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,prometheus
   endpoint:
     health:
       show-details: never
@@ -78,8 +88,14 @@ management:
 
 serviya:
   security:
-    # Mismo JWT_SECRET que el monolito (solo se VERIFICA). Sin default: fail-fast si falta o es débil.
-    jwt-secret: ${JWT_SECRET:}
+    # Resource server ES256 (Fase 4): verifica los access tokens leyendo el JWKS del emisor (monolito) por
+    # la red interna. Carga perezosa ⇒ arranca aunque el JWKS no esté todavía. Ya NO usa JWT_SECRET (HS256).
+    jwt:
+      jwks-uri: ${JWT_JWKS_URI:http://localhost:8079/.well-known/jwks.json}
+      issuer: ${JWT_ISSUER:https://auth.serviya.local}
+      audience: ${JWT_AUDIENCE:marketplace-api}
+      clock-skew: ${JWT_CLOCK_SKEW:60s}
+      typ: ${JWT_TYP:at+jwt}
     # Clave PROPIA del servicio para el correo del destinatario en reposo (no la del monolito).
     encryption-key: ${ENCRYPTION_KEY:}
   messaging:

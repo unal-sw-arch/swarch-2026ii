@@ -12,11 +12,28 @@ services:
     environment:
       MONOLITH_URI: http://backend:8080
       NOTIFICATIONS_SERVICE_URI: http://notifications-service:8082
+      CHAT_SERVICE_URI: ${CHAT_SERVICE_URI:-http://chat-service:8000}
+      CHAT_WS_URI: ${CHAT_WS_URI:-ws://chat-service:8000}
       # Mismos orígenes que tenía el CORS del monolito (incluida la IP de red local y el túnel ngrok).
       GATEWAY_CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081,http://127.0.0.1:8081,http://192.168.1.2:8081,https://nonfervently-expiational-amani.ngrok-free.dev}
+      # Validacion del access token ES256 (Fase 3): el JWKS lo sirve el monolito en la red interna.
+      JWT_JWKS_URI: ${JWT_JWKS_URI:-http://backend:8080/.well-known/jwks.json}
+      JWT_ISSUER: ${JWT_ISSUER:-https://auth.serviya.local}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-marketplace-api}
+      JWT_CLOCK_SKEW: ${JWT_CLOCK_SKEW:-60s}
+      # redis-coord para min_iat (Fase 2B/3) + techo global de rate limiting (T3.9). Usuario ACL propio
+      # svc-gateway-coord (solo lee min_iat y opera las claves rl:*). Tolera redis caido (fail-open).
+      REDIS_COORD_HOST: ${REDIS_COORD_HOST:-redis-coord}
+      REDIS_COORD_PORT: ${REDIS_COORD_PORT:-6379}
+      REDIS_COORD_USER: svc-gateway-coord
+      REDIS_COORD_PASSWORD: ${REDIS_SVC_GATEWAY_COORD_PASSWORD:-}
     depends_on:
       - backend
       - notifications-service
+      - chat-service
+    networks:
+      - default
+      - redis-net
 
   # ---------------------------------------------------------------------------------------------------
   # Monolito (identity, catálogo, solicitudes, feedback, métricas, reportes, admin). Ya NO se publica al
@@ -36,8 +53,20 @@ services:
       DB_URL: ${DB_URL}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS}
+      # Claves ES256 para firmar/verificar access tokens + publicar el JWKS (Fase 1 centralizacion de auth).
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      JWT_KEY_ID: ${JWT_KEY_ID:-serviya-dev-1}
+      JWT_ISSUER: ${JWT_ISSUER:-https://auth.serviya.local}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-marketplace-api}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      # Refresh token rotativo (Fase 2A) + revocacion min_iat (Fase 2B). En prod (https) poner
+      # JWT_REFRESH_COOKIE_SECURE=true; en dev http se queda false para que la cookie viaje.
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-30d}
+      JWT_REFRESH_GRACE: ${JWT_REFRESH_GRACE:-15s}
+      JWT_REFRESH_COOKIE_SECURE: ${JWT_REFRESH_COOKIE_SECURE:-false}
+      JWT_REFRESH_COOKIE_SAME_SITE: ${JWT_REFRESH_COOKIE_SAME_SITE:-Strict}
+      JWT_REVOCATION_CLOCK_SKEW: ${JWT_REVOCATION_CLOCK_SKEW:-60s}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       # Bus hacia notifications-service. Si RabbitMQ cae, el negocio sigue: las notificaciones esperan en
       # la tabla notification_outbox y el relay las publica al volver (por eso no hay depends_on).
@@ -96,8 +125,12 @@ services:
       NOTIFICATIONS_DB_URL: jdbc:mysql://notifications-mysql:3306/serviya_notifications?useUnicode=true&connectionCollation=utf8mb4_unicode_ci&serverTimezone=UTC
       NOTIFICATIONS_DB_USER: ${NOTIFICATIONS_DB_USER:-notifications}
       NOTIFICATIONS_DB_PASSWORD: ${NOTIFICATIONS_DB_PASSWORD}
-      # Mismo secreto que el monolito: el servicio solo VERIFICA los JWT que emite identity.
-      JWT_SECRET: ${JWT_SECRET}
+      # Resource server ES256 (Fase 4): verifica los JWT del emisor leyendo su JWKS por la red interna.
+      # Ya NO usa JWT_SECRET (HS256).
+      JWT_JWKS_URI: ${JWT_JWKS_URI:-http://backend:8080/.well-known/jwks.json}
+      JWT_ISSUER: ${JWT_ISSUER:-https://auth.serviya.local}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-marketplace-api}
+      JWT_CLOCK_SKEW: ${JWT_CLOCK_SKEW:-60s}
       # Clave PROPIA del servicio para el correo del destinatario en reposo (distinta de la del monolito).
       ENCRYPTION_KEY: ${NOTIFICATIONS_ENCRYPTION_KEY}
       NOTIFICATIONS_PAYLOAD_KEY: ${NOTIFICATIONS_PAYLOAD_KEY}
@@ -147,6 +180,88 @@ services:
       interval: 3s
 
   # ---------------------------------------------------------------------------------------------------
+  # chat-service: microservicio greenfield (documents/microservicios/chat/). BD PROPIA (MySQL 8.4), Pub/Sub
+  # Redis PROPIO (chat-pubsub, sin persistencia), tickets WS y rate limiting en redis-coord (usuario
+  # svc-chat-coord, claves chat:*), eventos por RabbitMQ y JWT ES256 verificado por JWKS (sin secreto compartido).
+  # ---------------------------------------------------------------------------------------------------
+  chat-service:
+    build: ./backend/chat-service
+    container_name: serviya-chat
+    restart: on-failure
+    expose:
+      - "8000"
+    environment:
+      CHAT_PORT: "8000"
+      CHAT_DB_URL: jdbc:mysql://chat-mysql:3306/chat_db?useUnicode=true&connectionCollation=utf8mb4_unicode_ci&serverTimezone=UTC
+      CHAT_DB_USER: ${CHAT_DB_USER:-chat}
+      CHAT_DB_PASSWORD: ${CHAT_DB_PASSWORD}
+      # JWKS directo del monolito (emisor) por la red interna; el gateway no expone el JWKS (P3.3, privado).
+      JWT_JWKS_URL: ${JWT_JWKS_URL:-http://backend:8080/.well-known/jwks.json}
+      JWT_ISSUER: ${JWT_ISSUER:-https://auth.serviya.local}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-marketplace-api}
+      ALLOWED_WS_ORIGINS: ${ALLOWED_WS_ORIGINS:-http://localhost:5173,http://localhost:8081}
+      # Usuario RabbitMQ propio `chat` (infra/rabbitmq/setup-topology.sh), vhost "/".
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: chat
+      RABBITMQ_PASSWORD: ${CHAT_RABBITMQ_PASSWORD}
+      # redis-coord (instancia A) con el usuario ACL `chat` (solo claves chat:*).
+      REDIS_COORD_HOST: ${REDIS_COORD_HOST:-redis-coord}
+      REDIS_COORD_PORT: ${REDIS_COORD_PORT:-6379}
+      CHAT_REDIS_COORD_USER: chat
+      CHAT_REDIS_COORD_PASSWORD: ${REDIS_CHAT_PASSWORD:-}
+      CHAT_PUBSUB_HOST: chat-pubsub
+      CHAT_PUBSUB_PORT: "6379"
+    # Solo para desarrollo: permite que JWT_JWKS_URL apunte al emisor de prueba del host
+    # (backend/chat-service/dev/dev_auth.py serve) con http://host.docker.internal:9400/.well-known/jwks.json.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      chat-mysql:
+        condition: service_healthy
+      chat-pubsub:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - default
+      - redis-net
+
+  chat-mysql:
+    image: mysql:8.4
+    container_name: serviya-chat-mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${CHAT_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: chat_db
+      MYSQL_USER: ${CHAT_DB_USER:-chat}
+      MYSQL_PASSWORD: ${CHAT_DB_PASSWORD}
+    ports:
+      - "3309:3306"
+    volumes:
+      # El esquema lo crea Flyway al arrancar el servicio (backend/chat-service/src/main/resources/db/migration).
+      - chat_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+      interval: 3s
+
+  # Instancia C del chat (guía §5.5): solo difusión Pub/Sub entre instancias. Efímera por diseño: sin
+  # persistencia, memoria acotada y desconexión de suscriptores lentos (se recuperan con sync). Sin puertos al host.
+  chat-pubsub:
+    image: redis:7-alpine
+    container_name: serviya-chat-pubsub
+    command: >
+      redis-server --save "" --appendonly no
+      --maxmemory 256mb
+      --client-output-buffer-limit pubsub 32mb 8mb 60
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ---------------------------------------------------------------------------------------------------
   # Bus de eventos (ESTADO §7.5). 5672 solo en la red interna; consola de administración en :15672.
   # ---------------------------------------------------------------------------------------------------
   rabbitmq:
@@ -169,6 +284,66 @@ services:
       interval: 5s
       start_period: 20s
 
+  # ---------------------------------------------------------------------------------------------------
+  # MinIO: almacenamiento de objetos para adjuntos del chat (fase 3). Perfil opcional:
+  #   docker compose --profile minio up -d minio minio-init
+  # El bucket se crea privado y el usuario chat solo puede operar sobre él.
+  # ---------------------------------------------------------------------------------------------------
+  minio:
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
+    container_name: serviya-minio
+    profiles: ["minio"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BROWSER_REDIRECT_URL: ${MINIO_BROWSER_REDIRECT_URL:-http://localhost:9001}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - redis-net
+      - default
+    restart: on-failure
+
+  minio-init:
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
+    container_name: serviya-minio-init
+    profiles: ["minio"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_CHAT_ACCESS_KEY: ${MINIO_CHAT_ACCESS_KEY}
+      MINIO_CHAT_SECRET_KEY: ${MINIO_CHAT_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-chat-attachments}
+    volumes:
+      - ./infra/minio/cors.xml:/config/cors.xml:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until mc alias set local "http://minio:9000" "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do sleep 1; done
+        mc mb --ignore-existing "local/$$MINIO_BUCKET"
+        mc anonymous set none "local/$$MINIO_BUCKET"
+        mc cors set "local/$$MINIO_BUCKET" /config/cors.xml
+        mc admin user add local "$$MINIO_CHAT_ACCESS_KEY" "$$MINIO_CHAT_SECRET_KEY" || true
+        printf '%s' "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"s3:GetObject\",\"s3:PutObject\",\"s3:DeleteObject\"],\"Resource\":[\"arn:aws:s3:::$$MINIO_BUCKET/*\"]},{\"Effect\":\"Allow\",\"Action\":[\"s3:ListBucket\"],\"Resource\":[\"arn:aws:s3:::$$MINIO_BUCKET\"]}]}" > /tmp/chat-policy.json
+        mc admin policy create local chat-attachments-rw /tmp/chat-policy.json || true
+        mc admin policy attach local chat-attachments-rw --user "$$MINIO_CHAT_ACCESS_KEY" || true
+        echo "MinIO listo: bucket $$MINIO_BUCKET privado, usuario chat con politica chat-attachments-rw"
+    networks:
+      - redis-net
+    restart: "no"
+
   frontend:
     build:
       context: ./frontend/serviya
@@ -183,7 +358,9 @@ services:
 volumes:
   mysql_data:
   notifications_mysql_data:
+  chat_mysql_data:
   rabbitmq_data:
+  minio_data:
 
 networks:
   # Red compartida con infra/redis/docker-compose.redis.yml. Declarada aquí también para que el compose

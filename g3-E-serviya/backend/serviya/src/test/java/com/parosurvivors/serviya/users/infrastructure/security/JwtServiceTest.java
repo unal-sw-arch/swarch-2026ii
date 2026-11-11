@@ -1,55 +1,56 @@
 package com.parosurvivors.serviya.users.infrastructure.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.parosurvivors.serviya.users.application.dto.result.IssuedToken;
 import com.parosurvivors.serviya.users.domain.RoleName;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.JwsHeader;
+import io.jsonwebtoken.Jwts;
 import java.util.List;
-import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.core.Authentication;
 
 /**
- * El JWT (RF-001/RF-002) se firma con JWT_SECRET y valida los roles. No debe existir un
- * secreto por defecto: si JWT_SECRET falta o viene vacia, el arranque falla (fail-fast, B6).
+ * El access token (RF-001/RF-002) se firma con ES256 (clave privada) y lleva los claims del contrato §4.1
+ * (Fase 1). Desde la Fase 4 {@link JwtService} es solo emisor; la verificación la hace el resource server
+ * estándar (ver {@code SecurityConfig}), por eso aquí solo se prueba la emisión. El fail-fast de las claves
+ * vive en {@link JwtKeysTest}.
  */
 class JwtServiceTest {
 
-    private static final String SECRET = "test-jwt-secret-0123456789abcdef0123456789abcdef";
+    private JwtKeys keys;
+    private JwtService service;
+
+    @BeforeEach
+    void setUp() {
+        JwtProperties props = JwtTestSupport.properties();
+        keys = new JwtKeys(props);
+        service = new JwtService(keys, props);
+    }
 
     @Test
-    void issuesAndResolvesTokenRoundTrip() {
-        JwtService service = new JwtService(SECRET, 3600000L);
-
+    @SuppressWarnings("unchecked")
+    void issuedTokenCarriesContractClaims() {
         IssuedToken issued = service.issue(42L, List.of(RoleName.CLIENT, RoleName.OFFERER));
 
-        Optional<Authentication> resolved = service.resolve(issued.token());
-        assertThat(resolved).isPresent();
-        assertThat(resolved.get().getPrincipal()).isEqualTo(42L);
-        assertThat(resolved.get().getAuthorities())
-                .extracting("authority")
-                .containsExactly("ROLE_CLIENT", "ROLE_OFFERER");
-    }
+        Jws<Claims> jws = Jwts.parser()
+                .verifyWith(keys.publicKey())
+                .build()
+                .parseSignedClaims(issued.token());
+        JwsHeader header = jws.getHeader();
+        Claims claims = jws.getPayload();
 
-    @Test
-    void rejectsInvalidToken() {
-        JwtService service = new JwtService(SECRET, 3600000L);
-
-        assertThat(service.resolve("not-a-jwt")).isEmpty();
-    }
-
-    @Test
-    void failsFastWhenSecretMissing() {
-        assertThatThrownBy(() -> new JwtService("", 3600000L))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("JWT_SECRET");
-    }
-
-    @Test
-    void failsFastWhenSecretBlank() {
-        assertThatThrownBy(() -> new JwtService("   ", 3600000L))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("JWT_SECRET");
+        assertThat(header.getAlgorithm()).isEqualTo("ES256");
+        assertThat(header.getKeyId()).isEqualTo(JwtTestSupport.KEY_ID);
+        assertThat(header.getType()).isEqualTo("at+jwt");
+        assertThat(claims.getIssuer()).isEqualTo(JwtTestSupport.ISSUER);
+        assertThat(claims.getAudience()).contains(JwtTestSupport.AUDIENCE);
+        assertThat(claims.getSubject()).isEqualTo("42");
+        assertThat(claims.getId()).isNotBlank(); // jti
+        assertThat(claims.getIssuedAt()).isNotNull();
+        assertThat(claims.getExpiration()).isAfter(claims.getIssuedAt());
+        assertThat((List<String>) claims.get("roles", List.class)).containsExactly("CLIENT", "OFFERER");
     }
 }

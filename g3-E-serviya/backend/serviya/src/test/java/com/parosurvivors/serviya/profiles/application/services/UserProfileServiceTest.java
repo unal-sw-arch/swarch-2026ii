@@ -10,6 +10,7 @@ import com.parosurvivors.serviya.profiles.application.ports.output.AddressPersis
 import com.parosurvivors.serviya.profiles.application.ports.output.UserProfilePersistencePort;
 import com.parosurvivors.serviya.profiles.domain.ProfileType;
 import com.parosurvivors.serviya.profiles.domain.UserProfile;
+import com.parosurvivors.serviya.shared.events.application.ChatEventPublisher;
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
 import com.parosurvivors.serviya.shared.textfilter.application.ports.output.WordFilterPort;
 import java.util.Optional;
@@ -28,6 +29,7 @@ class UserProfileServiceTest {
     @Mock UserProfilePersistencePort userProfilePersistencePort;
     @Mock AddressPersistencePort addressPersistencePort;
     @Mock WordFilterPort wordFilterPort;
+    @Mock ChatEventPublisher chatEventPublisher;
 
     @InjectMocks UserProfileService service;
 

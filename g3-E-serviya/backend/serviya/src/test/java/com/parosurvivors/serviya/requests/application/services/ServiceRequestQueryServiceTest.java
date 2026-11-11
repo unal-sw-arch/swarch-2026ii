@@ -7,10 +7,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.parosurvivors.serviya.profiles.application.ports.output.AddressPersistencePort;
-import com.parosurvivors.serviya.profiles.application.ports.output.UserProfilePersistencePort;
-import com.parosurvivors.serviya.profiles.domain.Address;
-import com.parosurvivors.serviya.profiles.domain.UserProfile;
+import com.parosurvivors.serviya.profiles.api.ProfileQueryApi;
+import com.parosurvivors.serviya.profiles.api.dto.AddressSnapshot;
+import com.parosurvivors.serviya.profiles.api.dto.ProfileSnapshot;
 import com.parosurvivors.serviya.requests.application.dto.item.RequestHistoryItem;
 import com.parosurvivors.serviya.requests.application.dto.item.ServiceRequestSummaryItem;
 import com.parosurvivors.serviya.requests.application.dto.query.SearchServiceRequestsQuery;
@@ -19,12 +18,11 @@ import com.parosurvivors.serviya.requests.application.dto.result.ServiceRequestD
 import com.parosurvivors.serviya.requests.application.ports.output.ServiceRequestReadPort;
 import com.parosurvivors.serviya.requests.domain.RequestStatus;
 import com.parosurvivors.serviya.requests.domain.ServiceRequest;
-import com.parosurvivors.serviya.services.application.ports.output.CategoryPersistencePort;
-import com.parosurvivors.serviya.services.application.ports.output.ServicePersistencePort;
-import com.parosurvivors.serviya.services.domain.Category;
-import com.parosurvivors.serviya.services.domain.Service;
+import com.parosurvivors.serviya.services.api.ServiceQueryApi;
+import com.parosurvivors.serviya.services.api.dto.CategorySnapshot;
+import com.parosurvivors.serviya.services.api.dto.ServiceSnapshot;
 import com.parosurvivors.serviya.shared.exceptions.ResourceNotFoundException;
-import com.parosurvivors.serviya.shared.exceptions.UnauthorizedException;
+import com.parosurvivors.serviya.shared.exceptions.ForbiddenException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -44,10 +42,8 @@ import org.springframework.data.domain.Pageable;
 class ServiceRequestQueryServiceTest {
 
     @Mock ServiceRequestReadPort serviceRequestReadPort;
-    @Mock ServicePersistencePort servicePersistencePort;
-    @Mock CategoryPersistencePort categoryPersistencePort;
-    @Mock UserProfilePersistencePort userProfilePersistencePort;
-    @Mock AddressPersistencePort addressPersistencePort;
+    @Mock ServiceQueryApi serviceQueryApi;
+    @Mock ProfileQueryApi profileQueryApi;
 
     @InjectMocks ServiceRequestQueryService service;
 
@@ -97,11 +93,11 @@ class ServiceRequestQueryServiceTest {
     void getRequestDetailForParty_returnsDetail_whenClientViewsOwnRequest() {
         ServiceRequest request = pendingRequest();
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
-        when(servicePersistencePort.findById(SERVICE_ID)).thenReturn(Optional.of(domainService()));
-        when(categoryPersistencePort.findById(1L)).thenReturn(Optional.of(category()));
-        when(userProfilePersistencePort.findByUserId(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
-        when(userProfilePersistencePort.findByUserId(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
-        when(addressPersistencePort.findById(ADDRESS_ID)).thenReturn(Optional.of(address()));
+        when(serviceQueryApi.findById(SERVICE_ID)).thenReturn(Optional.of(domainService()));
+        when(serviceQueryApi.findCategory(1L)).thenReturn(Optional.of(category()));
+        when(profileQueryApi.findProfile(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
+        when(profileQueryApi.findProfile(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
+        when(profileQueryApi.findAddress(ADDRESS_ID)).thenReturn(Optional.of(address()));
 
         ServiceRequestDetailResult result = service.getRequestDetailForParty(REQUEST_ID, CLIENT_ID);
 
@@ -117,10 +113,10 @@ class ServiceRequestQueryServiceTest {
     void getRequestDetailForParty_returnsCounterparty_whenOffererViews() {
         ServiceRequest request = pendingRequest();
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
-        when(servicePersistencePort.findById(SERVICE_ID)).thenReturn(Optional.of(domainService()));
-        when(userProfilePersistencePort.findByUserId(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
-        when(userProfilePersistencePort.findByUserId(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
-        when(addressPersistencePort.findById(ADDRESS_ID)).thenReturn(Optional.of(address()));
+        when(serviceQueryApi.findById(SERVICE_ID)).thenReturn(Optional.of(domainService()));
+        when(profileQueryApi.findProfile(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
+        when(profileQueryApi.findProfile(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
+        when(profileQueryApi.findAddress(ADDRESS_ID)).thenReturn(Optional.of(address()));
 
         ServiceRequestDetailResult result = service.getRequestDetailForParty(REQUEST_ID, OFFERER_ID);
 
@@ -134,7 +130,7 @@ class ServiceRequestQueryServiceTest {
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
 
         assertThatThrownBy(() -> service.getRequestDetailForParty(REQUEST_ID, 999L))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
     }
 
     @Test
@@ -149,7 +145,7 @@ class ServiceRequestQueryServiceTest {
     void getRequestDetailForParty_handlesMissingService() {
         ServiceRequest request = pendingRequest();
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
-        when(servicePersistencePort.findById(SERVICE_ID)).thenReturn(Optional.empty());
+        when(serviceQueryApi.findById(SERVICE_ID)).thenReturn(Optional.empty());
 
         ServiceRequestDetailResult result = service.getRequestDetailForParty(REQUEST_ID, CLIENT_ID);
 
@@ -165,11 +161,11 @@ class ServiceRequestQueryServiceTest {
     void getRequestDetailForAdmin_returnsBothParties() {
         ServiceRequest request = pendingRequest();
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
-        when(servicePersistencePort.findById(SERVICE_ID)).thenReturn(Optional.of(domainService()));
-        when(categoryPersistencePort.findById(1L)).thenReturn(Optional.of(category()));
-        when(userProfilePersistencePort.findByUserId(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
-        when(userProfilePersistencePort.findByUserId(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
-        when(addressPersistencePort.findById(ADDRESS_ID)).thenReturn(Optional.of(address()));
+        when(serviceQueryApi.findById(SERVICE_ID)).thenReturn(Optional.of(domainService()));
+        when(serviceQueryApi.findCategory(1L)).thenReturn(Optional.of(category()));
+        when(profileQueryApi.findProfile(CLIENT_ID)).thenReturn(Optional.of(clientProfile()));
+        when(profileQueryApi.findProfile(OFFERER_ID)).thenReturn(Optional.of(offererProfile()));
+        when(profileQueryApi.findAddress(ADDRESS_ID)).thenReturn(Optional.of(address()));
 
         AdminRequestDetailResult result = service.getRequestDetailForAdmin(REQUEST_ID);
 
@@ -244,7 +240,7 @@ class ServiceRequestQueryServiceTest {
         when(serviceRequestReadPort.findById(REQUEST_ID)).thenReturn(Optional.of(request));
 
         assertThatThrownBy(() -> service.getRequestHistory(REQUEST_ID, 999L, false))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(ForbiddenException.class);
     }
 
     @Test
@@ -286,43 +282,44 @@ class ServiceRequestQueryServiceTest {
                 .build();
     }
 
-    private Service domainService() {
-        return Service.builder()
-                .id(SERVICE_ID)
-                .title("Plomeria")
-                .categoryId(1L)
-                .priceHourly(new BigDecimal("25.00"))
-                .averageDurationMinutes(120)
-                .build();
+    private ServiceSnapshot domainService() {
+        return new ServiceSnapshot(
+                SERVICE_ID,
+                OFFERER_ID,
+                "Plomeria",
+                null,
+                List.of(),
+                new BigDecimal("25.00"),
+                1L,
+                120,
+                true,
+                null,
+                null,
+                null,
+                null);
     }
 
-    private Category category() {
-        return Category.builder().id(1L).name("Hogar").build();
+    private CategorySnapshot category() {
+        return new CategorySnapshot(1L, "Hogar");
     }
 
-    private UserProfile clientProfile() {
-        return UserProfile.builder()
-                .userId(CLIENT_ID)
-                .fullName("Juan Perez")
-                .profilePhotoUrl("photo_juan.jpg")
-                .build();
+    private ProfileSnapshot clientProfile() {
+        return profile(CLIENT_ID, "Juan Perez", "photo_juan.jpg");
     }
 
-    private UserProfile offererProfile() {
-        return UserProfile.builder()
-                .userId(OFFERER_ID)
-                .fullName("Maria Garcia")
-                .profilePhotoUrl("photo_maria.jpg")
-                .build();
+    private ProfileSnapshot offererProfile() {
+        return profile(OFFERER_ID, "Maria Garcia", "photo_maria.jpg");
     }
 
-    private Address address() {
-        return Address.builder()
-                .id(ADDRESS_ID)
-                .addressLine("Calle 123")
-                .city("Medellin")
-                .latitude(new BigDecimal("-75.5700"))
-                .longitude(new BigDecimal("6.2442"))
-                .build();
+    private ProfileSnapshot profile(Long userId, String fullName, String photoUrl) {
+        return new ProfileSnapshot(
+                null, userId, fullName, null, null, null,
+                null, photoUrl, null, null, null);
+    }
+
+    private AddressSnapshot address() {
+        return new AddressSnapshot(
+                ADDRESS_ID, CLIENT_ID, "Calle 123", "Medellin",
+                new BigDecimal("-75.5700"), new BigDecimal("6.2442"), null);
     }
 }
