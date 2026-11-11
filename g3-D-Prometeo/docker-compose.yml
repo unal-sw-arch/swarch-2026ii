@@ -1,9 +1,16 @@
 # Stack contenerizado: backend (Cloudflare Worker emulado) + builds web de los
-# clientes Flutter servidos por nginx.
+# clientes Flutter servidos por nginx + MongoDB y su gateway de datos.
 #
 #   backend          -> wrangler dev (D1 + Durable Object emulados)   :8787
 #   web-operational  -> build web del cliente operativo (nginx)       :8080
 #   web-admin        -> build web del cliente administrativo (nginx)  :8081
+#   mongo            -> MongoDB (dueño de las métricas de ventas)      :27017
+#   metrics-gateway  -> gateway HTTP <-> Mongo para el Worker          :8788
+#
+# Por qué el gateway: los Cloudflare Workers no abren TCP crudo, así que el
+# Worker no puede usar el driver de Mongo directamente. Le habla por HTTP al
+# metrics-gateway, que sí usa el driver. El gateway es acceso a datos puro, no
+# un backend paralelo. Ver services/metrics_gateway/README.md.
 #
 # Uso:
 #   docker compose up --build
@@ -33,6 +40,9 @@ services:
     environment:
       # Fuerza color/UX razonable de wrangler en contenedor no interactivo.
       WRANGLER_SEND_METRICS: "false"
+      # URL interna del gateway de métricas (red de docker-compose). El Worker
+      # la lee para enviar/consultar las métricas de ventas en Mongo.
+      METRICS_GATEWAY_URL: http://metrics-gateway:8788
     volumes:
       # Código fuente para hot-reload. node_modules queda como volumen anónimo
       # para no pisar las dependencias instaladas en la imagen con las del host.
@@ -49,6 +59,34 @@ services:
       - 0.0.0.0
       - --port
       - "8787"
+      - --var
+      - "METRICS_GATEWAY_URL:http://metrics-gateway:8788"
+    depends_on:
+      - metrics-gateway
+
+  mongo:
+    image: mongo:7
+    container_name: restauranteapp-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      # Persistencia de las métricas entre reinicios del contenedor.
+      - mongo-data:/data/db
+
+  metrics-gateway:
+    build:
+      context: ./services/metrics_gateway
+      dockerfile: Dockerfile
+    image: restauranteapp-metrics-gateway:dev
+    container_name: restauranteapp-metrics-gateway
+    ports:
+      - "8788:8788"
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      MONGO_DB: restauranteapp_metrics
+      PORT: "8788"
+    depends_on:
+      - mongo
 
   web-operational:
     build:
@@ -81,3 +119,4 @@ services:
 
 volumes:
   wrangler-state:
+  mongo-data:

@@ -1,17 +1,17 @@
 import { Hono } from 'hono';
 import { canAccessHall, requireSession } from '../auth/session';
 import { readHallOrders, readOrder, tableLabel } from './repository';
-import { billedOrderMetricStatements, statusMetricChange,
+import { billedOrderMetricOperations, statusMetricChange,
   statusMetricTransition } from '../admin/sales_metrics';
 import { splitChargeSubtotal } from './split_payments';
 import { generatedId, jsonObject, positiveId, rows } from '../../shared/http';
 import type { CloudEnvironment } from '../../types';
 import { parseOrderInput } from './validation';
 import {
-  accessibleHall, activeOrder, activeOrderAt, activity, bogotaBusinessDay,
-  buildReplacement, hasPendingItems, itemStatements, keepsDelivered, modification,
-  parseSplitAccounts, paymentMethods, refreshOrderTotal, tableTarget,
-  targetStatusStatements,
+  accessibleHall, activeOrder, activeOrderAt, activity, applyMetrics,
+  bogotaBusinessDay, buildReplacement, hasPendingItems, itemStatements,
+  keepsDelivered, modification, parseSplitAccounts, paymentMethods,
+  refreshOrderTotal, tableTarget, targetStatusStatements,
 } from './helpers';
 
 const routes = new Hono<CloudEnvironment>();
@@ -162,8 +162,8 @@ routes.post('/halls/:hallId/tables/:tableId/orders', async (c) => {
     ...targetStatusStatements(c.env.DB, tableId, target.groupId, 'waiting'),
     activity(c.env.DB, session.user.id, hallId, 'Pedido',
       `Creó un pedido en la mesa ${label}`, now),
-    statusMetricChange(c.env.DB, hallId, 'waiting', 1),
   ]);
+  await applyMetrics(c, [statusMetricChange(hallId, 'waiting', 1)]);
   return c.json({ order: await readOrder(c.env.DB, orderId) }, 201);
 });
 
@@ -193,8 +193,8 @@ routes.post('/halls/:hallId/external-orders', async (c) => {
       JSON.stringify(input), now),
     activity(c.env.DB, session.user.id, hallId, 'Pedido',
       `Creó el pedido externo ${externalName}`, now),
-    statusMetricChange(c.env.DB, hallId, 'waiting', 1),
   ]);
+  await applyMetrics(c, [statusMetricChange(hallId, 'waiting', 1)]);
   return c.json({ order: await readOrder(c.env.DB, orderId) }, 201);
 });
 
@@ -229,8 +229,8 @@ routes.put('/halls/:hallId/orders/:orderId', async (c) => {
         c.env.DB, current.tableId, current.tableGroupId, 'available')),
       activity(c.env.DB, session.user.id, hallId, 'Pedido',
         `Eliminó el pedido pendiente de ${label}`, now),
-      statusMetricChange(c.env.DB, hallId, current.status, -1),
     ]);
+    await applyMetrics(c, [statusMetricChange(hallId, current.status, -1)]);
     return c.json({ deleted: true });
   }
   const replacement = buildReplacement(c.env.DB, orderId, oldOrder.items, input.items, now);
@@ -252,8 +252,8 @@ routes.put('/halls/:hallId/orders/:orderId', async (c) => {
       JSON.stringify(oldOrder), JSON.stringify(input), now),
     activity(c.env.DB, session.user.id, hallId, 'Pedido',
       `Modificó el pedido de ${label}`, now),
-    ...statusMetricTransition(c.env.DB, hallId, current.status, nextStatus),
   ]);
+  await applyMetrics(c, statusMetricTransition(hallId, current.status, nextStatus));
   return c.json({ order: await readOrder(c.env.DB, orderId) });
 });
 
@@ -326,7 +326,7 @@ routes.patch('/halls/:hallId/orders/:orderId/status', async (c) => {
   const label = await tableLabel(c.env.DB, current.tableId, current.tableGroupId,
     current.externalName);
   const salesMetrics = status === 'closed'
-    ? await billedOrderMetricStatements(c.env.DB, orderId, hallId, new Date(now))
+    ? await billedOrderMetricOperations(c.env.DB, orderId, hallId, new Date(now))
     : [];
   const fullPaymentId = status === 'closed' ? generatedId() : null;
   await c.env.DB.batch([
@@ -338,8 +338,6 @@ routes.patch('/halls/:hallId/orders/:orderId/status', async (c) => {
     modification(c.env.DB, orderId, null, session.user.id, 'status', current.status, status, now),
     activity(c.env.DB, session.user.id, hallId, 'Mesa', status === 'closed'
       ? `Facturó ${label}` : `Marcó ${label} como comiendo`, now),
-    ...statusMetricTransition(c.env.DB, hallId, current.status, status),
-    ...salesMetrics,
     ...(fullPaymentId === null ? [] : [
       c.env.DB.prepare(
         `DELETE FROM order_split_accounts
@@ -358,6 +356,10 @@ routes.patch('/halls/:hallId/orders/:orderId/status', async (c) => {
          SELECT ?, id, quantity * 2 FROM order_items WHERE order_id = ?`,
       ).bind(fullPaymentId, orderId),
     ]),
+  ]);
+  await applyMetrics(c, [
+    ...statusMetricTransition(hallId, current.status, status),
+    ...salesMetrics,
   ]);
   return c.json({ order: await readOrder(c.env.DB, orderId) });
 });
@@ -502,7 +504,7 @@ routes.post('/halls/:hallId/orders/:orderId/split/:accountId/pay', async (c) => 
   const now = new Date().toISOString();
   const session = c.get('session');
   const salesMetrics = closesOrder
-    ? await billedOrderMetricStatements(c.env.DB, orderId, hallId, new Date(now)) : [];
+    ? await billedOrderMetricOperations(c.env.DB, orderId, hallId, new Date(now)) : [];
   const otherMethods = closesOrder ? await rows<{ method: string }>(c.env.DB.prepare(
     `SELECT DISTINCT payment_method AS method FROM order_split_accounts
      WHERE order_id = ? AND status = 'paid' AND payment_method IS NOT NULL`,
@@ -526,8 +528,6 @@ routes.post('/halls/:hallId/orders/:orderId/split/:accountId/pay', async (c) => 
       ).bind(allMethods.size === 1 ? paymentMethod : null, now, orderId),
       ...(current.tableId === null ? [] : targetStatusStatements(
         c.env.DB, current.tableId, current.tableGroupId, 'available')),
-      ...statusMetricTransition(c.env.DB, hallId, current.status, 'closed'),
-      ...salesMetrics,
     ] : []),
     modification(c.env.DB, orderId, null, session.user.id, 'split_payment',
       null, JSON.stringify({ accountId, paymentMethod, subtotal, tipValue }), now),
@@ -536,6 +536,12 @@ routes.post('/halls/:hallId/orders/:orderId/split/:accountId/pay', async (c) => 
         current.tableId, current.tableGroupId, current.externalName)}`
       : `Registró un pago separado`, now),
   ]);
+  if (closesOrder) {
+    await applyMetrics(c, [
+      ...statusMetricTransition(hallId, current.status, 'closed'),
+      ...salesMetrics,
+    ]);
+  }
   return c.json({ order: await readOrder(c.env.DB, orderId) });
 });
 
@@ -598,8 +604,8 @@ routes.patch('/halls/:hallId/orders/:orderId/deliver-all', async (c) => {
       order.status, 'eating', now),
     activity(c.env.DB, session.user.id, hallId, 'Pedido',
       `Entregó todos los productos de ${label}`, now),
-    ...statusMetricTransition(c.env.DB, hallId, order.status, 'eating'),
   ]);
+  await applyMetrics(c, statusMetricTransition(hallId, order.status, 'eating'));
   return c.json({ order: await readOrder(c.env.DB, orderId) });
 });
 
@@ -667,8 +673,8 @@ async function changeDelivery(c: Parameters<typeof accessibleHall>[0], deliver: 
     activity(c.env.DB, session.user.id, hallId, 'Pedido', deliver
       ? `${nextStatus === 'eating' ? 'Entregó el último producto' : 'Entregó un producto'} de ${label}`
       : `Deshizo una entrega de ${label}`, now),
-    ...statusMetricTransition(c.env.DB, hallId, item.orderStatus, nextStatus),
   ]);
+  await applyMetrics(c, statusMetricTransition(hallId, item.orderStatus, nextStatus));
   return c.json({ order: await readOrder(c.env.DB, orderId) });
 }
 
