@@ -42,6 +42,13 @@ function requireAuth(req, res, next) {
   }
 }
 
+// Public reads: anonymous callers pass through, but a token that is sent
+// must be valid so the response can be personalized.
+function optionalAuth(req, res, next) {
+  if (!req.headers.authorization) return next();
+  return requireAuth(req, res, next);
+}
+
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 // PUBLIC ROUTE: /auth/** goes to the Auth Service
@@ -69,6 +76,31 @@ app.use(
 
       return path.replace(/^\/api\/videos/, "/videos");
     },
+  }),
+);
+
+// Anonymous catalog is allowed; a supplied token must be valid. Client identity
+// headers were stripped above, so only a verified token selects a profile.
+app.use("/api/recommendations", (req, res, next) => {
+  if (req.headers.authorization) return requireAuth(req, res, next);
+  next();
+});
+app.use(createProxyMiddleware({
+  target: process.env.RECOMMENDATION_URL || "http://recommendation-service:8088",
+  pathFilter: "/api/recommendations",
+  changeOrigin: true,
+}));
+
+// INTERACTIONS: likes, views and comments. Reads are public; writes need a token.
+app.use("/api/interactions", (req, res, next) =>
+  req.method === "GET" ? optionalAuth(req, res, next) : requireAuth(req, res, next),
+);
+app.use(
+  createProxyMiddleware({
+    target: process.env.INTERACTIONS_URL,
+    pathFilter: "/api/interactions",
+    changeOrigin: true,
+    pathRewrite: { "^/api/interactions": "" },
   }),
 );
 

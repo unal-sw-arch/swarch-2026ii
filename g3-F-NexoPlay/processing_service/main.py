@@ -15,10 +15,11 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from shared.services.database import engine
 from processing_service.services.upload_raw import UploadRawService
-from processing_service.auth import authenticated_user
+from shared.services.auth import authenticated_user
 from processing_service.services.delete_video import DeleteVideoService, VideoUploadInProgressError
 from shared.services.video_metadata_service import VideoMetadataService
 from shared.services.processing_jobs import ProcessingJobService
+from shared.dto.video_metadata import VideoMetadata
 
 
 @asynccontextmanager
@@ -29,6 +30,7 @@ async def lifespan(_: FastAPI):
         yield
     finally:
         upload_raw_service.blob_storage.close()
+        upload_raw_service.embeddings.close()
         engine.dispose()
 
 
@@ -88,7 +90,26 @@ def delete_video(
         raise HTTPException(503, "Video storage is temporarily unavailable. Please retry deletion.") from error
     except SQLAlchemyError as error:
         raise HTTPException(503, "Video metadata storage is temporarily unavailable. Please retry deletion.") from error
+    upload_raw_service.notify_embeddings(video_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.put("/videos/{video_id}/metadata")
+def update_video_metadata(
+    video_id: UUID,
+    metadata: VideoMetadata,
+    user_id: Annotated[UUID, Depends(authenticated_user)],
+) -> dict:
+    try:
+        result = VideoMetadataService.update_metadata(video_id, user_id, metadata)
+    except PermissionError as error:
+        raise HTTPException(403, str(error)) from error
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except SQLAlchemyError as error:
+        raise HTTPException(503, "Video metadata storage is temporarily unavailable.") from error
+    upload_raw_service.notify_embeddings(video_id)
+    return result
 
 
 def load_video(video_id: UUID) -> dict:

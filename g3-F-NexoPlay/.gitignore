@@ -6,3 +6,4 @@ __pycache__/
 artifacts/
 tests
 node_modules/
+mock_videos/

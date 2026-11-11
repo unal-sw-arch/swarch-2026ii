@@ -1,258 +1,208 @@
-<div align="center">
+# 3. Delivery
 
-<img src="media/nexoplay-logo.svg" alt="NexoPlay logo" width="72" height="72">
+## 3.1. Artifact
 
-# NexoPlay
 
-### Simple Streaming Service · MVP1
+### Team
 
-Upload a video. Process it asynchronously. Play it through HLS.
+**Grupo F - Nexo play**
 
-![Stage](https://img.shields.io/badge/Stage-MVP1-22c55e?style=flat-square)
-![Architecture](https://img.shields.io/badge/Architecture-Microservices-6366f1?style=flat-square)
-![Streaming](https://img.shields.io/badge/Streaming-HLS-a855f7?style=flat-square)
-![Docker Compose](https://img.shields.io/badge/Runtime-Docker_Compose-2496ed?style=flat-square&logo=docker&logoColor=white)
+#### Full names of the team members
 
-[Overview](#overview) · [Prototype requirements](#prototype-1-requirements) · [Architecture](#architecture) · [Local deployment](#local-deployment) · [API reference](#api-reference) · [Team](#team)
-
-**Universidad Nacional de Colombia, Bogotá**<br>
-Software Architecture · 2026-II · Group F
-
-</div>
-
----
-
-## Overview
-
-NexoPlay is a distributed video streaming platform built as an academic software architecture project. Users can register, upload videos with descriptive metadata, follow their processing status, browse the catalog, and watch content through HTTP Live Streaming (HLS).
-
-The project explores how services coordinate authentication, media ingestion, asynchronous processing, persistence, and content delivery. HTTP APIs handle interactive requests, RabbitMQ distributes encoding jobs, PostgreSQL stores relational data, and MinIO stores video files.
-
-This repository contains the first delivery stage, **MVP1**. The project specification also defines an **MVP2** focused on user interactions and personalized recommendations, described in the [roadmap](#roadmap).
-
-The first delivery is a **vertical prototype**: a working path from the web interface through backend services and persistent storage, ending in video playback. Its objective is to demonstrate the initial architectural design through a locally deployable system.
-
-## Features
-
-| Capability | Current behavior |
+| Integrante | Frente de referencia |
 | --- | --- |
-| Authentication | Email and password registration/login, JWT sessions, and optional Google OAuth 2.0 login. |
-| Video uploads | Authenticated uploads of `.mp4`, `.avi`, and `.mov` files with a title, description, and category. |
-| Asynchronous processing | RabbitMQ jobs consumed by FFmpeg workers, with durable job records, retries, and worker leases. |
-| Adaptive streaming | H.264/AAC HLS renditions in 1080p, 720p, and 480p when the source resolution allows them. |
-| Processing status | Upload progress followed by `PENDING`, `PROCESSING`, `COMPLETED`, or `FAILED` status. |
-| Public catalog | Cursor pagination, thumbnails, video details, and title filtering within the current catalog page. |
-| Playback | Browser playback with hls.js, relative HLS playlists, and streamed media segments. |
-| Video deletion | Only the video's owner can delete it, after confirmation; files and related database records are removed. |
+| Cristian Steven Motta Ojeda | Interactions Service e Interaction Worker |
+| Juan Jose Martin | Integración y despliegue, en coordinación con el equipo |
+| Camilo Andrés Medina Sánchez | Embeddings API y perfiles vectoriales |
+| Nicolas Andrés Bolaños Fernandez | Recommendation Service y personalización |
 
-Only successfully processed videos appear as playable catalog entries. Lower-resolution uploads use a source-sized rendition rather than being upscaled. Videos without an audio track remain playable without audio.
+### Software System
 
-## Architecture
+#### Name
 
-The platform combines **microservices**, **client-server communication**, and **an asynchronous processing pipeline**. Authentication and video management go through the API Gateway. The browser requests catalog and HLS resources directly from the Streaming Service.
+**NexoPlay**
 
-### Architectural styles
+#### Logo
 
-| Style | Application in NexoPlay |
+![Logo de NexoPlay](media/nexoplay-logo.svg)
+
+#### Description
+
+NexoPlay es una plataforma académica de video bajo demanda desarrollada para Arquitectura de Software, Universidad Nacional de Colombia, Bogotá, 2026-II. Integra registro e inicio de sesión, carga y administración de videos, procesamiento asíncrono, reproducción HLS, interacciones y recomendaciones basadas en perfiles vectoriales.
+
+El alcance de MVP1 cubre publicación y reproducción. La ampliación de MVP2 incorpora likes, comentarios, eventos de reproducción, embeddings de metadatos y personalización.
+
+El producto permite publicar contenido y recuperarlo para reproducción, y añade una ruta de descubrimiento basada en intereses del usuario. La personalización se apoya en metadatos e interacciones; no analiza imágenes o audio ni existe una medición de satisfacción de usuarios reales.
+
+**Alcance de la entrega**
+
+- Acceso de usuarios y administración de videos propios.
+- Procesamiento asíncrono, catálogo, miniaturas y reproducción HLS.
+- Reproducciones registradas al comenzar, likes, retiros y comentarios.
+- Vectores de videos y perfiles normalizados, con pesos iniciales 1/3/2.
+- Actualización tras diez eventos nuevos desde la última confirmación, sobre el historial agregado completo.
+- Recomendaciones y respaldo al catálogo general, con interfaz «For you».
+
+### Architectural Structures
+
+#### Component-and Connector (C&C) Structure
+
+##### C&C View
+
+![C&C View actualizada de NexoPlay](media/cyc.jpeg)
+
+##### Description of architectural elements and relations
+
+| Componente | Responsabilidad y relación |
 | --- | --- |
-| Microservices | Authentication, video processing, and streaming have distinct responsibilities and separate deployable containers. Processing and streaming share the video metadata store. |
-| Client-server | The browser initiates HTTP requests; backend APIs return authentication results, metadata, catalog entries, or media resources. |
-| Event-driven processing | The RabbitMQ broker queues encoding jobs for asynchronous consumption by encoder workers. Encoding runs independently of the upload request. |
+| Frontend (`frontend`) | Presenta acceso, carga, catálogo, reproductor e interacciones. Consulta el API Gateway y recibe HLS directamente de Streaming. |
+| API Gateway (`api-gateway`) | Verifica la identidad y dirige solicitudes HTTP a Auth, Processing, Interactions y Recommendation. |
+| Auth Service (`auth-service`) | Gestiona registro e inicio de sesión, conserva cuentas en Users DB y se integra con Google cuando se habilita OAuth. |
+| Processing Service (`processing-service`) | Guarda metadatos en Metadata DB y originales en Videos DB. Registra trabajos de transcodificación y envía una copia de los metadatos a Embeddings. |
+| Job Dispatcher (`job-dispatcher`) | Recupera trabajos pendientes de Metadata DB, los publica en el canal de transcodificación y recupera trabajos cuyo plazo de ejecución venció. |
+| Encoder Worker (`encoder-worker`) | Consume trabajos de transcodificación, genera HLS y miniaturas con FFmpeg, guarda archivos en Videos DB y actualiza el estado en Metadata DB. |
+| Embeddings Dispatcher (`embeddings-dispatcher`) | Recupera de Metadata DB las notificaciones pendientes y reintenta su entrega HTTP a Embeddings. |
+| Streaming Service (`streaming-service`) | Consulta Metadata DB para servir el catálogo, recupera HLS y miniaturas de Videos DB y utiliza Streaming Cache para las listas de reproducción. |
+| Interactions Service (`interactions-service`) | Recibe reproducciones, likes y comentarios, valida el video en Metadata DB y publica eventos en Interaction Broker. Consulta Interactions DB para mostrar likes y comentarios. |
+| Interaction Worker (`interaction-worker`) | Consume eventos, los conserva en Interactions DB y envía a Embeddings el resumen acumulado del usuario al completar diez eventos nuevos desde la última actualización confirmada. |
+| Embeddings API (`embeddings-service`) | Genera vectores de videos y perfiles de usuarios, los guarda en Qdrant y conserva estado de recuperación en diarios SQLite locales. Recibe metadatos de Processing y resúmenes del Interaction Worker. |
+| Recommendation Service (`recommendation-service`) | Consulta los vectores de usuario y video en Qdrant, verifica disponibilidad en Metadata DB y devuelve recomendaciones ordenadas al Gateway. |
+| Transcoding Broker | Canal de RabbitMQ que entrega trabajos al Encoder Worker. Comparte el servidor `transcoding-broker` con el canal de interacciones. |
+| Interaction Broker | Canal de RabbitMQ que entrega eventos de Interactions Service al Interaction Worker, mediante exchanges y colas separados del flujo de transcodificación. |
+| Metadata DB (`metadataba-db`) | PostgreSQL para metadatos, estados de procesamiento, trabajos y notificaciones pendientes de embeddings. Lo utilizan Processing, dispatchers, Encoder, Streaming, Interactions y Recommendation. |
+| Users DB (`users-db`) | PostgreSQL para cuentas y credenciales, utilizado por Auth Service. |
+| Videos DB (`videos-db`) | MinIO para originales, segmentos HLS y miniaturas. Processing y Encoder escriben objetos; Streaming los recupera para entregarlos al navegador. |
+| Streaming Cache (`redis`) | Conserva listas de reproducción en caché para reducir lecturas repetidas desde Streaming. |
+| Interactions DB (`interactions-db`) | MongoDB para eventos, likes, comentarios y estado de actualización de perfiles. El Worker persiste la actividad y el servicio de interacciones consulta sus resultados. |
+| Metadata Embeddings DB (`video_embeddings`) | Colección de Qdrant que asocia cada UUID de video con su vector y datos adicionales. Embeddings la actualiza y Recommendation la consulta. |
+| User Embeddings DB (`user_embeddings`) | Colección de Qdrant con los perfiles vectoriales de usuarios. Embeddings la actualiza y Recommendation la consulta; comparte la instancia `qdrant` y el endpoint REST con `video_embeddings`. |
+| Google Identity | Proveedor externo de identidad que se comunica con Auth Service mediante OAuth 2.0 cuando se habilita el acceso con Google. |
 
-### Component-and-Connector view
 
-![Components and connectors diagram](./media/diagrama_cyc_mvp1.jpeg)
 
-### Components
+##### Description of architectural styles and patterns used
 
-| Component | Technology | Responsibility | Default host access |
-| --- | --- | --- | --- |
-| Frontend | React, Vite, Tailwind CSS, hls.js; served by Nginx | Authentication UI, catalog, uploads, playback, and deletion. | `8080` |
-| API Gateway | Node.js, Express | Validate JWTs and route authentication and video management requests. | `6767` |
-| Auth Service | Node.js, Express, bcrypt, JWT | Account registration, password login, and Google login. | Through the gateway; internal `8081` |
-| Processing Service | Python, FastAPI, SQLAlchemy, Boto3, Pika | Validate uploads, persist metadata/jobs, publish pending jobs to the broker through its outbox process, recover expired worker leases, expose processing status, and enforce owner-only deletion. | `8086` |
-| Transcoding broker | RabbitMQ | Queue encoding work and failed-job notifications. | AMQP `5672`; management UI `15672` |
-| Encoder workers | Python, FFmpeg, ffprobe | Inspect media, generate HLS renditions and thumbnails, and persist results. | Internal health endpoint `8091` |
-| Streaming Service | Node.js, Express | Serve the catalog, metadata, thumbnails, playlists, and segments. | `8082` |
-| Metadata database | PostgreSQL 16 | Video metadata, jobs, renditions, and HLS package records. | `5433`; internal `5432` |
-| Users database | PostgreSQL 16 | Accounts, password hashes, providers, and roles. | `5434`; internal `5432` |
-| Video storage | MinIO, S3-compatible API | Original uploads, HLS packages, and thumbnails. | S3 `9000`; console `9001` |
-| Streaming cache | Redis 7 | Cache HLS playlists. | `6379` |
+- **Microservicios:** responsabilidades diferenciadas y contenedores por servicio.
+- **Cliente-servidor y Gateway:** la interfaz solicita operaciones a los servicios mediante entradas definidas.
+- **Procesamiento por eventos:** el trabajo de videos e interacciones se desacopla mediante colas.
 
-Video existence and status are checked against PostgreSQL for streaming requests, so deleted videos cannot remain accessible through cached playlists. The current Compose setup runs one Streaming Service instance; encoder workers can be [scaled independently](#scaling-workers).
+Estas decisiones soportan la operación prevista; su aceptación conjunta sigue requiriendo una demostración.
 
-### Connectors and relations
+#### Deployment Structure
 
-| From | To | Connector | Responsibility |
-| --- | --- | --- | --- |
-| Frontend | API Gateway | HTTP/REST, JSON and multipart form data | Account access, uploads, owner status queries, and deletion. |
-| API Gateway | Auth and Processing services | HTTP/REST | Forward requests and establish authenticated identity for protected video operations. |
-| Frontend | Streaming Service | HTTP/HLS and HTTP metadata requests | Browse the catalog and retrieve playlists, segments, and thumbnails. |
-| Auth Service | Google Identity | HTTPS, OAuth 2.0 | Exchange the authorization code and retrieve the verified user profile. |
-| Auth, Processing, workers, and Streaming | Their PostgreSQL databases | PostgreSQL connections and SQL | Persist and query accounts, metadata, jobs, and processing results. |
-| Processing, workers, and Streaming | MinIO | S3-compatible API over HTTP | Store originals and outputs, retrieve media, and delete video objects. |
-| Processing Service and encoder workers | Transcoding broker / RabbitMQ | AMQP | Publish confirmed jobs, deliver work, and acknowledge consumed messages. |
-| Streaming Service | Redis | TCP, Redis protocol | Read and write cached HLS playlists. |
+##### Deployment View
 
-The gateway handles authenticated control operations, while streaming requests go directly to the delivery service. The broker distributes expensive encoding work across workers, and persistent job records allow publication and processing to resume after temporary failures.
+![Deployment View propuesta de NexoPlay](media/deployment.jpeg)
 
-## Local deployment
+##### Description of architectural elements and relations
 
-### Prerequisites
+La propuesta sitúa el sistema en una máquina local con Docker y organiza presentación, aplicaciones/Workers y datos. La implementación define 19 servicios y ocho volúmenes persistentes. El navegador accede a la interfaz, Gateway y Streaming; los demás componentes colaboran por la red local de contenedores.
 
-- Docker with the Compose plugin.
-- On Windows, Docker Desktop configured for Linux containers.
-- Network access to image registries and package repositories for the initial build.
+##### Description of architectural patterns used
 
-Docker supplies the Node.js/Python runtimes, FFmpeg, databases, broker, and cache.
+- Contenedores para reproducir el entorno de desarrollo.
+- Volúmenes para conservar datos y tareas después de reinicios.
+- Un host local como alcance de demostración.
+- Réplicas estáticas de Workers como mecanismo de ampliación, sin prometer autoscaling ni alta disponibilidad.
 
-### 1. Configure the environment
 
-From the repository root, create `.env` using the supplied template. In PowerShell:
+#### Layered Structure
+
+##### Layered View
+
+![Layered View propuesta de NexoPlay](media/layered.jpeg)
+
+##### Description of architectural elements and relations
+
+| Capa | Responsabilidad |
+| --- | --- |
+| L1 — Presentation | Experiencia del usuario |
+| L2 — Orchestration | Entrada y enrutamiento de solicitudes |
+| L3 — Business Logic | Funciones de acceso, videos, interacciones y personalización |
+| L4 — Async communication | Transporte de tareas y eventos |
+| L5 — Async Logic | Ejecución de trabajo en segundo plano |
+| L6 — Data | Datos originales, eventos, caché, objetos y vectores |
+
+Google aparece como proveedor externo. El acceso directo del navegador a Streaming y la llamada del Worker a Embeddings están permitidos.
+
+##### Description of architectural patterns used
+
+El sistema organiza las responsabilidades en capas que colaboran mediante servicios y eventos. Los componentes pueden comunicarse directamente con otras capas cuando el diseño lo permite, sin recorrer todas las intermedias. Esta organización delimita la función de cada parte; la aceptación de sus funcionalidades requiere comprobar su comportamiento mediante pruebas.
+
+#### Decomposition Structure
+
+##### Decomposition View
+
+![Decomposition View propuesta de NexoPlay](media/decomposition.jpeg)
+
+##### Description of architectural elements and relations
+
+| Subsistema | Aporte a la entrega |
+| --- | --- |
+| UI | Carga, catálogo, reproductor e interacción visible |
+| Identity and Access | Cuentas, JWT y acceso Google opcional |
+| Video Management | Ingesta, transformación, catálogo y entrega |
+| Interaction Management | Recibir, persistir y consultar actividad |
+| Recommendation | Generar representaciones, perfilar y recuperar similitud |
+| Infrastructure | Datos, caché, mensajería y entrada de solicitudes |
+
+Los seis subsistemas tienen correspondencia identificable en el repositorio. Un subsistema funcional puede repartirse entre servicios; el dibujo no exige una carpeta o contenedor por cada caja.
+
+### Prototype
+
+#### Instructions for deploying the software system locally
+
+**Preparación del operador**
+
+1. Usar la versión integrada acordada con el equipo.
+2. Disponer de Docker Desktop con contenedores Linux, Python 3.13 o superior, conexión a Internet y puertos libres.
+3. Completar el entorno privado desde `.env.example`, conservando las credenciales fuera del repositorio.
+4. Descargar el modelo seleccionado antes de iniciar los contenedores, siguiendo las instrucciones siguientes.
+5. Construir y levantar los servicios una vez terminada la descarga.
+
+**Preparar el entorno**
+
+Ejecutar desde la raíz del repositorio en PowerShell. Si se crea `.env`, completar sus valores antes de levantar los servicios.
 
 ```powershell
-Copy-Item .env.example .env
+if (-not (Test-Path -LiteralPath .env)) {
+    Copy-Item -LiteralPath .env.example -Destination .env
+}
 ```
 
-On Linux/macOS, use `cp .env.example .env`.
+**Descargar el modelo de Hugging Face**
 
-Edit `.env` to set the PostgreSQL, users database, MinIO, and RabbitMQ credentials and a long random `JWT_SECRET`. The relevant groups are `POSTGRES_*`, `USERS_DB_*`, `MINIO_*`, and `RABBITMQ_*`. Keep the file local; it is excluded from Git. Compose supplies the internal service hostnames.
+La carpeta `artifacts/` está excluida de Git: clonar el repositorio no descarga los pesos del modelo. Cada máquina debe prepararlos antes del primer arranque. El Dockerfile instala las bibliotecas, pero la API carga el modelo localmente y no lo descarga al iniciar.
 
-Google sign-in is optional. To enable it, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` and configure the OAuth client's redirect URI as `http://localhost:6767/auth/google/callback`, using your configured gateway port if different. Email/password authentication works independently of this provider.
+Los siguientes comandos utilizan el Python disponible e instalan las dependencias necesarias para ejecutar el preparador.
 
-### 2. Deploy locally
+```powershell
+python -m pip install -r embeddings_service/requirements.txt "huggingface-hub==1.31.0"
 
-```bash
-docker compose up -d --build
-docker compose ps
+Remove-Item Env:HF_HUB_OFFLINE -ErrorAction SilentlyContinue
+Push-Location embeddings_service
+try {
+    python -m app.prepare_models --model selected --model-root ../artifacts/embeddings/models
+    if ($LASTEXITCODE -ne 0) {
+        throw "La descarga del modelo falló. Resolver el error antes de iniciar Docker."
+    }
+} finally {
+    Pop-Location
+}
 ```
 
-Wait for services with health checks to become healthy. The first build downloads images and dependencies.
+La preparación requiere acceso a Hugging Face y descarga la revisión fijada en [models.json](embeddings_service/models.json). La eliminación de `HF_HUB_OFFLINE` afecta únicamente a la sesión de PowerShell; el contenedor mantiene su configuración de carga sin conexión.
 
-| Local entry point | Default URL |
-| --- | --- |
-| Web application | [http://localhost:8080](http://localhost:8080) |
-| Processing API documentation | [http://localhost:8086/docs](http://localhost:8086/docs) |
-| MinIO console | [http://localhost:9001](http://localhost:9001) |
-| RabbitMQ management UI | [http://localhost:15672](http://localhost:15672) |
+Con la selección actual, el resultado queda en `artifacts/embeddings/models/minilm/`, incluido el marcador `nexoplay-revision.json`. Esperar el mensaje `Ready:` antes de continuar. Compose monta `artifacts/embeddings/models` en `/models` como solo lectura.
 
-Use the credentials from `.env` for the infrastructure consoles. Host ports can be configured through the variables in [`.env.example`](.env.example).
+Si se elimina esa carpeta, repetir la preparación antes de arrancar o reiniciar Embeddings. El comando descarga el modelo seleccionado; `--model all` prepara ambos candidatos. La preparación no recupera los reportes, respaldos ni otros archivos que se hayan borrado de `artifacts/`.
 
-## API reference
+**Construir y levantar los servicios**
 
-### Authentication and video management
+Desde la raíz del repositorio, con `.env` completo y el modelo descargado:
 
-Base URL: `http://localhost:6767`
-
-| Method | Endpoint | Access | Purpose |
-| --- | --- | --- | --- |
-| `POST` | `/auth/register` | Public | Register with `name`, `email`, and `password`; return a JWT. |
-| `POST` | `/auth/login` | Public | Sign in with `email` and `password`; return a JWT. |
-| `GET` | `/auth/google` | Public | Start the optional Google login flow. |
-| `POST` | `/api/videos` | Authenticated | Upload a video using multipart form data. |
-| `GET` | `/api/videos/{video_id}` | Owner | Retrieve metadata, processing state, attempts, errors, and output locations. |
-| `DELETE` | `/api/videos/{video_id}` | Owner | Delete the video and associated files/records; return `204`. |
-
-Send protected requests with `Authorization: Bearer <token>`. The gateway strips client-supplied identity headers before injecting the verified user identity. Deletion also verifies the JWT directly in the Processing Service and compares its subject with the stored `owner_id`.
-
-For deletion, missing/invalid credentials return `401`, another owner returns `403`, and a nonexistent video returns `404`. A still-incomplete upload returns `409`; a storage/database failure returns `503` and can be retried.
-
-### Catalog and playback
-
-Base URL: `http://localhost:8082` - these endpoints are public.
-
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| `GET` | `/videos?limit=20&cursor=...` | List completed videos, newest first, using cursor pagination. |
-| `GET` | `/videos/{video_id}` | Retrieve public video details and ownership information. |
-| `GET` | `/videos/{video_id}/availability` | Check whether the registered HLS master exists. |
-| `GET` | `/videos/{video_id}/thumbnail` | Retrieve the JPEG poster. |
-| `GET` | `/videos/{video_id}/hls/master.m3u8` | Retrieve the master playlist. |
-| `GET` | `/videos/{video_id}/hls/{resource_path}` | Retrieve a rendition playlist or `.ts` segment. |
-
-## Storage and persistence
-
-The default bucket is `streaming-videos`. Each video has an isolated UUID prefix:
-
-```text
-streaming-videos/
-└── videos/{video_id}/
-    ├── original/
-    │   └── source.mp4              # source.avi or source.mov for other inputs
-    ├── hls/
-    │   ├── master.m3u8
-    │   ├── 1080p/
-    │   │   ├── index.m3u8
-    │   │   └── segment_*.ts
-    │   ├── 720p/
-    │   │   ├── index.m3u8
-    │   │   └── segment_*.ts
-    │   └── 480p/
-    │       ├── index.m3u8
-    │       └── segment_*.ts
-    └── thumbnails/
-        └── poster.jpg
+```powershell
+docker compose config --quiet
+docker compose build
+docker compose up -d --no-build
 ```
-
-Rendition directories depend on the source resolution; smaller sources use `source/`. Intermediate MP4 renditions stay in worker temporary storage. HLS playlists use relative paths, with a default segment target of four seconds.
-
-PostgreSQL stores video records in `video_metadata` and processing details in `video_processing_jobs`, `video_variants`, and `video_hls_packages`. See the [metadata model](shared/services/video_metadata_service.py) and [job models](shared/services/processing_jobs.py) for the field definitions.
-
-Docker volumes persist PostgreSQL, MinIO, RabbitMQ, and Redis data across container restarts. Changing database or broker credentials in `.env` does not rewrite accounts already stored in an existing volume.
-
-## Development and operations
-
-### Repository layout
-
-```text
-.
-├── frontend/                 # React application and Nginx configuration
-├── api_gateway/              # JWT validation and HTTP routing
-├── auth_service/             # Authentication and users database initialization
-├── processing_service/       # Upload/status/delete API and broker integration
-│   └── migrations/           # Metadata schema reset for disposable environments
-├── encoder_worker/           # FFmpeg processing and worker health endpoint
-├── transcoding_broker/       # RabbitMQ image, configuration, and Debian fallback
-├── shared/                   # Python DTOs, models, database and storage clients
-├── compose.yaml              # Local multi-service deployment
-├── .env.example              # Environment template
-└── requirements-dev.txt      # Python development dependencies
-```
-
-### Scaling workers
-
-Set `TRANSCODING_WORKER_REPLICAS=3` in `.env`. Each worker handles one job at a time and exposes its health endpoint only inside Docker.
-
-| Setting | Default | Purpose |
-| --- | --- | --- |
-| `HLS_SEGMENT_SECONDS` | `4` | Target HLS segment duration. |
-| `TRANSCODE_MAX_ATTEMPTS` | `3` | Maximum attempts per processing job. |
-| `TRANSCODE_RETRY_SECONDS` | `15` | Base retry delay, increasing exponentially. |
-| `WORKER_LEASE_SECONDS` | `120` | Worker lease duration; renewed while active. |
-| `TRANSCODE_TIMEOUT_SECONDS` | `3600` | Timeout for an FFmpeg processing command. |
-| `FFMPEG_THREADS` | `2` | Threads per conversion. |
-| `PLAYLIST_TTL` | `600` | Redis playlist cache lifetime in seconds. |
-
-## Roadmap
-
-The project specification, *Prototype 1: Simple Streaming Service*, defines the following MVP2 objectives:
-
-- [ ] Record video views, likes, removed likes, and comments.
-- [ ] Persist interaction events asynchronously through a broker and workers.
-- [ ] Generate video embeddings from descriptive metadata and store them in a vector database.
-- [ ] Build weighted user preference profiles from interaction history.
-- [ ] Retrieve and display personalized recommendations, with refresh support.
-- [ ] Provide fallback recommendations for users with insufficient interaction history.
-
-These capabilities are planned for MVP2. The broader design also describes password recovery and load balancing for HTTP services; dedicated implementations of those components are future work.
-
-## Team
-
-Developed by **Group F** for **Software Architecture, 2026-II**, at **Universidad Nacional de Colombia, Bogotá**, Faculty of Engineering, Department of Systems and Industrial Engineering.
-
-| Team member | Contact |
-| --- | --- |
-| Cristian Steven Motta Ojeda  | [cmottato@unal.edu.co](mailto:cmottato@unal.edu.co)
-| Juan Jose Martin  | [jmartinv@unal.edu.co](mailto:jmartinv@unal.edu.co)
-| Camilo Andrés Medina Sánchez | [cmedinasa@unal.edu.co](mailto:cmedinasa@unal.edu.co) |
-| Nicolas Andrés Bolaños Fernandez | [nbolanosf@unal.edu.co](mailto:nbolanosf@unal.edu.co) |

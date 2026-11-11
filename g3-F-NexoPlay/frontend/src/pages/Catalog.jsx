@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../auth/useAuth";
+import useRecommendations from "../hooks/useRecommendations";
 import useCatalogPages from "../hooks/useCatalogPages";
 import { gradientFor } from "../utils/gradients";
 import VideoCard from "../components/VideoCard";
@@ -65,6 +67,7 @@ function Pagination({ page, hasPrevious, hasNext, onPrevious, onNext }) {
 }
 
 export default function Catalog() {
+  const { token } = useAuth();
   const {
     videos,
     loading,
@@ -77,6 +80,7 @@ export default function Catalog() {
     goPrevious,
     refreshAfterDelete,
   } = useCatalogPages();
+  const recommendations = useRecommendations(token, page === 1);
   const [query, setQuery] = useState("");
   const browseRef = useRef(null);
 
@@ -132,6 +136,43 @@ export default function Catalog() {
         <Hero video={videos[0]} />
       ) : (
         <div className="h-24" />
+      )}
+      {recommendations.mode === "PERSONALIZED" && recommendations.videos.length > 0 && (
+        <section className="mx-auto mt-8 w-full max-w-7xl px-4 sm:px-6">
+          <h2 className="mb-5 text-xl font-semibold">For you</h2>
+          <div className="grid gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {recommendations.videos.map((video) => (
+              <VideoCard key={video.id} video={video} />
+            ))}
+          </div>
+        </section>
+      )}
+      {recommendations.loading && (
+        <section
+          className="mx-auto mt-8 w-full max-w-7xl px-4 sm:px-6"
+          role="status"
+          aria-label="Loading your recommendations"
+        >
+          <h2 className="mb-5 text-xl font-semibold">For you</h2>
+          <div className="grid gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 4 }, (_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+        </section>
+      )}
+      {recommendations.error && (
+        <p className="mx-auto mt-8 w-full max-w-7xl px-4 text-sm text-zinc-400 sm:px-6" role="status">
+          Recommendations are temporarily unavailable. Browse the catalog below.
+          {" "}
+          <button
+            type="button"
+            className="text-brand-400 underline hover:text-brand-300"
+            onClick={recommendations.reload}
+          >
+            Retry
+          </button>
+        </p>
       )}
       <section
         ref={browseRef}

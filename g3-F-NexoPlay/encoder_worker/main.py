@@ -21,7 +21,7 @@ from shared.services.database import engine
 from shared.services.processing_jobs import LeaseLostError, ProcessingJobService
 from shared.services.rabbitmq import RabbitMQService
 from encoder_worker.services.transcoding import TranscodingService
-from encoder_worker.health import WorkerHealthServer
+from shared.services.health_server import WorkerHealthServer
 from shared.services.video_metadata_service import VideoMetadataService
 
 logger = logging.getLogger(__name__)

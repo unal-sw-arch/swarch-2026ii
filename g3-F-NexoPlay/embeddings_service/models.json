@@ -1,0 +1,20 @@
+{
+  "selected": "minilm",
+  "text_template_version": "video-text-v1",
+  "candidates": {
+    "minilm": {
+      "repository": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "revision": "e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
+      "dimension": 384,
+      "max_tokens": 128,
+      "prefix": ""
+    },
+    "e5-small": {
+      "repository": "intfloat/multilingual-e5-small",
+      "revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
+      "dimension": 384,
+      "max_tokens": 512,
+      "prefix": "query: "
+    }
+  }
+}
