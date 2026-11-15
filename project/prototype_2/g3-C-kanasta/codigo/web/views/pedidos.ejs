@@ -1,0 +1,16 @@
+<%- include("partials/header") %>
+
+<h1>Mis pedidos</h1>
+
+<% if (orders.length === 0) { %>
+  <div class="panel">
+    <p>Todavía no tienes pedidos.</p>
+    <a href="/">Ir al catálogo</a>
+  </div>
+<% } %>
+
+<% orders.forEach((order) => { %>
+  <%- include("partials/order", { order }) %>
+<% }) %>
+
+<%- include("partials/footer") %>

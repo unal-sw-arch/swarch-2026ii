@@ -1,0 +1,212 @@
+@startuml mapa-historias-usuario
+' Kanasta - User story map (columns = user activities, rows = releases)
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam rectangleRoundCorner 8
+skinparam rectangleFontSize 12
+skinparam ArrowColor transparent
+skinparam ranksep 14
+skinparam nodesep 16
+title Kanasta - Mapa de historias de usuario (todas implementadas)
+
+rectangle "<b>Actividades</b>" as L0 #transparent;line:transparent
+rectangle "<b>Usuario</b>" as LU #transparent;line:transparent
+rectangle "<b>Prototipo 1</b>" as L0_0 #fde68a;line:transparent
+rectangle " " as L0_1 #transparent;line:transparent
+rectangle " " as L0_2 #transparent;line:transparent
+rectangle " " as L0_3 #transparent;line:transparent
+rectangle "- - - - - - - -" as LS1 #transparent;line:transparent
+rectangle "<b>Prototipo 2</b>" as L1_0 #bbf7d0;line:transparent
+rectangle " " as L1_1 #transparent;line:transparent
+rectangle " " as L1_2 #transparent;line:transparent
+rectangle "<b>Explorar productos</b>" as A0 #1f8a5b;text:white
+rectangle "Cliente" as U0 #dbeafe;line:transparent
+rectangle "HU-01\nVer el catálogo" as S0_0_0 #fde68a
+rectangle "HU-02\nBuscar productos" as S0_0_1 #fde68a
+rectangle "HU-03\nFiltrar por categoría" as S0_0_2 #fde68a
+rectangle "HU-04\nVer detalle\ndel producto" as S0_0_3 #fde68a
+rectangle "- - - - - - - -" as S0_sep1 #transparent;line:transparent
+rectangle "HU-13\nCalificar y\ncomentar productos" as S0_1_0 #bbf7d0
+rectangle " " as S0_1_1 #transparent;line:transparent
+rectangle " " as S0_1_2 #transparent;line:transparent
+rectangle "<b>Armar el carrito</b>" as A1 #1f8a5b;text:white
+rectangle "Cliente" as U1 #dbeafe;line:transparent
+rectangle "HU-05\nAgregar al carrito" as S1_0_0 #fde68a
+rectangle "HU-07\nModificar el carrito" as S1_0_1 #fde68a
+rectangle " " as S1_0_2 #transparent;line:transparent
+rectangle " " as S1_0_3 #transparent;line:transparent
+rectangle "- - - - - - - -" as S1_sep1 #transparent;line:transparent
+rectangle "HU-06\nComprar por peso\no volumen" as S1_1_0 #bbf7d0
+rectangle " " as S1_1_1 #transparent;line:transparent
+rectangle " " as S1_1_2 #transparent;line:transparent
+rectangle "<b>Comprar</b>" as A2 #1f8a5b;text:white
+rectangle "Cliente" as U2 #dbeafe;line:transparent
+rectangle "HU-10\nConfirmar pedido\ncon datos de entrega" as S2_0_0 #fde68a
+rectangle " " as S2_0_1 #transparent;line:transparent
+rectangle " " as S2_0_2 #transparent;line:transparent
+rectangle " " as S2_0_3 #transparent;line:transparent
+rectangle "- - - - - - - -" as S2_sep1 #transparent;line:transparent
+rectangle "HU-11\nRecibir el recibo\npor correo" as S2_1_0 #bbf7d0
+rectangle " " as S2_1_1 #transparent;line:transparent
+rectangle " " as S2_1_2 #transparent;line:transparent
+rectangle "<b>Seguir mis pedidos</b>" as A3 #1f8a5b;text:white
+rectangle "Cliente" as U3 #dbeafe;line:transparent
+rectangle "HU-12\nVer mis pedidos\ny su estado" as S3_0_0 #fde68a
+rectangle " " as S3_0_1 #transparent;line:transparent
+rectangle " " as S3_0_2 #transparent;line:transparent
+rectangle " " as S3_0_3 #transparent;line:transparent
+rectangle "- - - - - - - -" as S3_sep1 #transparent;line:transparent
+rectangle " " as S3_1_0 #transparent;line:transparent
+rectangle " " as S3_1_1 #transparent;line:transparent
+rectangle " " as S3_1_2 #transparent;line:transparent
+rectangle "<b>Manejar mi cuenta</b>" as A4 #1f8a5b;text:white
+rectangle "Cliente" as U4 #dbeafe;line:transparent
+rectangle " " as S4_0_0 #transparent;line:transparent
+rectangle " " as S4_0_1 #transparent;line:transparent
+rectangle " " as S4_0_2 #transparent;line:transparent
+rectangle " " as S4_0_3 #transparent;line:transparent
+rectangle "- - - - - - - -" as S4_sep1 #transparent;line:transparent
+rectangle "HU-08\nCrear una cuenta" as S4_1_0 #bbf7d0
+rectangle "HU-09\nIniciar y\ncerrar sesión" as S4_1_1 #bbf7d0
+rectangle "HU-14\nGestionar mi cuenta" as S4_1_2 #bbf7d0
+rectangle "<b>Atender pedidos</b>" as A5 #1f8a5b;text:white
+rectangle "Administrador" as U5 #fce7f3;line:transparent
+rectangle "HU-16\nVer pedidos y\ncambiar su estado" as S5_0_0 #fde68a
+rectangle " " as S5_0_1 #transparent;line:transparent
+rectangle " " as S5_0_2 #transparent;line:transparent
+rectangle " " as S5_0_3 #transparent;line:transparent
+rectangle "- - - - - - - -" as S5_sep1 #transparent;line:transparent
+rectangle "HU-15\nIngresar a\nKanasta Admin" as S5_1_0 #bbf7d0
+rectangle " " as S5_1_1 #transparent;line:transparent
+rectangle " " as S5_1_2 #transparent;line:transparent
+rectangle "<b>Manejar el catálogo</b>" as A6 #1f8a5b;text:white
+rectangle "Administrador" as U6 #fce7f3;line:transparent
+rectangle " " as S6_0_0 #transparent;line:transparent
+rectangle " " as S6_0_1 #transparent;line:transparent
+rectangle " " as S6_0_2 #transparent;line:transparent
+rectangle " " as S6_0_3 #transparent;line:transparent
+rectangle "- - - - - - - -" as S6_sep1 #transparent;line:transparent
+rectangle "HU-17\nCrear, editar y\neliminar productos" as S6_1_0 #bbf7d0
+rectangle "HU-18\nAdministrar\ncategorías" as S6_1_1 #bbf7d0
+rectangle " " as S6_1_2 #transparent;line:transparent
+rectangle "<b>Configurar la tienda</b>" as A7 #1f8a5b;text:white
+rectangle "Administrador" as U7 #fce7f3;line:transparent
+rectangle " " as S7_0_0 #transparent;line:transparent
+rectangle " " as S7_0_1 #transparent;line:transparent
+rectangle " " as S7_0_2 #transparent;line:transparent
+rectangle " " as S7_0_3 #transparent;line:transparent
+rectangle "- - - - - - - -" as S7_sep1 #transparent;line:transparent
+rectangle "HU-19\nDatos de la tienda" as S7_1_0 #bbf7d0
+rectangle "HU-20\nCorreo de la tienda\n(Resend)" as S7_1_1 #bbf7d0
+rectangle " " as S7_1_2 #transparent;line:transparent
+rectangle "<b>Manejar cuentas</b>" as A8 #1f8a5b;text:white
+rectangle "Administrador" as U8 #fce7f3;line:transparent
+rectangle " " as S8_0_0 #transparent;line:transparent
+rectangle " " as S8_0_1 #transparent;line:transparent
+rectangle " " as S8_0_2 #transparent;line:transparent
+rectangle " " as S8_0_3 #transparent;line:transparent
+rectangle "- - - - - - - -" as S8_sep1 #transparent;line:transparent
+rectangle "HU-21\nActivar o desactivar\ncuentas de clientes" as S8_1_0 #bbf7d0
+rectangle "HU-22\nGestionar mi cuenta\nde administrador" as S8_1_1 #bbf7d0
+rectangle " " as S8_1_2 #transparent;line:transparent
+
+L0 -down-> LU
+LU -down-> L0_0
+L0_0 -down-> L0_1
+L0_1 -down-> L0_2
+L0_2 -down-> L0_3
+L0_3 -down-> LS1
+LS1 -down-> L1_0
+L1_0 -down-> L1_1
+L1_1 -down-> L1_2
+A0 -down-> U0
+U0 -down-> S0_0_0
+S0_0_0 -down-> S0_0_1
+S0_0_1 -down-> S0_0_2
+S0_0_2 -down-> S0_0_3
+S0_0_3 -down-> S0_sep1
+S0_sep1 -down-> S0_1_0
+S0_1_0 -down-> S0_1_1
+S0_1_1 -down-> S0_1_2
+A1 -down-> U1
+U1 -down-> S1_0_0
+S1_0_0 -down-> S1_0_1
+S1_0_1 -down-> S1_0_2
+S1_0_2 -down-> S1_0_3
+S1_0_3 -down-> S1_sep1
+S1_sep1 -down-> S1_1_0
+S1_1_0 -down-> S1_1_1
+S1_1_1 -down-> S1_1_2
+A2 -down-> U2
+U2 -down-> S2_0_0
+S2_0_0 -down-> S2_0_1
+S2_0_1 -down-> S2_0_2
+S2_0_2 -down-> S2_0_3
+S2_0_3 -down-> S2_sep1
+S2_sep1 -down-> S2_1_0
+S2_1_0 -down-> S2_1_1
+S2_1_1 -down-> S2_1_2
+A3 -down-> U3
+U3 -down-> S3_0_0
+S3_0_0 -down-> S3_0_1
+S3_0_1 -down-> S3_0_2
+S3_0_2 -down-> S3_0_3
+S3_0_3 -down-> S3_sep1
+S3_sep1 -down-> S3_1_0
+S3_1_0 -down-> S3_1_1
+S3_1_1 -down-> S3_1_2
+A4 -down-> U4
+U4 -down-> S4_0_0
+S4_0_0 -down-> S4_0_1
+S4_0_1 -down-> S4_0_2
+S4_0_2 -down-> S4_0_3
+S4_0_3 -down-> S4_sep1
+S4_sep1 -down-> S4_1_0
+S4_1_0 -down-> S4_1_1
+S4_1_1 -down-> S4_1_2
+A5 -down-> U5
+U5 -down-> S5_0_0
+S5_0_0 -down-> S5_0_1
+S5_0_1 -down-> S5_0_2
+S5_0_2 -down-> S5_0_3
+S5_0_3 -down-> S5_sep1
+S5_sep1 -down-> S5_1_0
+S5_1_0 -down-> S5_1_1
+S5_1_1 -down-> S5_1_2
+A6 -down-> U6
+U6 -down-> S6_0_0
+S6_0_0 -down-> S6_0_1
+S6_0_1 -down-> S6_0_2
+S6_0_2 -down-> S6_0_3
+S6_0_3 -down-> S6_sep1
+S6_sep1 -down-> S6_1_0
+S6_1_0 -down-> S6_1_1
+S6_1_1 -down-> S6_1_2
+A7 -down-> U7
+U7 -down-> S7_0_0
+S7_0_0 -down-> S7_0_1
+S7_0_1 -down-> S7_0_2
+S7_0_2 -down-> S7_0_3
+S7_0_3 -down-> S7_sep1
+S7_sep1 -down-> S7_1_0
+S7_1_0 -down-> S7_1_1
+S7_1_1 -down-> S7_1_2
+A8 -down-> U8
+U8 -down-> S8_0_0
+S8_0_0 -down-> S8_0_1
+S8_0_1 -down-> S8_0_2
+S8_0_2 -down-> S8_0_3
+S8_0_3 -down-> S8_sep1
+S8_sep1 -down-> S8_1_0
+S8_1_0 -down-> S8_1_1
+S8_1_1 -down-> S8_1_2
+L0 -right-> A0
+A0 -right-> A1
+A1 -right-> A2
+A2 -right-> A3
+A3 -right-> A4
+A4 -right-> A5
+A5 -right-> A6
+A6 -right-> A7
+A7 -right-> A8
+@enduml
