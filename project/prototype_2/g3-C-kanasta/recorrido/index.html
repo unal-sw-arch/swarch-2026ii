@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recorrido de arquitectura | Kanasta</title>
+  <link rel="icon" href="img/icono.svg">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="img/logo.svg" alt="Kanasta" class="logo">
+      <div>
+        <strong>Recorrido de arquitectura</strong>
+        <span>Cómo Kanasta cumple los requisitos no funcionales del prototipo 2</span>
+      </div>
+    </div>
+    <div class="progress" aria-hidden="true"><div id="progress-bar"></div></div>
+  </header>
+
+  <div class="layout">
+    <nav id="steps" class="steps" aria-label="Pasos del recorrido"></nav>
+
+    <main class="content">
+      <article id="step" class="step" aria-live="polite"></article>
+      <div class="pager">
+        <button id="prev" class="ghost">← Anterior</button>
+        <span id="counter" class="muted"></span>
+        <button id="next">Siguiente →</button>
+      </div>
+    </main>
+
+    <aside class="viewer">
+      <div class="viewer-head">
+        <div id="view-tabs" class="tabs" role="tablist"></div>
+        <div class="zoom">
+          <button id="zoom-out" class="ghost" title="Alejar">−</button>
+          <button id="zoom-fit" class="ghost" title="Ajustar">Ajustar</button>
+          <button id="zoom-in" class="ghost" title="Acercar">+</button>
+        </div>
+      </div>
+      <div id="diagram" class="diagram"></div>
+      <div id="element-info" class="element-info">
+        <span class="muted">Haz clic en un elemento del diagrama para ver qué hace.</span>
+      </div>
+    </aside>
+  </div>
+
+  <script src="js/diagramas.js"></script>
+  <script src="js/datos.js"></script>
+  <script src="js/recorrido.js"></script>
+</body>
+</html>

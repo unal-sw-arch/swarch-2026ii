@@ -1,0 +1,63 @@
+<%- include("partials/header") %>
+
+<a href="/" class="back">← Volver al catálogo</a>
+
+<% const soldOut = product.stock <= 0; const units = { unidad: "unidades", kg: "kg", litro: "litros" }; %>
+<section class="product-detail">
+  <img src="/images/<%= product.image %>" alt="<%= product.name %>">
+  <div>
+    <span class="tag"><%= product.category_name %></span>
+    <h1><%= product.name %></h1>
+    <% if (product.reviews > 0) { %>
+      <p class="stars"><%= stars(product.rating) %> <span class="muted"><%= String(product.rating).replace(".", ",") %> de 5 (<%= product.reviews %> opiniones)</span></p>
+    <% } %>
+    <p class="price big"><%= priceWithUnit(product) %></p>
+    <p><%= product.description %></p>
+    <p class="muted"><%= soldOut ? "Producto agotado" : `${formatQuantity(product.stock, "unidad")} ${units[product.unit]} disponibles` %></p>
+
+    <% if (product.unit !== "unidad") { %><%- include("partials/weight-notice") %><% } %>
+
+    <% if (!soldOut) { %>
+      <form method="post" action="/carrito/agregar" class="buy">
+        <input type="hidden" name="productId" value="<%= product.id %>">
+        <label>Cantidad <%= product.unit === "unidad" ? "" : `(${product.unit === "kg" ? "kg" : "litros"})` %>
+          <input type="number" name="quantity" value="1" min="<%= quantityStep(product.unit) %>" step="<%= quantityStep(product.unit) %>" max="<%= product.stock %>">
+        </label>
+        <button type="submit">Agregar al carrito</button>
+      </form>
+    <% } %>
+  </div>
+</section>
+
+<section id="opiniones" class="panel reviews">
+  <h2>Opiniones de los clientes</h2>
+  <% if (reviews.length === 0) { %><p class="muted">Este producto todavía no tiene opiniones.</p><% } %>
+  <% reviews.forEach((r) => { %>
+    <div class="review">
+      <p><span class="stars"><%= stars(r.rating) %></span> <strong><%= r.user_name %></strong>
+         <span class="muted small">· <%= formatDate(r.created_at) %></span></p>
+      <% if (r.comment) { %><p><%= r.comment %></p><% } %>
+    </div>
+  <% }) %>
+
+  <% if (user) { %>
+    <form method="post" action="/producto/<%= product.id %>/opinion" class="form review-form">
+      <h3><%= myReview ? "Cambiar mi opinión" : "Dar mi opinión" %></h3>
+      <label>Calificación
+        <select name="rating">
+          <% [5, 4, 3, 2, 1].forEach((n) => { %>
+            <option value="<%= n %>" <%= myReview && myReview.rating === n ? "selected" : "" %>><%= stars(n) %> (<%= n %>)</option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Comentario
+        <textarea name="comment" rows="3" maxlength="500"><%= myReview ? myReview.comment : "" %></textarea>
+      </label>
+      <button type="submit">Publicar opinión</button>
+    </form>
+  <% } else { %>
+    <p><a href="/ingresar?volver=/producto/<%= product.id %>">Inicia sesión</a> para dar tu opinión.</p>
+  <% } %>
+</section>
+
+<%- include("partials/footer") %>

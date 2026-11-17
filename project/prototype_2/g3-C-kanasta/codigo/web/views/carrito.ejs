@@ -1,0 +1,46 @@
+<%- include("partials/header") %>
+
+<h1>Tu carrito</h1>
+
+<% if (cart.items.length === 0) { %>
+  <div class="panel">
+    <p>Tu carrito está vacío.</p>
+    <a href="/">Ir al catálogo</a>
+  </div>
+<% } else { %>
+  <div class="cart-layout">
+    <section>
+      <% cart.items.forEach((item) => { %>
+        <div class="cart-item">
+          <img src="/images/<%= item.image %>" alt="<%= item.name %>">
+          <div class="grow">
+            <h3><%= item.name %></h3>
+            <p class="muted small"><%= priceWithUnit(item) %></p>
+          </div>
+          <form method="post" action="/carrito/actualizar" class="qty-form">
+            <input type="hidden" name="productId" value="<%= item.productId %>">
+            <input type="number" name="quantity" class="qty" value="<%= item.quantity %>"
+                   min="<%= quantityStep(item.unit) %>" step="<%= quantityStep(item.unit) %>" aria-label="Cantidad">
+            <span class="small muted"><%= item.unit === "unidad" ? "" : (item.unit === "kg" ? "kg" : "L") %></span>
+            <button type="submit" class="secondary">Actualizar</button>
+          </form>
+          <strong class="line-total"><%= formatPrice(item.subtotal) %></strong>
+          <form method="post" action="/carrito/quitar">
+            <input type="hidden" name="productId" value="<%= item.productId %>">
+            <button type="submit" class="link-button">Quitar</button>
+          </form>
+        </div>
+      <% }) %>
+    </section>
+
+    <aside class="panel">
+      <h2>Resumen</h2>
+      <p class="total">Total<%= cart.estimated ? " aproximado" : "" %>: <strong><%= formatPrice(cart.total) %></strong></p>
+      <% if (cart.estimated) { %><%- include("partials/weight-notice") %><% } %>
+      <a href="/comprar" class="button">Continuar con el pedido</a>
+      <% if (!user) { %><p class="small muted">Para confirmar el pedido debes ingresar con tu cuenta.</p><% } %>
+    </aside>
+  </div>
+<% } %>
+
+<%- include("partials/footer") %>

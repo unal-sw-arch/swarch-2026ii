@@ -1,0 +1,53 @@
+// Kanasta - Deployment view (prototype 2)
+digraph deployment {
+  graph [rankdir=TB, fontname="Helvetica", bgcolor="white", pad=0.3, nodesep=0.3, ranksep=0.5, compound=true, label=<<font point-size="18"><b>Kanasta - Vista de Despliegue</b></font>>, labelloc=t, fontsize=12, newrank=true];
+  node [fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=9, color="#455A64"];
+  subgraph cluster_customer { label=<<b>&lt;&lt;device&gt;&gt; Celular o computador del cliente</b>>; style="rounded,dashed"; color="#90A4AE";
+    browser [shape=box, style="rounded,filled", fillcolor="#F5F5F5", label="<<execution environment>>\nNavegador web"]; }
+  subgraph cluster_adminpc { label=<<b>&lt;&lt;device&gt;&gt; Computador del administrador</b>>; style="rounded,dashed"; color="#90A4AE";
+    adminbrowser [shape=box, style="rounded,filled", fillcolor="#F5F5F5", label="<<execution environment>>\nNavegador web (noVNC)"];
+    adminnative [shape=box, style="rounded,filled,dashed", fillcolor="#F5F5F5", label="<<execution environment>>\nPython 3 + PyQt5\n(opción sin contenedor)"]; }
+  subgraph cluster_server { label=<<b>&lt;&lt;device&gt;&gt; Servidor de la tienda  ·  &lt;&lt;execution environment&gt;&gt; Docker Engine + Docker Compose</b>>; style="rounded"; color="#1f8a5b"; penwidth=2;
+    subgraph cluster_front { label=<<b>&lt;&lt;network&gt;&gt; frontend</b>>; style="rounded,filled"; fillcolor="#F4F9FF"; color="#90CAF9";
+    web [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="4" style="rounded" bgcolor="#E3F0FF"><tr><td><font point-size="9">&lt;&lt;container&gt;&gt;</font></td></tr><tr><td><b>web</b></td></tr><tr><td><font point-size="9">imagen: kanasta-web (Node.js 20)</font></td></tr><tr><td><font point-size="9">puerto 8080 → 8080</font></td></tr></table>>];
+    admin [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="4" style="rounded" bgcolor="#E3F0FF"><tr><td><font point-size="9">&lt;&lt;container&gt;&gt;</font></td></tr><tr><td><b>admin-desktop</b></td></tr><tr><td><font point-size="9">imagen: kanasta-admin-desktop (Debian + PyQt5 + noVNC)</font></td></tr><tr><td><font point-size="9">puerto 6080 → 6080</font></td></tr></table>>];
+    }
+    subgraph cluster_back { label=<<b>&lt;&lt;network&gt;&gt; backend</b>>; style="rounded,filled"; fillcolor="#F6FBF6"; color="#A5D6A7";
+    catalog [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="4" style="rounded" bgcolor="#E8F5E9"><tr><td><font point-size="9">&lt;&lt;container&gt;&gt;</font></td></tr><tr><td><b>catalog-service</b></td></tr><tr><td><font point-size="9">imagen: kanasta-catalog-service (Python 3.12)</font></td></tr><tr><td><font point-size="9">puerto 8001 (interno)</font></td></tr></table>>];
+    orders [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="4" style="rounded" bgcolor="#E8F5E9"><tr><td><font point-size="9">&lt;&lt;container&gt;&gt;</font></td></tr><tr><td><b>orders-service</b></td></tr><tr><td><font point-size="9">imagen: kanasta-orders-service (Node.js 20)</font></td></tr><tr><td><font point-size="9">puerto 8002 (interno)</font></td></tr></table>>];
+    accounts [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="4" style="rounded" bgcolor="#E8F5E9"><tr><td><font point-size="9">&lt;&lt;container&gt;&gt;</font></td></tr><tr><td><b>accounts-service</b></td></tr><tr><td><font point-size="9">imagen: kanasta-accounts-service (Java 21)</font></td></tr><tr><td><font point-size="9">puerto 8004 (interno)</font></td></tr></table>>];
+    notifications [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="4" style="rounded" bgcolor="#FFF3E0"><tr><td><font point-size="9">&lt;&lt;container&gt;&gt;</font></td></tr><tr><td><b>notifications-service</b></td></tr><tr><td><font point-size="9">imagen: kanasta-notifications-service (Go)</font></td></tr><tr><td><font point-size="9">puerto 8005 (interno)</font></td></tr></table>>];
+    images [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="4" style="rounded" bgcolor="#E8F5E9"><tr><td><font point-size="9">&lt;&lt;container&gt;&gt;</font></td></tr><tr><td><b>image-provider</b></td></tr><tr><td><font point-size="9">imagen: kanasta-image-provider (Node.js 20)</font></td></tr><tr><td><font point-size="9">puerto 8003 (interno)</font></td></tr></table>>];
+    broker [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="4" style="rounded" bgcolor="#FFF3E0"><tr><td><font point-size="9">&lt;&lt;container&gt;&gt;</font></td></tr><tr><td><b>message-broker</b></td></tr><tr><td><font point-size="9">imagen: rabbitmq:3-management</font></td></tr><tr><td><font point-size="9">puerto 5672 (interno) · 15672 → 15672</font></td></tr></table>>];
+    catalogdb [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="4" style="rounded" bgcolor="#F3E5F5"><tr><td><font point-size="9">&lt;&lt;container&gt;&gt;</font></td></tr><tr><td><b>catalog-db</b></td></tr><tr><td><font point-size="9">imagen: postgres:16-alpine</font></td></tr><tr><td><font point-size="9">puerto 5432 (interno)</font></td></tr></table>>];
+    accountsdb [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="4" style="rounded" bgcolor="#F3E5F5"><tr><td><font point-size="9">&lt;&lt;container&gt;&gt;</font></td></tr><tr><td><b>accounts-db</b></td></tr><tr><td><font point-size="9">imagen: postgres:16-alpine</font></td></tr><tr><td><font point-size="9">puerto 5432 (interno)</font></td></tr></table>>];
+    ordersdb [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="4" style="rounded" bgcolor="#F3E5F5"><tr><td><font point-size="9">&lt;&lt;container&gt;&gt;</font></td></tr><tr><td><b>orders-db</b></td></tr><tr><td><font point-size="9">imagen: mongo:7</font></td></tr><tr><td><font point-size="9">puerto 27017 (interno)</font></td></tr></table>>];
+    notificationsdb [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="4" style="rounded" bgcolor="#F3E5F5"><tr><td><font point-size="9">&lt;&lt;container&gt;&gt;</font></td></tr><tr><td><b>notifications-db</b></td></tr><tr><td><font point-size="9">imagen: mongo:7</font></td></tr><tr><td><font point-size="9">puerto 27017 (interno)</font></td></tr></table>>];
+    v_catalog [shape=cylinder, style=filled, fillcolor="#ECEFF1", fontsize=9, label="<<volume>>\ncatalog-data"];
+    v_accounts [shape=cylinder, style=filled, fillcolor="#ECEFF1", fontsize=9, label="<<volume>>\naccounts-data"];
+    v_orders [shape=cylinder, style=filled, fillcolor="#ECEFF1", fontsize=9, label="<<volume>>\norders-data"];
+    v_notifications [shape=cylinder, style=filled, fillcolor="#ECEFF1", fontsize=9, label="<<volume>>\nnotifications-data"];
+    v_images [shape=cylinder, style=filled, fillcolor="#ECEFF1", fontsize=9, label="<<volume>>\nimages-data"];
+    }
+    gateway [shape=none, margin=0, label=<<table border="1" cellborder="0" cellspacing="0" cellpadding="4" style="rounded" bgcolor="#FCE4EC"><tr><td><font point-size="9">&lt;&lt;container&gt;&gt;</font></td></tr><tr><td><b>api-gateway</b></td></tr><tr><td><font point-size="9">imagen: kanasta-api-gateway (Go)</font></td></tr><tr><td><font point-size="9">puerto 8000 → 8000</font></td></tr><tr><td><font point-size="9"><i>conectado a las redes frontend y backend</i></font></td></tr></table>>];
+  }
+  subgraph cluster_internet { label=<<b>Internet</b>>; style="rounded,dashed"; color="#90A4AE";
+    resend [shape=box3d, style=filled, fillcolor="#F5F5F5", label="<<external system>>\nResend\napi.resend.com"]; }
+  browser -> web [label=" HTTP :8080\n red local o Internet"];
+  adminbrowser -> admin [label=" HTTP / WebSocket :6080"];
+  adminnative -> gateway [label=" HTTP :8000", style=dashed];
+  web -> gateway [label=" HTTP"]; admin -> gateway [label=" HTTP"];
+  gateway -> catalog; gateway -> orders; gateway -> accounts; gateway -> notifications; gateway -> images;
+  orders -> catalog [label=" HTTP", constraint=false]; notifications -> catalog [label=" HTTP", constraint=false, style=dashed];
+  orders -> broker [label=" AMQP"]; accounts -> broker [label=" AMQP"]; notifications -> broker [label=" AMQP"];
+  catalog -> catalogdb [label=" TCP"]; accounts -> accountsdb [label=" JDBC"];
+  orders -> ordersdb [label=" TCP"]; notifications -> notificationsdb [label=" TCP"];
+  catalogdb -> v_catalog [arrowhead=none, style=dotted]; accountsdb -> v_accounts [arrowhead=none, style=dotted];
+  ordersdb -> v_orders [arrowhead=none, style=dotted]; notificationsdb -> v_notifications [arrowhead=none, style=dotted];
+  images -> v_images [arrowhead=none, style=dotted];
+  notifications -> resend [label=" HTTPS :443"];
+  {rank=same; browser; adminbrowser; adminnative}
+  {rank=same; catalog; orders; accounts; notifications; images}
+  {rank=same; catalogdb; accountsdb; ordersdb; notificationsdb; broker}
+}

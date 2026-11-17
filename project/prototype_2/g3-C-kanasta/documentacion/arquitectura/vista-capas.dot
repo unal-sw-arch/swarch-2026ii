@@ -1,0 +1,41 @@
+// Kanasta - Layered view (prototype 2)
+digraph layers {
+  graph [rankdir=TB, fontname="Helvetica", bgcolor="white", pad=0.3, nodesep=0.3, ranksep=0.55, compound=true, label=<<font point-size="18"><b>Kanasta - Vista de Capas</b></font><br/><font point-size="11">estilo por capas relajado: cada capa usa solo capas inferiores (o elementos de su misma capa), nunca superiores</font>>, labelloc=t, fontsize=13, newrank=true];
+  node [fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=9, color="#455A64"];
+  subgraph cluster_l1 { label=<<b>Capa 1 · Presentación</b>>; labeljust=l; style="rounded,filled"; fillcolor="#FAFAFA"; color="#B0BEC5"; penwidth=1.5;
+    web [shape=box, style="rounded,filled", fillcolor="#E3F0FF", label=<<b>Kanasta Web</b><br/><font point-size="9">páginas SSR para clientes</font>>];
+    admin [shape=box, style="rounded,filled", fillcolor="#E3F0FF", label=<<b>Kanasta Admin</b><br/><font point-size="9">app de escritorio del administrador</font>>];
+    {rank=same; web; admin}
+  }
+  subgraph cluster_l2 { label=<<b>Capa 2 · Comunicación y orquestación</b>>; labeljust=l; style="rounded,filled"; fillcolor="#FAFAFA"; color="#B0BEC5"; penwidth=1.5;
+    gateway [shape=box, style="rounded,filled", fillcolor="#FCE4EC", label=<<b>API Gateway</b><br/><font point-size="9">punto de entrada único · sesión · permisos · enrutamiento</font>>];
+    {rank=same; gateway}
+  }
+  subgraph cluster_l3 { label=<<b>Capa 3 · Lógica de negocio</b>>; labeljust=l; style="rounded,filled"; fillcolor="#FAFAFA"; color="#B0BEC5"; penwidth=1.5;
+    catalog [shape=box, style="rounded,filled", fillcolor="#E8F5E9", label=<<b>Catalog Service</b><br/><font point-size="9">productos, inventario, opiniones, tienda</font>>];
+    orders [shape=box, style="rounded,filled", fillcolor="#E8F5E9", label=<<b>Orders Service</b><br/><font point-size="9">carritos y pedidos</font>>];
+    accounts [shape=box, style="rounded,filled", fillcolor="#E8F5E9", label=<<b>Accounts Service</b><br/><font point-size="9">cuentas y sesiones</font>>];
+    notifications [shape=box, style="rounded,filled", fillcolor="#E8F5E9", label=<<b>Notifications Service</b><br/><font point-size="9">correos</font>>];
+    images [shape=box, style="rounded,filled", fillcolor="#E8F5E9", label=<<b>Image Provider</b><br/><font point-size="9">imágenes</font>>];
+    {rank=same; catalog; orders; accounts; notifications; images}
+  }
+  subgraph cluster_l4 { label=<<b>Capa 4 · Mensajería asíncrona</b>>; labeljust=l; style="rounded,filled"; fillcolor="#FAFAFA"; color="#B0BEC5"; penwidth=1.5;
+    broker [shape=box, style="rounded,filled", fillcolor="#FFF3E0", label=<<b>Message Broker</b><br/><font point-size="9">cola «notifications» (RabbitMQ)</font>>];
+    {rank=same; broker}
+  }
+  subgraph cluster_l5 { label=<<b>Capa 5 · Datos</b>>; labeljust=l; style="rounded,filled"; fillcolor="#FAFAFA"; color="#B0BEC5"; penwidth=1.5;
+    catalogdb [shape=box, style="rounded,filled", fillcolor="#F3E5F5", label=<<b>Catalog DB</b><br/><font point-size="9">PostgreSQL</font>>];
+    accountsdb [shape=box, style="rounded,filled", fillcolor="#F3E5F5", label=<<b>Accounts DB</b><br/><font point-size="9">PostgreSQL</font>>];
+    ordersdb [shape=box, style="rounded,filled", fillcolor="#F3E5F5", label=<<b>Orders DB</b><br/><font point-size="9">MongoDB</font>>];
+    notificationsdb [shape=box, style="rounded,filled", fillcolor="#F3E5F5", label=<<b>Notifications DB</b><br/><font point-size="9">MongoDB</font>>];
+    imagefiles [shape=box, style="rounded,filled", fillcolor="#F3E5F5", label=<<b>Archivos de imágenes</b><br/><font point-size="9">volumen images-data</font>>];
+    {rank=same; catalogdb; accountsdb; ordersdb; notificationsdb; imagefiles}
+  }
+  web -> gateway [label=" usa", fontcolor="#607D8B"]; admin -> gateway [label=" usa", fontcolor="#607D8B"];
+  gateway -> catalog; gateway -> orders; gateway -> accounts; gateway -> notifications; gateway -> images;
+  orders -> catalog [constraint=false, style=dashed, label=" misma capa"]; notifications -> catalog [constraint=false, style=dashed];
+  orders -> broker; accounts -> broker; notifications -> broker [label=" escucha"];
+  catalog -> catalogdb; accounts -> accountsdb; orders -> ordersdb; notifications -> notificationsdb; images -> imagefiles;
+  broker -> catalogdb [style=invis]; broker -> ordersdb [style=invis]; broker -> notificationsdb [style=invis];
+}
